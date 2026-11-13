@@ -1,0 +1,147 @@
+import {
+  CatmullRomCurve3,
+  CylinderGeometry,
+  Group,
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  SphereGeometry,
+  TubeGeometry,
+  Vector3,
+} from 'three';
+import type { createMaterials } from './materials';
+
+export function createMoth(
+  materials: ReturnType<typeof createMaterials>,
+  color: number,
+  team: number,
+) {
+  const root = new Group();
+  const puppet = new Group();
+  root.add(puppet);
+  const cream = materials.felt(0xd3b993);
+  const wingMaterial = materials.felt(color);
+  const dark = new MeshStandardMaterial({ color: 0x211b1c, roughness: 0.22 });
+  const stitches = new MeshStandardMaterial({ color: 0xe6cc9b, roughness: 1 });
+  const gloveMaterial = materials.felt(team === 0 ? 0x963e32 : 0x624871);
+  const sphere = new SphereGeometry(1, 24, 16);
+  function ball(
+    parent: Group,
+    material: MeshStandardMaterial,
+    size: [number, number, number],
+    position: [number, number, number],
+  ) {
+    const mesh = new Mesh(sphere, material);
+    mesh.scale.set(...size);
+    mesh.position.set(...position);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  }
+  const wings: Group[] = [];
+  for (const side of [-1, 1]) {
+    const wing = new Group();
+    wing.position.set(side * 0.18, 0.1, -0.12);
+    wing.rotation.z = side * -0.3;
+    ball(wing, wingMaterial, [0.45, 0.57, 0.1], [side * 0.35, 0.1, 0]);
+    ball(wing, wingMaterial, [0.33, 0.31, 0.11], [side * 0.28, -0.25, 0.025]);
+    ball(
+      wing,
+      gloveMaterial,
+      [0.16, team === 0 ? 0.19 : 0.08, 0.025],
+      [side * 0.44, 0.18, 0.1],
+    );
+    ball(wing, cream, [0.065, 0.075, 0.025], [side * 0.44, 0.18, 0.125]);
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2;
+      const stitch = ball(
+        wing,
+        stitches,
+        [0.012, 0.028, 0.012],
+        [
+          side * (0.35 + Math.cos(angle) * 0.36),
+          0.1 + Math.sin(angle) * 0.48,
+          0.07,
+        ],
+      );
+      stitch.rotation.z = -side * angle;
+    }
+    puppet.add(wing);
+    wings.push(wing);
+  }
+  ball(puppet, cream, [0.29, 0.43, 0.25], [0, -0.02, 0]);
+  ball(puppet, cream, [0.34, 0.29, 0.28], [0, 0.3, 0.04]);
+  for (const side of [-1, 1]) {
+    ball(puppet, cream, [0.13, 0.08, 0.2], [side * 0.15, -0.42, 0.1]);
+    ball(puppet, dark, [0.085, 0.1, 0.065], [side * 0.14, 0.33, 0.29]);
+    ball(
+      puppet,
+      stitches,
+      [0.023, 0.027, 0.013],
+      [side * 0.14 - 0.02, 0.36, 0.35],
+    );
+    const brow = ball(
+      puppet,
+      gloveMaterial,
+      [0.13, 0.035, 0.04],
+      [side * 0.14, 0.46, 0.28],
+    );
+    brow.rotation.z = side * 0.25;
+    ball(puppet, cream, [0.23, 0.07, 0.07], [side * 0.3, -0.02, 0.15]);
+    ball(puppet, gloveMaterial, [0.19, 0.2, 0.17], [side * 0.43, -0.025, 0.27]);
+    ball(puppet, gloveMaterial, [0.09, 0.11, 0.1], [side * 0.31, -0.025, 0.34]);
+    const curve = new CatmullRomCurve3([
+      new Vector3(side * 0.16, 0.52, 0),
+      new Vector3(side * 0.23, 0.75, -0.02),
+      new Vector3(side * 0.38, 0.85, 0.04),
+    ]);
+    const antenna = new Mesh(
+      new TubeGeometry(curve, 10, 0.014, 5, false),
+      dark,
+    );
+    puppet.add(antenna);
+    ball(puppet, cream, [0.065, 0.085, 0.055], [side * 0.38, 0.85, 0.04]);
+  }
+  // Short instanced fibres give a fuzzy outline without thousands of draw calls.
+  const fibres = new InstancedMesh(
+    new CylinderGeometry(0.002, 0.003, 0.035, 3),
+    cream,
+    550,
+  );
+  const dummy = new Object3D();
+  const up = new Vector3(0, 1, 0);
+  for (let i = 0; i < fibres.count; i++) {
+    const y = 1 - (2 * (i + 0.5)) / fibres.count;
+    const radius = Math.sqrt(1 - y * y);
+    const angle = i * 2.399963;
+    const normal = new Vector3(
+      Math.cos(angle) * radius,
+      y,
+      Math.sin(angle) * radius,
+    );
+    dummy.position.set(
+      normal.x * 0.295,
+      normal.y * 0.44 - 0.02,
+      normal.z * 0.255,
+    );
+    dummy.quaternion.setFromUnitVectors(up, normal);
+    dummy.updateMatrix();
+    fibres.setMatrixAt(i, dummy.matrix);
+  }
+  puppet.add(fibres);
+  root.rotation.y = team === 0 ? 0.3 : -0.3;
+  return {
+    root,
+    animate(seconds: number) {
+      const steppedTime = Math.floor(seconds * 10) / 10;
+      puppet.rotation.z = Math.sin(steppedTime * 1.8 + team) * 0.025;
+      wings.forEach((wing, index) => {
+        wing.rotation.y =
+          (index === 0 ? -1 : 1) *
+          (0.15 + Math.sin(steppedTime * 3 + team) * 0.08);
+      });
+    },
+  };
+}
