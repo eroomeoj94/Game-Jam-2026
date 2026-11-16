@@ -15,6 +15,7 @@ import {
   MeshStandardMaterial,
   PCFShadowMap,
   PerspectiveCamera,
+  Raycaster,
   RingGeometry,
   Scene,
   SphereGeometry,
@@ -22,6 +23,7 @@ import {
   SRGBColorSpace,
   TorusGeometry,
   Vector3,
+  Vector2,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -62,9 +64,13 @@ export function createScene(host: HTMLElement) {
   controls.maxAzimuthAngle = 0.85;
   const homePosition = new Vector3(9.8, 8.4, 15.8);
   function resetCamera() {
+    // Flush previous orbit damping so reset cannot drift away on the next frame.
+    controls.enableDamping = false;
+    controls.update();
     camera.position.copy(homePosition);
     controls.target.set(0, 1.15, 0);
     controls.update();
+    controls.enableDamping = true;
   }
   resetCamera();
   const materials = createMaterials();
@@ -304,8 +310,70 @@ export function createScene(host: HTMLElement) {
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
+  const picker = new Raycaster();
+  const pointer = new Vector2();
+  const selection = new Mesh(
+    new RingGeometry(0.61, 0.65, 48),
+    new MeshBasicMaterial({
+      color: 0xffe1a0,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  selection.rotation.x = -Math.PI / 2;
+  scene.add(selection);
+  moths.forEach((moth, id) => {
+    moth.root.userData.mothId = id;
+  });
   return {
     resetCamera,
+    movementDirection(x: number, z: number) {
+      const backwards = camera.position
+        .clone()
+        .sub(controls.target)
+        .setY(0)
+        .normalize();
+      return {
+        x: backwards.z * x + backwards.x * z,
+        z: -backwards.x * x + backwards.z * z,
+      };
+    },
+    orbitCamera(x: number, y: number, deltaSeconds: number) {
+      if (x !== 0) controls.rotateLeft(-x * deltaSeconds * 1.5);
+      if (y !== 0) controls.rotateUp(-y * deltaSeconds * 1.2);
+    },
+    pickMoth(clientX: number, clientY: number): number | undefined {
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      pointer.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        (-(clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      picker.setFromCamera(pointer, camera);
+      const hits = picker.intersectObjects(scene.children, true);
+      for (const hit of hits) {
+        if (
+          !(hit.object instanceof Mesh) ||
+          hit.object === halo ||
+          hit.object === selection
+        )
+          continue;
+        const object = hit.object;
+        let mothId: number | undefined;
+        let visible = true;
+        // Stop at actual geometry so books correctly occlude moth selection.
+        for (
+          let parent: import('three').Object3D | null = object;
+          parent;
+          parent = parent.parent
+        ) {
+          visible &&= parent.visible;
+          if (typeof parent.userData.mothId === 'number')
+            mothId = parent.userData.mothId;
+        }
+        if (visible) return mothId;
+      }
+    },
     render(view: WorldView, seconds: number) {
       lampGroup.position.set(view.lamp.x, view.lamp.y, view.lamp.z);
       const towardsAnchor = new Vector3(
@@ -332,9 +400,18 @@ export function createScene(host: HTMLElement) {
       view.moths.forEach((position, index) => {
         const moth = moths[index];
         if (!moth) return;
+        moth.root.visible = !position.respawning;
         moth.root.position.set(position.x, position.y, position.z);
-        moth.animate(seconds);
+        moth.animate(seconds, position);
       });
+      const active = view.moths[view.selectedMoth];
+      selection.visible = !!active && !active.respawning;
+      if (active)
+        selection.position.set(
+          active.x,
+          active.y - ARENA.mothRadius + 0.035,
+          active.z,
+        );
       controls.update();
       renderer.render(scene, camera);
     },

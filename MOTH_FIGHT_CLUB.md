@@ -1,8 +1,8 @@
 # Moth Fight Club
 
-Game design and build tracker · Updated 13 November 2026
+Game design and build tracker · Updated 16 November 2026
 
-**Status:** Project setup and a 3D scene study implemented; playable match pending.
+**Status:** 3D movement playground implemented with keyboard and PS5 controls, selection, grounded hopping, limited flutter, and fall recovery. Full turn/scoring loop pending.
 
 **Direction update, 13 November:** Following review of the first starter, use true 3D moths and a miniature bedroom in Three.js, with cannon-es physics. The handmade felt and stop-motion direction remains. This supersedes the earlier 2D sprite proposal.
 
@@ -89,8 +89,9 @@ The world pauses during selection and handover. Physics runs during movement and
 ### Starting controls to test
 
 - Click a moth to select it.
-- A/D or left/right arrows to move.
+- WASD or arrows to move across the desk relative to the camera; 1/2 selects a moth.
 - Space to hop; hold briefly for limited flutter.
+- PS5: left stick to move, Cross to hop/hold flutter, L1/R1 to select, right stick to orbit, Triangle to reset the view.
 - Click a gadget button, aim with the pointer, then drag/release to set shot power where relevant.
 - On-screen Pass, Restart, and Mute controls.
 
@@ -155,9 +156,9 @@ Example: a firecracker misses its intended target but knocks the bulb towards a 
 
 ### First playable: prove the game loop
 
-- [ ] Browser project opens and runs locally.
-- [ ] A simple desk and platforms support two placeholder moths.
-- [ ] Movement, collisions, and falling work.
+- [x] Browser project opens and runs locally.
+- [x] A simple desk and platforms support two placeholder moths.
+- [x] Movement, collisions, and falling implemented and code-tested; physical-controller feel still needs testing.
 - [ ] A hanging bulb can be pushed and its halo follows it.
 - [ ] Players alternate turns on the same keyboard.
 - [ ] Wing Gust can move the other moth and the lamp.
@@ -293,7 +294,9 @@ Keep a short backup recording in case the live demo has a technical problem. Pre
 
 ### Current next task
 
-**Create the first playable greybox:** one moth per team, simple platforms, a hanging lamp, movement, Wing Gust, alternating turns, scoring, and restart. A greybox is the game made with simple shapes before final art.
+Movement and the 3D scene are implemented. The playground currently refills flutter on landing and returns fallen moths automatically; the match rules above will replace those unlimited-practice behaviours where needed. Playtest the PS5 controls, then add Wing Gust and the turn/scoring loop.
+
+**Complete the first playable greybox:** one moth per team, simple platforms, a hanging lamp, movement, Wing Gust, alternating turns, scoring, and restart. A greybox is the game made with simple shapes before final art.
 
 ### Playtest notes
 

@@ -210,3 +210,59 @@ footer {
     display: none;
   }
 }
+
+.moth-select {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  pointer-events: auto;
+}
+.moth-select button {
+  padding: 8px 13px;
+  color: #dfd3bd;
+  background: #172128cf;
+  border-color: #78827b55;
+}
+.moth-select button[aria-pressed='true'] {
+  color: #29261f;
+  background: #e7c28b;
+  border-color: #e7c28b;
+}
+.flight-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  color: #c9c6b3;
+  font-size: 11px;
+}
+.flight-meter progress {
+  width: 130px;
+  height: 8px;
+  accent-color: #e7c28b;
+}
+.flight-meter span {
+  min-width: 34px;
+}
+.caption {
+  max-width: 560px;
+}
+#controller-status {
+  color: #d9b57c;
+}
+@media (max-width: 1000px) {
+  .bottom-panel {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 44px;
+  }
+  .caption {
+    padding: 10px 14px;
+  }
+  .hint {
+    font-size: 10px;
+  }
+}

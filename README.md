@@ -25,8 +25,35 @@ the physical pendulum in both horizontal axes; **Reset scene** recreates the wor
 The desk ring is a preview of the proposed spherical halo at desk height; scoring
 is not implemented. Decorative mug, pencil, and spool are visual props only.
 
-This is a setup experiment, not a playable match yet. Movement, turns, scoring,
-gadgets, final artwork, audio, and the computer opponent are still to come.
+This is now a movement playground: select either moth, walk, jump onto books,
+and hold jump for limited flutter. The selected moth has a ring and a flight
+meter. Walking has no turn allowance yet; landing refills flutter. Falling off
+the desk returns the moth after a short delay, using a clear alternate starting
+slot if necessary. Turns, scoring, gadgets, audio, and the bot are still to come.
+
+## Movement controls
+
+- **PS5 controller:** left stick moves relative to the camera; Cross hops and,
+  when held, flutters; L1/R1 switches moths; right stick orbits the camera;
+  Triangle restores the starting view.
+- **Keyboard:** WASD or arrows move relative to the camera; Space hops/holds
+  flutter; 1/2 selects Dusty/Mothhew.
+- **Mouse:** click a moth or its name to select; drag to orbit; scroll to zoom.
+  A drag does not also select a moth. Reset scene restores the entire playground.
+
+Connect your DualSense over USB or Bluetooth, focus the game, and press a
+controller button. Release the sticks and buttons when prompted. The connection
+message reports whether the browser has detected a supported controller. The
+implementation uses the browser's standard gamepad mapping and a radial stick
+dead zone; unsupported mappings fall back to keyboard controls. See the
+[Gamepad API guide](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API)
+for browser activation behaviour.
+
+Focus loss, tab hiding, resets, and moth changes clear held input. A controller
+must return to neutral before resuming after these events or a reconnect.
+Movement pauses while the window is unfocused. Controller behaviour is tested
+with simulated standard-mapped input; a physical PS5 controller still needs a
+playtest. Haptics and adaptive triggers are not implemented.
 
 ## Commands
 
@@ -55,6 +82,11 @@ src/
     world.ts          cannon-es 3D physics behind a small interface
     world.test.ts     Real-physics checks for tether, terrain, and fresh worlds
     world.smoke.test.ts  Ten simulated minutes of repeated lamp nudges
+    movement.test.ts   Walking, collision, jump, flutter, and fall recovery
+  input/
+    player.ts         Keyboard controls and focus-safe input cleanup
+    gamepad.ts        Standard gamepad mapping, dead zone, and button edges
+    gamepad.test.ts   Controller mapping, drift, reconnect, and held controls
   view/
     scene.ts          Three.js room, lighting, camera, and rendering
     moth.ts           Modelled puppets and stepped pose animation
@@ -84,6 +116,10 @@ Run `npm run test:smoke` before sharing a build. It covers:
 - A one-minute frame gap, capped so the game cannot try to simulate the whole gap.
 - Hidden-tab pause/resume without a physics or animation jump.
 - Camera-reset wiring and repeated teardown/remount without duplicate handlers.
+- Keyboard selection, camera-relative movement wiring, flutter meter updates,
+  pointer selection versus dragging, and held-input cleanup.
+- Controller movement/jump driving real physics, disconnection, shoulder-button
+  selection, and camera-reset wiring.
 - A missing-control failure before scene resources or an animation loop are created.
 - Ten simulated minutes of repeated nudges, checking finite positions, the lamp
   tether, and moths remaining supported by the desk.
@@ -103,5 +139,5 @@ and demo preparation. The presentation has changed to 3D following the original 
 The target remains the full core described in the design,
 with scope cuts available if testing or stability requires them.
 
-Next: add controllable movement, hop/flutter, and Wing Gust, then complete a
-one-versus-one match before expanding the roster and gadgets.
+Next: playtest movement with a PS5 controller, then add Wing Gust and complete
+the one-versus-one turn/scoring loop before expanding the roster and gadgets.

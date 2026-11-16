@@ -1,8 +1,30 @@
 # Moth Fight Club build plan
 
-Reviewed 13 November 2026 against the supplied `MOTH_FIGHT_CLUB.md`.
+Updated 16 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
 Demo: Friday 27 November, afternoon. User availability: 15–25 hours for direction, playtesting, and demo preparation; AI handles implementation.
-Status: project setup and 3D starter physics scene implemented; playable greybox is next. Recommendations below are provisional until playtested.
+Status: 3D movement playground implemented, including keyboard/PS5 controls, hop/flutter, selection, and automatic fall recovery; the turn/scoring loop is next. Recommendations below are provisional until playtested.
+
+## Progress at 16 November
+
+- [x] Project setup: TypeScript, Vite, Three.js, cannon-es, pinned dependencies, formatting, and test/build commands.
+- [x] 3D bedroom desk, book platforms, two modelled felt-style moths, warm lighting, and shadows.
+- [x] Physical swinging lamp, halo preview, camera orbit/zoom, camera reset, and scene reset.
+- [x] Camera-relative walking, analog speed, grounded hopping, limited flutter, and landing refill.
+- [x] Moth selection by click, buttons, keyboard, or controller; active-moth ring and flutter meter.
+- [x] PS5 standard-mapped controls, stick dead zones, button-edge handling, and disconnect/focus-loss cleanup.
+- [x] Playground fall detection and automatic recovery to a clear starting slot.
+- [x] Stepped walking and flutter poses, independent of smooth physics and camera movement.
+- [x] Automated validation: 30 passing tests across five files, TypeScript, formatting, and production build.
+- [ ] Physical DualSense playtest and movement tuning.
+- [ ] Wing Gust, movement allowance per turn, handover, scoring, victory, and full match restart.
+- [ ] Additional moths/gadgets, solo opponent, sound, hosting, and release checks.
+
+The movement portion of phase 2 is complete. A complete one-versus-one match is
+still pending. Current free walking, landing refill, and automatic respawns are
+playground rules; the proposed match rules below have not yet been implemented.
+Controller tests use simulated input, and the application tests replace the GPU
+renderer. They do not establish actual DualSense compatibility, visual behaviour,
+or M1 performance. The build succeeds with Vite's existing bundle-size warning.
 
 ## Recommendation
 
@@ -43,17 +65,18 @@ Watch for indefinite contests, first-player advantage, and winning by parking a 
 
 ## Technical approach
 
-Use TypeScript, Three.js, cannon-es, and Vite. Use ordinary HTML/CSS for the start screen, score, instructions, and buttons. Three.js renders a perspective miniature bedroom with modelled moths, procedural felt, and warm shadow-casting light. The arena uses X/Z for the desk and Y for height. Resize the camera with the viewport; future aiming should raycast into the scene. Camera orbit is available in the scene study; settle the gameplay camera and movement mapping in the greybox.
+Use TypeScript, Three.js, cannon-es, and Vite. Use ordinary HTML/CSS for the start screen, score, instructions, and buttons. Three.js renders a perspective miniature bedroom with modelled moths, procedural felt, and warm shadow-casting light. The arena uses X/Z for the desk and Y for height. The camera resizes with the viewport, and pointer selection uses raycasting. Movement is relative to the camera; mouse drag and the controller's right stick orbit the scene. Playtest that mapping before finalising the match camera.
 
 The repository was empty at review time. Setup now includes Node v22.22.0 in `.nvmrc`, TypeScript, Vite, Three.js, cannon-es, Vitest, and Prettier with exact direct dependency versions and an npm lockfile. See `package.json` for installed versions and commands. The source design is preserved in `MOTH_FIGHT_CLUB.md`.
 
-Start with a few modules whose interfaces hide the complicated rules:
+Modules implemented so far and the next planned additions:
 
-- `game/match.ts`: owns match state, legal commands, phase transitions, scoring, respawn ordering, and victory. The caller submits commands and receives a view of the match plus events such as scored, hit, and won.
+- `application.ts`: implemented; owns lifecycle, fixed-step timing, input wiring, selection, HUD updates, and cleanup.
+- `game/match.ts`: planned; will own match state, legal commands, phase transitions, scoring, respawn ordering, and victory. The caller will submit commands and receive a view of the match plus events such as scored, hit, and won.
 - `game/world.ts`: owns cannon-es bodies, the tether, collision/ground checks, bounds, simulation stepping, and spatial queries. Physics engine objects stay inside this module; other modules use moth IDs and positions. Restart replaces the world cleanly.
-- `game/gadgets.ts`: implements gust first, then projectile behaviour if time permits. Keep force calculation and targeting rules here so the UI and bot do not duplicate them.
+- `game/gadgets.ts`: planned; implement gust first, then projectile behaviour. Keep force calculation and targeting rules here so the UI and bot do not duplicate them.
 - `view/scene.ts`: renders the match and plays visual reactions. It does not award points or move physics bodies. Character pose changes run at about 10 Hz while aiming and rendering remain smooth.
-- `input/player.ts`, later `input/bot.ts`: produce the same legal match commands. The bot must obey the same movement and action budgets.
+- `input/player.ts` and `input/gamepad.ts`: implemented; translate keyboard and standard gamepad input into movement commands, with held-input cleanup. `input/bot.ts` is planned and must obey the same match budgets when added.
 - `config.ts`: holds the small set of tunable movement, force, halo, scoring, and timing values. Keep arena geometry and spawn/route positions together in an arena definition.
 
 Use one application loop, with fixed physics steps initially at 60 Hz. Do not start an independent physics loop. Clamp accumulated time, cap catch-up work, and discard stale accumulated time when returning from a hidden tab. Clear held controls on focus loss. Start with simple collision shapes and upright moth bodies; animated artwork can tumble without making locomotion unstable.
@@ -72,25 +95,35 @@ These dates are milestone targets, not guarantees. AI builds and verifies the im
 
 ### 1. Setup and physics experiment — 13–15 November
 
-Setup complete: dependencies, scripts, strict TypeScript, starter rendering, tethered lamp, reset, and physics tests. Movement, hop/flutter, debug gust, hosting, and browser playtesting remain for this milestone.
+Setup complete: dependencies, scripts, strict TypeScript, starter rendering, tethered lamp, reset, and physics tests. Movement, hop/flutter, selection, flight feedback, and playground respawns are now implemented. Debug gust, hosting, and physical-controller/browser playtesting remain.
 
-- Create the minimal Vite/TypeScript application; install Three.js and cannon-es, type checking, and a small test runner for game rules.
-- Draw a desk, two reachable platforms, two moth shapes, a hanging bulb, and its scoring ring.
-- Implement basic movement, grounded hop, limited flutter, and a debug gust.
-- Build the production bundle. Select a static host and publish a blank/greybox build as soon as practical; retain a local production build for the demo backup.
+- [x] Create the Vite/TypeScript application with Three.js, cannon-es, type checking, and tests.
+- [x] Build the desk, two reachable book platforms, two moth models, hanging bulb, and halo preview.
+- [x] Implement movement, grounded hop, limited flutter, and debug lamp nudge.
+- [ ] Add Wing Gust; the debug lamp nudge is not an attack.
+- [x] Produce a local production bundle.
+- [ ] Select a static host and publish a test build.
 
 **Exit:** both moths can reach the halo, the lamp swings when pushed, and the movement feels controllable. If the physics is unreliable, simplify shapes, speeds, and terrain before continuing.
 
 ### 2. Complete one-versus-one match — 16–18 November
 
-- Implement the phase sequence and the proposed pause/resolution policy.
-- Add gust aiming, pass, scoring feedback, falls, respawns, victory, and restart.
-- Add the essential rule tests and a few physics integration checks described below.
-- Publish this complete greybox and have someone play without coaching.
+- [x] Complete the movement foundation, input controls, selection, flight feedback, and playground recovery.
+- [ ] Implement the phase sequence, movement allowance, and pause/resolution policy.
+- [ ] Add Wing Gust aiming and knockback, plus pass.
+- [ ] Add halo membership, contested scoring, victory, and match restart.
+- [ ] Change playground recovery to score-before-respawn at the start of the relevant team's turn.
+- [ ] Add rule tests for turns, scoring, legal actions, and victory.
+- [ ] Publish the complete greybox and have someone play without coaching.
 
 **Exit:** two people can complete and restart a match, explain the point awards, and deliberately use the moving lamp. Record match duration and one satisfying or funny moment. If this gate has not passed by 18 November, drop projectile and second-moth work.
 
 ### 3. Make it recognisably Moth Fight Club — 19–21 November
+
+Partly started ahead of schedule: modelled moths with team colours and markings,
+procedural felt/wood, the bedroom set, lighting/shadows, active selection, and
+stepped idle/walk/flutter poses are implemented. Final visual polish, additional
+reactions, sound effects, and mute remain pending.
 
 - Choose the final gameplay size of a moth before making detailed assets.
 - Make one reusable felt moth with team palettes, distinct markings, and a small pose set; reuse its parts for both teams.
@@ -149,10 +182,23 @@ a bedroom desk set, warm lighting, and shadows. The source brief is the linked
 Classic Game Adaptations for Jam conversation; its handmade stop-motion direction
 remains, while its proposed 2D implementation is superseded.
 
-The next playable prototype must define camera-relative desk movement, grounded
-jump/flutter, 3D gust aiming, spherical halo membership, and fall bounds. Full
-match rules are still pending; the current scene is a visual/physics study.
+The movement playground now includes camera-relative desk movement, grounded
+jump/flutter, moth selection, and fall bounds. Full match rules remain pending.
+
+## Movement milestone — 16 November
+
+- Implemented camera-relative keyboard and standard-mapped PS5 input: left stick
+  moves, Cross hops/holds flutter, L1/R1 selects, right stick orbits, Triangle
+  resets the view. Keyboard/mouse alternatives remain available.
+- Added grounded contact checks, normalized diagonal speed, analog walking,
+  limited airborne flutter, landing refill, and clear-spawn fall recovery.
+- Added active-moth feedback, a flutter meter, and stepped walk/flutter poses.
+- The playground permits free walking and returns fallen moths automatically.
+  Match-phase movement allowances and next-turn respawns remain separate work.
+- Code tests cover book landings, collisions, fall recovery, energy exhaustion,
+  keyboard/gamepad wiring, controller drift/disconnection, and input cleanup.
+  A real DualSense and gameplay feel still need hands-on testing.
 
 ## Immediate next work
 
-Implement milestone 1, then continue directly into the complete one-versus-one match. The first major decision is whether the bounded movement and fixed resolution windows make lamp control feel fair and deliberate. Settle that with the greybox before spending time on additional gadgets or final artwork.
+Playtest the movement playground with the PS5 controller. Then implement Wing Gust and the complete one-versus-one match, including the proposed movement window, fixed resolution, scoring, and next-turn respawn rules. Test whether lamp control feels fair and deliberate before adding more gadgets.

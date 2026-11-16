@@ -11,7 +11,9 @@ it('survives ten simulated minutes of repeated lamp nudges without invalid or ru
       if (tick % 60 !== 0) continue;
       const { lamp, moths } = world.snapshot();
       for (const position of [lamp, ...moths]) {
-        expect(Object.values(position).every(Number.isFinite)).toBe(true);
+        expect(
+          [position.x, position.y, position.z].every(Number.isFinite),
+        ).toBe(true);
       }
       const distance = Math.hypot(
         lamp.x - ARENA.anchor.x,

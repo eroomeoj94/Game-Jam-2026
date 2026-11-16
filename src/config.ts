@@ -34,10 +34,22 @@ export const ARENA = {
     },
   ],
   spawns: [
-    { x: -3.4, y: 0.5, z: 1.4, color: 0xc89743 },
-    { x: 3.3, y: 0.5, z: 1.25, color: 0x599e98 },
+    { name: 'Dusty', x: -3.4, y: 0.5, z: 1.4, color: 0xc89743 },
+    { name: 'Mothhew', x: 3.3, y: 0.5, z: 1.25, color: 0x599e98 },
   ],
 } as const;
 
 export const PHYSICS_STEP_MS = 1000 / 60;
 export const MAX_FRAME_MS = 100;
+
+export const MOVEMENT = {
+  speed: 3.2,
+  groundAcceleration: 28,
+  airAcceleration: 8,
+  jumpSpeed: 5.8,
+  flutterSeconds: 0.9,
+  flutterAcceleration: 16,
+  maxFlutterRiseSpeed: 4.5,
+  fallHeight: -2.5,
+  respawnDelay: 0.6,
+} as const;

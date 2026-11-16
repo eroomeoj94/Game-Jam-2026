@@ -4,6 +4,7 @@ import page from '../index.html?raw';
 import { startApplication } from './application';
 import { createScene } from './view/scene';
 import { MAX_FRAME_MS } from './config';
+import type { GamepadState } from './input/gamepad';
 
 // Only the GPU-facing scene is replaced. Controls, lifecycle, clock handling,
 // and cannon-es simulation are the production code, using the real page markup.
@@ -14,6 +15,9 @@ vi.mock('./view/scene', () => ({
     return {
       render: vi.fn(),
       resetCamera: vi.fn(),
+      movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
+      orbitCamera: vi.fn(),
+      pickMoth: vi.fn<() => number | undefined>(() => undefined),
       destroy: vi.fn(() => canvas.remove()),
     };
   }),
@@ -182,5 +186,190 @@ describe('application smoke tests', () => {
     expect(startApplication).toThrow('Missing scene controls.');
     expect(createScene).not.toHaveBeenCalled();
     expect(pendingFrames.size).toBe(0);
+  });
+});
+
+function key(code: string, type = 'keydown', repeat = false) {
+  const event = new KeyboardEvent(type, {
+    code,
+    repeat,
+    bubbles: true,
+    cancelable: true,
+  });
+  window.dispatchEvent(event);
+  return event;
+}
+function frames(from: number, count: number) {
+  for (let tick = 1; tick <= count; tick++) frame(from + tick * 20);
+}
+
+describe('movement control smoke tests', () => {
+  it('selects with 1/2 and translates keyboard movement through the camera direction', () => {
+    const { scene, render } = mount();
+    frames(0, 30);
+    key('Digit2');
+    vi.mocked(scene.movementDirection).mockImplementation(
+      (x: number, z: number) => ({
+        x: z,
+        z: -x,
+      }),
+    );
+    const start = render.mock.lastCall![0];
+    expect(key('KeyD').defaultPrevented).toBe(true);
+    frames(600, 20);
+    key('KeyD', 'keyup');
+    const moved = render.mock.lastCall![0];
+    expect(moved.selectedMoth).toBe(1);
+    expect(moved.moths[1]!.z).toBeLessThan(start.moths[1]!.z - 0.4);
+    expect(moved.moths[0]!.x).toBe(start.moths[0]!.x);
+    expect(
+      document.querySelector('#moth-1')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(document.querySelector('#status')?.textContent).toContain('Mothhew');
+  });
+
+  it('jumps and flutters with Space, updates the meter, and clears held controls on reset', () => {
+    const { render } = mount();
+    frames(0, 30);
+    key('Space');
+    frames(600, 20);
+    const airborne = render.mock.lastCall![0].moths[0]!;
+    expect(airborne.y).toBeGreaterThan(1);
+    expect(airborne.fluttering).toBe(true);
+    expect(
+      document.querySelector<HTMLProgressElement>('#flutter')!.value,
+    ).toBeLessThan(1);
+    click('reset');
+    frames(1000, 50); // Space was never released: reset must still clear it.
+    const reset = render.mock.lastCall![0].moths[0]!;
+    expect(reset.grounded).toBe(true);
+    expect(reset.flutter).toBe(1);
+    expect(reset.fluttering).toBe(false);
+  });
+
+  it('clears movement after focus loss and ignores stale key repeats on return', () => {
+    const { render } = mount();
+    frames(0, 30);
+    key('KeyD');
+    frames(600, 15);
+    window.dispatchEvent(new Event('blur'));
+    const paused = render.mock.lastCall;
+    frame(30_000);
+    expect(render.mock.lastCall).toBe(paused);
+    window.dispatchEvent(new Event('focus'));
+    key('KeyD', 'keydown', true);
+    frames(30_000, 30);
+    const stopped = render.mock.lastCall![0].moths[0]!;
+    frames(30_600, 30);
+    expect(render.mock.lastCall![0].moths[0]!.x).toBeCloseTo(stopped.x, 3);
+    key('KeyD', 'keyup');
+    key('KeyD');
+    frames(31_200, 20);
+    expect(render.mock.lastCall![0].moths[0]!.x).toBeGreaterThan(
+      stopped.x + 0.5,
+    );
+  });
+
+  it('selects a clicked moth but does not treat a camera drag as a selection', () => {
+    const { scene, render } = mount();
+    const host = document.querySelector('#game')!;
+    vi.mocked(scene.pickMoth).mockReturnValue(1);
+    host.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      }),
+    );
+    host.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 1,
+        button: 0,
+        clientX: 101,
+        clientY: 100,
+      }),
+    );
+    frame(0);
+    expect(render.mock.lastCall![0].selectedMoth).toBe(1);
+    vi.mocked(scene.pickMoth).mockReturnValue(0);
+    host.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 2,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      }),
+    );
+    host.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 2,
+        button: 0,
+        clientX: 150,
+        clientY: 100,
+      }),
+    );
+    frame(20);
+    expect(render.mock.lastCall![0].selectedMoth).toBe(1);
+    expect(scene.pickMoth).toHaveBeenCalledOnce();
+  });
+
+  it('drives real physics with standard controller input and stops on disconnect', () => {
+    const makePad = (axes: number[], pressed: number[] = []): GamepadState => ({
+      id: 'DualSense smoke test',
+      index: 0,
+      connected: true,
+      mapping: 'standard',
+      axes,
+      buttons: Array.from({ length: 17 }, (_, index) => ({
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+        value: pressed.includes(index) ? 1 : 0,
+      })),
+    });
+    let pads: (GamepadState | null)[] = [makePad([0, 0, 0, 0])];
+    const original = Object.getOwnPropertyDescriptor(navigator, 'getGamepads');
+    Object.defineProperty(navigator, 'getGamepads', {
+      configurable: true,
+      value: () => pads,
+    });
+    try {
+      const { scene, render } = mount();
+      frames(0, 30);
+      pads = [makePad([1, 0, 0.6, 0])];
+      frames(600, 20);
+      expect(render.mock.lastCall![0].moths[0]!.x).toBeGreaterThan(-2.7);
+      expect(scene.orbitCamera).toHaveBeenLastCalledWith(
+        expect.any(Number),
+        0,
+        0.02,
+      );
+      pads = [makePad([0, 0, 0, 0], [0])];
+      frames(1000, 15);
+      expect(render.mock.lastCall![0].moths[0]!.y).toBeGreaterThan(1);
+      pads = [null];
+      frames(1300, 150);
+      const landed = render.mock.lastCall![0].moths[0]!;
+      expect(landed.grounded).toBe(true);
+      expect(landed.fluttering).toBe(false);
+      expect(
+        document.querySelector('#controller-status')?.textContent,
+      ).toContain('connect');
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4320);
+      pads = [makePad([0, 0, 0, 0], [5])];
+      frame(4340);
+      expect(render.mock.lastCall![0].selectedMoth).toBe(1);
+      frames(4340, 10);
+      expect(render.mock.lastCall![0].selectedMoth).toBe(1);
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4560);
+      pads = [makePad([0, 0, 0, 0], [3])];
+      frame(4580);
+      expect(scene.resetCamera).toHaveBeenCalledOnce();
+    } finally {
+      if (original) Object.defineProperty(navigator, 'getGamepads', original);
+      else Reflect.deleteProperty(navigator, 'getGamepads');
+    }
   });
 });

@@ -10,6 +10,7 @@ import {
   TubeGeometry,
   Vector3,
 } from 'three';
+import type { MothView } from '../game/world';
 import type { createMaterials } from './materials';
 
 export function createMoth(
@@ -134,13 +135,23 @@ export function createMoth(
   root.rotation.y = team === 0 ? 0.3 : -0.3;
   return {
     root,
-    animate(seconds: number) {
+    animate(seconds: number, state: MothView) {
       const steppedTime = Math.floor(seconds * 10) / 10;
-      puppet.rotation.z = Math.sin(steppedTime * 1.8 + team) * 0.025;
+      root.rotation.y = state.heading;
+      const walking = state.moving && state.grounded;
+      puppet.rotation.z =
+        Math.sin(steppedTime * (walking ? 16 : 1.8) + team) *
+        (walking ? 0.075 : 0.025);
+      puppet.position.y = walking
+        ? Math.abs(Math.sin(steppedTime * 16)) * 0.04
+        : 0;
+      puppet.rotation.x = !state.grounded && state.moving ? 0.16 : 0;
       wings.forEach((wing, index) => {
         wing.rotation.y =
           (index === 0 ? -1 : 1) *
-          (0.15 + Math.sin(steppedTime * 3 + team) * 0.08);
+          (state.fluttering
+            ? 0.35 + Math.sin(steppedTime * 28) * 0.8
+            : 0.15 + Math.sin(steppedTime * 3 + team) * 0.08);
       });
     },
   };
