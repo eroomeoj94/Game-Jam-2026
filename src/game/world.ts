@@ -1,6 +1,7 @@
 import {
   Body,
   Box,
+  Cylinder,
   ContactMaterial,
   DistanceConstraint,
   Material,
@@ -8,7 +9,7 @@ import {
   Vec3,
   World,
 } from 'cannon-es';
-import { ARENA, MOVEMENT, PHYSICS_STEP_MS } from '../config';
+import { ARENA, LAMPS, MOVEMENT, PHYSICS_STEP_MS } from '../config';
 
 export type Position = Readonly<{ x: number; y: number; z: number }>;
 export type MovementCommand = {
@@ -26,8 +27,9 @@ export type MothView = Position & {
   moving: boolean;
   respawning: boolean;
 };
+export type LampView = Position & { anchor: Position };
 export type WorldView = {
-  lamp: Position;
+  lamps: LampView[];
   moths: MothView[];
   selectedMoth: number;
 };
@@ -50,12 +52,18 @@ export function createWorld() {
     }),
   );
   const terrain = new Set<Body>();
-  for (const { x, y, z, width, height, depth } of ARENA.terrain) {
+  for (const piece of ARENA.terrain) {
     const body = new Body({
       mass: 0,
       material: terrainMaterial,
-      shape: new Box(new Vec3(width / 2, height / 2, depth / 2)),
-      position: new Vec3(x, y, z),
+      // cannon-es cylinders are upright (Y-aligned), matching Three.js.
+      shape:
+        piece.shape === 'box'
+          ? new Box(
+              new Vec3(piece.width / 2, piece.height / 2, piece.depth / 2),
+            )
+          : new Cylinder(piece.radius, piece.radius, piece.height, 16),
+      position: new Vec3(piece.x, piece.y, piece.z),
     });
     terrain.add(body);
     world.addBody(body);
@@ -82,23 +90,25 @@ export function createWorld() {
     };
   });
   let selectedMoth = 0;
-  const anchor = new Body({
-    mass: 0,
-    position: new Vec3(ARENA.anchor.x, ARENA.anchor.y, ARENA.anchor.z),
+  // Lamp settings are read once here; changing them rebuilds the world.
+  const lamps = LAMPS.positions.slice(0, LAMPS.count).map(({ x, z }) => {
+    const anchor = new Body({
+      mass: 0,
+      position: new Vec3(x, LAMPS.anchorHeight, z),
+    });
+    const bulb = new Body({
+      mass: 0.8,
+      shape: new Sphere(ARENA.lampRadius),
+      position: new Vec3(x, LAMPS.anchorHeight - LAMPS.tetherLength, z),
+      linearDamping: 0.12,
+    });
+    world.addBody(anchor);
+    world.addBody(bulb);
+    world.addConstraint(
+      new DistanceConstraint(anchor, bulb, LAMPS.tetherLength),
+    );
+    return { anchor, bulb };
   });
-  const lamp = new Body({
-    mass: 0.8,
-    shape: new Sphere(ARENA.lampRadius),
-    position: new Vec3(
-      ARENA.anchor.x,
-      ARENA.anchor.y - ARENA.tetherLength,
-      ARENA.anchor.z,
-    ),
-    linearDamping: 0.12,
-  });
-  world.addBody(anchor);
-  world.addBody(lamp);
-  world.addConstraint(new DistanceConstraint(anchor, lamp, ARENA.tetherLength));
   const positionOf = (body: Body): Position => ({
     x: body.position.x,
     y: body.position.y,
@@ -219,8 +229,8 @@ export function createWorld() {
         const p = moth.body.position;
         if (
           p.y < MOVEMENT.fallHeight ||
-          Math.abs(p.x) > 10 ||
-          Math.abs(p.z) > 7
+          Math.abs(p.x) > ARENA.desk.width / 2 + 2 ||
+          Math.abs(p.z) > ARENA.desk.depth / 2 + 2
         ) {
           world.removeBody(moth.body);
           moth.respawning = true;
@@ -236,13 +246,20 @@ export function createWorld() {
         }
       }
     },
+    /** Push every lamp, each in a different direction. */
     nudgeLamp() {
-      lamp.wakeUp();
-      lamp.velocity.set(2.6, 0, 1.1);
+      lamps.forEach(({ bulb }, index) => {
+        const angle = 0.4 + index * 2.1;
+        bulb.wakeUp();
+        bulb.velocity.set(Math.cos(angle) * 2.8, 0, Math.sin(angle) * 2.8);
+      });
     },
     snapshot(): WorldView {
       return {
-        lamp: positionOf(lamp),
+        lamps: lamps.map(({ anchor, bulb }) => ({
+          ...positionOf(bulb),
+          anchor: positionOf(anchor),
+        })),
         selectedMoth,
         moths: moths.map((moth) => ({
           ...positionOf(moth.body),

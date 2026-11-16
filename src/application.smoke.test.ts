@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import page from '../index.html?raw';
 import { startApplication } from './application';
 import { createScene } from './view/scene';
-import { MAX_FRAME_MS } from './config';
+import { ARENA, MAX_FRAME_MS } from './config';
 import type { GamepadState } from './input/gamepad';
 
 // Only the GPU-facing scene is replaced. Controls, lifecycle, clock handling,
@@ -15,6 +15,7 @@ vi.mock('./view/scene', () => ({
     return {
       render: vi.fn(),
       resetCamera: vi.fn(),
+      toggleView: vi.fn(() => 'board'),
       movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
       orbitCamera: vi.fn(),
       pickMoth: vi.fn<() => number | undefined>(() => undefined),
@@ -99,7 +100,7 @@ describe('application smoke tests', () => {
       const time = cycle * 1000;
       for (let clickCount = 0; clickCount < 10; clickCount++) click('nudge');
       for (let tick = 1; tick <= 10; tick++) frame(time + tick * 20);
-      expect(render.mock.lastCall?.[0].lamp).not.toEqual(initial?.lamp);
+      expect(render.mock.lastCall?.[0].lamps).not.toEqual(initial?.lamps);
       click('reset');
       frame(time + 500);
       expect(render.mock.lastCall?.[0]).toEqual(initial);
@@ -117,7 +118,7 @@ describe('application smoke tests', () => {
     frame(60_000);
     const afterGap = render.mock.lastCall;
     expect(afterGap?.[1]).toBeCloseTo(MAX_FRAME_MS / 1000);
-    expect(afterGap?.[0].lamp.x).toBeGreaterThan(0);
+    expect(afterGap?.[0].lamps[0].x).toBeGreaterThan(0);
     click('reset');
     frame(60_001);
     click('nudge');
@@ -140,7 +141,7 @@ describe('application smoke tests', () => {
     frame(120_000);
     expect(render.mock.lastCall).toEqual(beforePause);
     frame(120_020);
-    expect(render.mock.lastCall?.[0].lamp).not.toEqual(beforePause?.[0].lamp);
+    expect(render.mock.lastCall?.[0].lamps).not.toEqual(beforePause?.[0].lamps);
     expect(pendingFrames.size).toBe(1);
   });
 
@@ -154,8 +155,8 @@ describe('application smoke tests', () => {
     expect(scene.resetCamera).toHaveBeenCalledOnce();
     expect(render.mock.lastCall).toEqual(beforeResetView);
     frame(40);
-    expect(render.mock.lastCall?.[0].lamp.x).toBeGreaterThan(
-      beforeResetView?.[0].lamp.x ?? 0,
+    expect(render.mock.lastCall?.[0].lamps[0].x).toBeGreaterThan(
+      beforeResetView?.[0].lamps[0].x ?? 0,
     );
   });
 
@@ -338,17 +339,23 @@ describe('movement control smoke tests', () => {
       frames(0, 30);
       pads = [makePad([1, 0, 0.6, 0])];
       frames(600, 20);
-      expect(render.mock.lastCall![0].moths[0]!.x).toBeGreaterThan(-2.7);
+      expect(render.mock.lastCall![0].moths[0]!.x).toBeGreaterThan(
+        ARENA.spawns[0].x + 0.7,
+      );
       expect(scene.orbitCamera).toHaveBeenLastCalledWith(
         expect.any(Number),
         0,
         0.02,
       );
+      // Stop before hopping: a running hop at full speed carries the moth
+      // across the desk onto the other moth.
+      pads = [makePad([0, 0, 0, 0])];
+      frames(1000, 10);
       pads = [makePad([0, 0, 0, 0], [0])];
-      frames(1000, 15);
+      frames(1200, 15);
       expect(render.mock.lastCall![0].moths[0]!.y).toBeGreaterThan(1);
       pads = [null];
-      frames(1300, 150);
+      frames(1500, 140);
       const landed = render.mock.lastCall![0].moths[0]!;
       expect(landed.grounded).toBe(true);
       expect(landed.fluttering).toBe(false);
@@ -366,6 +373,11 @@ describe('movement control smoke tests', () => {
       frame(4560);
       pads = [makePad([0, 0, 0, 0], [3])];
       frame(4580);
+      expect(scene.toggleView).toHaveBeenCalledOnce();
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4600);
+      pads = [makePad([0, 0, 0, 0], [11])];
+      frame(4620);
       expect(scene.resetCamera).toHaveBeenCalledOnce();
     } finally {
       if (original) Object.defineProperty(navigator, 'getGamepads', original);

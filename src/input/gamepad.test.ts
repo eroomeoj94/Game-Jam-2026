@@ -59,8 +59,8 @@ describe('standard-mapped PS5 controls', () => {
     const input = createGamepadInput(() => [state]);
     input.poll();
     state = pad({ buttons: buttons(5, 3), axes: [0, 0, 0.8, -0.5] });
-    expect(input.poll()).toMatchObject({ switchMoth: 1, resetView: true });
-    expect(input.poll()).toMatchObject({ switchMoth: 0, resetView: false });
+    expect(input.poll()).toMatchObject({ switchMoth: 1, toggleView: true });
+    expect(input.poll()).toMatchObject({ switchMoth: 0, toggleView: false });
     expect(input.poll().lookX).toBeGreaterThan(0);
     expect(input.poll().lookY).toBeLessThan(0);
     state = pad();

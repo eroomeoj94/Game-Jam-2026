@@ -27,8 +27,23 @@ import {
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { ARENA } from '../config';
-import type { WorldView } from '../game/world';
+import {
+  ARENA,
+  CAMERA,
+  LAMPS,
+  LIGHTING,
+  MAX_LAMPS,
+  TILT_SHIFT,
+} from '../config';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { createTiltShiftPasses } from './tiltShift';
+import { updateFur } from './fur';
+import type { BoxPiece, CylinderPiece } from '../config';
+import type { MothView, WorldView } from '../game/world';
+
+export type CameraMode = 'follow' | 'board';
 import { createMaterials } from './materials';
 import { createMoth } from './moth';
 
@@ -51,26 +66,100 @@ export function createScene(host: HTMLElement) {
   renderer.domElement.tabIndex = 0;
   const scene = new Scene();
   scene.background = new Color(0x101922);
-  scene.fog = new FogExp2(0x101922, 0.025);
-  const camera = new PerspectiveCamera(38, 1, 0.1, 80);
+  scene.fog = new FogExp2(0x101922, 0.012);
+  const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 260);
+  // Post-processing renders in linear light; OutputPass applies tone mapping
+  // and sRGB conversion at the end, as the renderer does without it.
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const tiltShift = createTiltShiftPasses();
+  tiltShift.passes.forEach((pass) => composer.addPass(pass));
+  composer.addPass(new OutputPass());
+  const focusPoint = new Vector3();
+  let focusLine = TILT_SHIFT.focus;
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.enablePan = false;
-  controls.minDistance = 7;
-  controls.maxDistance = 23;
-  controls.minPolarAngle = 0.45;
-  controls.maxPolarAngle = 1.43;
-  controls.minAzimuthAngle = -0.85;
-  controls.maxAzimuthAngle = 0.85;
-  const homePosition = new Vector3(9.8, 8.4, 15.8);
-  function resetCamera() {
-    // Flush previous orbit damping so reset cannot drift away on the next frame.
+  /** Read the live tuning values that do not need a rebuild. */
+  function applySettings() {
+    // OrbitControls has one drag speed for both axes, so a negative speed
+    // inverts horizontal and vertical mouse drag together.
+    controls.rotateSpeed = CAMERA.invertX && CAMERA.invertY ? -1 : 1;
+    if (camera.fov !== CAMERA.fov) {
+      camera.fov = CAMERA.fov;
+      camera.updateProjectionMatrix();
+    }
+    renderer.toneMappingExposure = LIGHTING.exposure;
+    if (scene.fog instanceof FogExp2) scene.fog.density = LIGHTING.fog;
+    ambient.intensity = LIGHTING.ambient;
+    moon.intensity = LIGHTING.moon;
+  }
+  const homePosition = new Vector3(24, 36, 58);
+  const homeTarget = new Vector3(0, 0.5, 0.5);
+  // 'follow' sits behind the active moth's shoulder; 'board' shows the desk.
+  let cameraMode: CameraMode = 'follow';
+  let lastView: WorldView | undefined;
+  let lastSelected = -1;
+  let lastRespawning = false;
+  let lastSeconds: number | undefined;
+  const followTarget = new Vector3();
+  function applyLimits() {
+    const follow = cameraMode === 'follow';
+    controls.minDistance = follow ? CAMERA.followMinDistance : 18;
+    controls.maxDistance = follow ? CAMERA.followMaxDistance : 100;
+    controls.minPolarAngle = follow ? 0.55 : 0.45;
+    controls.maxPolarAngle = follow ? 1.42 : 1.43;
+    controls.minAzimuthAngle = follow ? -Infinity : -0.85;
+    controls.maxAzimuthAngle = follow ? Infinity : 0.85;
+  }
+  function placeCamera(position: Vector3, target: Vector3) {
+    // Flush previous orbit damping so a snap cannot drift on the next frame.
     controls.enableDamping = false;
     controls.update();
-    camera.position.copy(homePosition);
-    controls.target.set(0, 1.15, 0);
+    camera.position.copy(position);
+    controls.target.copy(target);
     controls.update();
     controls.enableDamping = true;
+  }
+  function mothFocus(moth: MothView, out: Vector3) {
+    return out.set(moth.x, moth.y + CAMERA.followHeight, moth.z);
+  }
+  /** Snap behind the active moth, looking the way it faces. */
+  function snapBehind() {
+    const active = lastView?.moths[lastView.selectedMoth];
+    if (!active || active.respawning) return;
+    mothFocus(active, followTarget);
+    const behind = new Vector3(
+      -Math.sin(active.heading),
+      0,
+      -Math.cos(active.heading),
+    );
+    const position = followTarget
+      .clone()
+      .addScaledVector(behind, CAMERA.followDistance)
+      .setY(followTarget.y + CAMERA.followRise);
+    placeCamera(position, followTarget);
+  }
+  function applyShoulderOffset() {
+    const width = Math.max(host.clientWidth, 1);
+    const height = Math.max(host.clientHeight, 1);
+    // Shift the frame so the moth sits left of centre, over its right shoulder.
+    if (cameraMode === 'follow')
+      camera.setViewOffset(
+        width,
+        height,
+        width * CAMERA.shoulderOffset,
+        0,
+        width,
+        height,
+      );
+    else camera.clearViewOffset();
+  }
+  function resetCamera() {
+    applyLimits();
+    applyShoulderOffset();
+    if (cameraMode === 'follow' && lastView) snapBehind();
+    else placeCamera(homePosition, homeTarget);
   }
   resetCamera();
   const materials = createMaterials();
@@ -97,96 +186,109 @@ export function createScene(host: HTMLElement) {
     parent.add(mesh);
     return mesh;
   }
-  scene.add(new HemisphereLight(0xb7d0df, 0x775441, 1.15));
-  // One shadow-casting spotlight keeps the miniature lighting inexpensive.
-  const light = new SpotLight(0xffc987, 100, 22, 1.15, 0.75, 1.5);
-  light.castShadow = true;
-  light.shadow.mapSize.set(1024, 1024);
-  light.shadow.bias = -0.0003;
-  light.shadow.normalBias = 0.035;
-  light.shadow.camera.near = 0.3;
-  light.shadow.camera.far = 20;
-  scene.add(light, light.target);
-  const moon = new SpotLight(0x9dbfe0, 70, 26, 0.8, 1, 1.5);
-  moon.position.set(-7, 7, -3);
-  moon.target.position.set(0, 0, 1);
+  function cylinder(
+    parent: Group | Scene,
+    radius: number,
+    height: number,
+    x: number,
+    y: number,
+    z: number,
+    material: MeshStandardMaterial,
+    open = false,
+  ) {
+    const mesh = new Mesh(
+      new CylinderGeometry(radius, radius, height, 32, 1, open),
+      material,
+    );
+    mesh.position.set(x, y, z);
+    mesh.castShadow = mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  }
+  const ambient = new HemisphereLight(0xb7d0df, 0x775441, LIGHTING.ambient);
+  scene.add(ambient);
+  const moon = new SpotLight(0x9dbfe0, LIGHTING.moon, 70, 0.9, 1, 1.4);
+  moon.position.set(-26, 18, -13);
+  moon.target.position.set(-6, 0, 2);
   scene.add(moon, moon.target);
 
+  const deskDepth = ARENA.desk.depth;
+  const floorY = -7.5;
+  const wallZ = -deskDepth / 2 - 1.5;
   const wallMaterial = new MeshStandardMaterial({
     color: 0x38484c,
     roughness: 1,
   });
-  box(scene, 24, 12, 0.2, 0, 3.5, -5, wallMaterial);
-  box(scene, 24, 0.2, 18, 0, -3.5, 0, materials.wood);
-  for (let x = -11; x < 12; x += 0.65) {
-    box(
-      scene,
-      0.018,
-      10,
-      0.02,
-      x,
-      3.5,
-      -4.88,
-      new MeshStandardMaterial({ color: 0x435154, roughness: 1 }),
-    );
-  }
-  box(scene, 24, 0.18, 0.15, 0, -0.8, -4.85, cream);
+  const wallStripe = new MeshStandardMaterial({
+    color: 0x435154,
+    roughness: 1,
+  });
+  box(scene, 110, 30, 0.2, 0, floorY + 15, wallZ, wallMaterial);
+  box(scene, 110, 0.2, 75, 0, floorY, wallZ + 37, materials.wood);
+  for (let x = -54; x < 55; x += 1.2)
+    box(scene, 0.025, 30, 0.02, x, floorY + 15, wallZ + 0.12, wallStripe);
+  box(scene, 110, 0.3, 0.2, 0, floorY + 0.15, wallZ + 0.15, cream);
   // Moonlit window and a simple framed print anchor the room behind the arena.
-  box(scene, 3, 3.6, 0.15, -5, 3.4, -4.78, dark);
+  const windowX = -18;
+  box(scene, 5, 6, 0.15, windowX, 6, wallZ + 0.22, dark);
   const glass = new MeshStandardMaterial({
     color: 0x344f6c,
     emissive: 0x304a68,
     emissiveIntensity: 0.4,
     roughness: 0.3,
   });
-  box(scene, 2.7, 3.3, 0.08, -5, 3.4, -4.67, glass);
-  box(scene, 0.09, 3.3, 0.12, -5, 3.4, -4.57, cream);
-  box(scene, 2.7, 0.09, 0.12, -5, 3.4, -4.57, cream);
-  box(scene, 3.3, 0.12, 0.5, -5, 1.55, -4.6, cream);
+  box(scene, 4.6, 5.6, 0.08, windowX, 6, wallZ + 0.33, glass);
+  box(scene, 0.12, 5.6, 0.12, windowX, 6, wallZ + 0.43, cream);
+  box(scene, 4.6, 0.12, 0.12, windowX, 6, wallZ + 0.43, cream);
+  box(scene, 5.5, 0.18, 0.7, windowX, 2.95, wallZ + 0.4, cream);
   const moonDisc = new Mesh(
-    new SphereGeometry(0.36, 24, 16),
+    new SphereGeometry(0.6, 24, 16),
     new MeshBasicMaterial({ color: 0xe5d9b4 }),
   );
   moonDisc.scale.z = 0.08;
-  moonDisc.position.set(-5.65, 4.3, -4.59);
+  moonDisc.position.set(windowX - 1.1, 7.6, wallZ + 0.41);
   scene.add(moonDisc);
-  box(scene, 1.7, 2.2, 0.12, 4.6, 3.2, -4.78, brass);
-  box(scene, 1.45, 1.95, 0.08, 4.6, 3.2, -4.69, materials.felt(0x927d63));
+  box(scene, 2.8, 3.6, 0.12, 17, 6, wallZ + 0.22, brass);
+  box(scene, 2.45, 3.25, 0.08, 17, 6, wallZ + 0.31, materials.felt(0x927d63));
+  box(scene, 1.8, 1.8, 0.12, 21, 4.6, wallZ + 0.22, brass);
+  box(scene, 1.55, 1.55, 0.08, 21, 4.6, wallZ + 0.31, materials.felt(0x6e8a7a));
 
-  for (const [index, terrain] of ARENA.terrain.entries()) {
-    const { x, y, z, width, height, depth, color } = terrain;
-    if (index === 0) {
-      box(scene, width, height, depth, x, y, z, materials.wood);
-      box(scene, width - 0.3, 0.85, depth - 0.35, x, -0.85, z, materials.wood);
-      for (const legX of [-5.9, 5.9]) {
-        for (const legZ of [-2.8, 2.8])
-          box(scene, 0.48, 3, 0.48, legX, -1.9, legZ, materials.wood);
-      }
-      continue;
-    }
+  function drawBooks(piece: BoxPiece) {
+    const { x, y, z, width, height, depth, color } = piece;
     const cover = materials.felt(color);
-    const levels = index === 1 ? 2 : 3;
+    const levels = piece.levels ?? 2;
     const bookHeight = height / levels;
     for (let i = 0; i < levels; i++) {
       const bottom = y - height / 2 + i * bookHeight;
+      // Alternate tiny overhangs so the stack reads as separate books.
+      const nudge = i % 2 ? 0.06 : -0.04;
       box(
         scene,
         width - 0.08,
         bookHeight - 0.08,
         depth - 0.1,
-        x,
+        x + nudge,
         bottom + bookHeight / 2,
         z,
         cream,
       );
-      box(scene, width, 0.04, depth, x, bottom + 0.02, z, cover);
-      box(scene, width, 0.04, depth, x, bottom + bookHeight - 0.02, z, cover);
+      box(scene, width, 0.04, depth, x + nudge, bottom + 0.02, z, cover);
+      box(
+        scene,
+        width,
+        0.04,
+        depth,
+        x + nudge,
+        bottom + bookHeight - 0.02,
+        z,
+        cover,
+      );
       box(
         scene,
         0.08,
         bookHeight,
         depth,
-        x - width / 2 + 0.04,
+        x + nudge - width / 2 + 0.04,
         bottom + bookHeight / 2,
         z,
         cover,
@@ -197,7 +299,7 @@ export function createScene(host: HTMLElement) {
           width - 0.2,
           0.008,
           0.012,
-          x,
+          x + nudge,
           bottom + 0.05 + (j * (bookHeight - 0.1)) / 5,
           z + depth / 2 - 0.04,
           brass,
@@ -205,96 +307,220 @@ export function createScene(host: HTMLElement) {
       }
     }
   }
-  // Decorative objects sit behind the playable area; they have no colliders yet.
-  const mug = new Group();
-  mug.position.set(5.3, 0.7, -2.2);
-  const ceramic = new MeshStandardMaterial({
-    color: 0xa37a58,
-    roughness: 0.6,
-    side: DoubleSide,
-  });
-  const cup = new Mesh(
-    new CylinderGeometry(0.55, 0.45, 1.35, 32, 1, true),
-    ceramic,
-  );
-  cup.castShadow = true;
-  mug.add(cup);
-  const rim = new Mesh(new TorusGeometry(0.55, 0.045, 8, 32), ceramic);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.675;
-  mug.add(rim);
-  const tea = new Mesh(new CylinderGeometry(0.5, 0.5, 0.025, 24), dark);
-  tea.position.y = 0.45;
-  mug.add(tea);
-  const handle = new Mesh(new TorusGeometry(0.35, 0.09, 8, 20), ceramic);
-  handle.position.x = 0.55;
-  mug.add(handle);
-  scene.add(mug);
-  const pencil = new Mesh(
-    new CylinderGeometry(0.065, 0.065, 2.9, 6),
-    materials.felt(0xc19142),
-  );
-  pencil.rotation.z = Math.PI / 2;
-  pencil.rotation.y = -0.3;
-  pencil.position.set(-4, 0.07, -2.7);
-  pencil.castShadow = true;
-  scene.add(pencil);
-  const spool = new Group();
-  spool.position.set(-5.6, 0.35, -1.4);
-  const thread = new Mesh(
-    new CylinderGeometry(0.3, 0.3, 0.65, 24),
-    materials.felt(0x9f6051),
-  );
-  spool.add(thread);
-  for (const y of [-0.3, 0.3]) {
-    const end = new Mesh(
-      new CylinderGeometry(0.4, 0.4, 0.06, 24),
-      materials.wood,
-    );
-    end.position.y = y;
-    spool.add(end);
+  function drawBox(piece: BoxPiece) {
+    const { x, y, z, width, height, depth, color } = piece;
+    const top = y + height / 2;
+    if (piece.kind === 'desk') {
+      box(scene, width, height, depth, x, y, z, materials.wood);
+      box(scene, width - 0.6, 0.9, depth - 0.6, x, -0.95, z, materials.wood);
+      const legHeight = -1.4 - floorY;
+      for (const legX of [-width / 2 + 0.8, width / 2 - 0.8])
+        for (const legZ of [-depth / 2 + 0.8, depth / 2 - 0.8])
+          box(
+            scene,
+            0.8,
+            legHeight,
+            0.8,
+            legX,
+            floorY + legHeight / 2,
+            legZ,
+            materials.wood,
+          );
+      return;
+    }
+    if (piece.kind === 'books') return drawBooks(piece);
+    if (piece.kind === 'laptop') {
+      const shell = new MeshStandardMaterial({
+        color,
+        roughness: 0.4,
+        metalness: 0.6,
+      });
+      box(scene, width, height, depth, x, y, z, shell);
+      box(scene, width - 0.1, 0.02, 0.06, x, top - 0.12, z + depth / 2, dark);
+      const logo = new Mesh(
+        new SphereGeometry(0.22, 16, 8),
+        new MeshBasicMaterial({ color: 0x8e9aa6 }),
+      );
+      logo.scale.y = 0.05;
+      logo.position.set(x, top + 0.005, z);
+      scene.add(logo);
+      return;
+    }
+    if (piece.kind === 'box') {
+      // A matchbox: felt sleeve with a lighter tray peeking out.
+      box(scene, width, height, depth, x, y, z, materials.felt(color));
+      box(
+        scene,
+        width * 0.94,
+        height * 0.8,
+        depth * 0.3,
+        x,
+        y - height * 0.05,
+        z + depth * 0.62,
+        cream,
+      );
+      box(scene, width * 0.6, 0.02, depth * 0.5, x, top + 0.01, z, cream);
+      return;
+    }
+    // Sticky notes and erasers.
+    box(scene, width, height, depth, x, y, z, materials.felt(color));
+    box(scene, width, 0.02, depth, x, top + 0.01, z, cream);
   }
-  scene.add(spool);
+  function drawCylinder(piece: CylinderPiece) {
+    const { x, y, z, radius, height, color } = piece;
+    const bottom = y - height / 2;
+    const top = y + height / 2;
+    if (piece.kind === 'mug') {
+      const ceramic = new MeshStandardMaterial({
+        color,
+        roughness: 0.6,
+        side: DoubleSide,
+      });
+      cylinder(scene, radius, height, x, y, z, ceramic, true);
+      cylinder(scene, radius, 0.05, x, bottom + 0.025, z, ceramic);
+      const rim = new Mesh(new TorusGeometry(radius, 0.06, 8, 32), ceramic);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(x, top, z);
+      scene.add(rim);
+      cylinder(scene, radius - 0.05, 0.03, x, top - 0.45, z, dark);
+      const handle = new Mesh(
+        new TorusGeometry(radius * 0.55, 0.12, 8, 20),
+        ceramic,
+      );
+      handle.position.set(x + radius, y, z);
+      handle.castShadow = true;
+      scene.add(handle);
+      return;
+    }
+    if (piece.kind === 'pot') {
+      const pot = materials.felt(color);
+      cylinder(scene, radius, height, x, y, z, pot, true);
+      cylinder(scene, radius, 0.05, x, bottom + 0.025, z, pot);
+      const colours = [0xc19142, 0x5a7f4f, 0xa04f43, 0x3f5d87, 0xc9b37a];
+      colours.forEach((colour, i) => {
+        const angle = (i / colours.length) * Math.PI * 2;
+        const pencil = cylinder(
+          scene,
+          0.08,
+          3,
+          x + Math.cos(angle) * radius * 0.45,
+          top + 0.2,
+          z + Math.sin(angle) * radius * 0.45,
+          materials.felt(colour),
+        );
+        pencil.rotation.set(Math.sin(angle) * 0.18, 0, -Math.cos(angle) * 0.18);
+      });
+      return;
+    }
+    if (piece.kind === 'spool') {
+      cylinder(
+        scene,
+        radius * 0.75,
+        height - 0.1,
+        x,
+        y,
+        z,
+        materials.felt(color),
+      );
+      for (const end of [bottom + 0.04, top - 0.04])
+        cylinder(scene, radius, 0.08, x, end, z, materials.wood);
+      return;
+    }
+    // A shallow tin of buttons.
+    const tin = new MeshStandardMaterial({
+      color,
+      roughness: 0.45,
+      metalness: 0.5,
+    });
+    cylinder(scene, radius, height, x, y, z, tin);
+    cylinder(scene, radius * 0.7, 0.02, x, top + 0.01, z, brass);
+  }
+  for (const piece of ARENA.terrain) {
+    if (piece.shape === 'box') drawBox(piece);
+    else drawCylinder(piece);
+  }
 
-  const lampGroup = new Group();
-  const bulb = new Mesh(
-    new SphereGeometry(ARENA.lampRadius, 24, 16),
-    new MeshStandardMaterial({
-      color: 0xffefd0,
-      emissive: 0xffb34b,
-      emissiveIntensity: 3,
-      roughness: 0.3,
-    }),
-  );
-  bulb.scale.y = 1.25;
-  lampGroup.add(bulb);
-  const socket = new Mesh(new CylinderGeometry(0.11, 0.13, 0.24, 16), brass);
-  socket.position.y = 0.28;
-  lampGroup.add(socket);
-  scene.add(lampGroup);
-  const cordGeometry = new BufferGeometry().setFromPoints([
-    new Vector3(),
-    new Vector3(),
-  ]);
-  const cord = new Line(
-    cordGeometry,
-    new LineBasicMaterial({ color: 0x372b24 }),
-  );
-  cord.frustumCulled = false;
-  scene.add(cord);
-  // This ring shows the proposed halo's cross-section on the desk, not a score.
-  const halo = new Mesh(
-    new RingGeometry(0.985, 1, 96),
-    new MeshBasicMaterial({
-      color: 0xedc778,
-      transparent: true,
-      opacity: 0.48,
-      side: DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  halo.rotation.x = -Math.PI / 2;
-  scene.add(halo);
+  // Loose desk clutter is decoration only; it is too flat to need colliders.
+  const decor: Array<[number, number, number, number]> = [
+    [-8.5, 6.5, -0.3, 0xc19142],
+    [7.4, 6.8, 1.1, 0x5a7f4f],
+    [-20, -2, 0.6, 0xa04f43],
+    [21, -6, -0.8, 0x3f5d87],
+    [1, 12, 0.2, 0xc9b37a],
+  ];
+  for (const [x, z, turn, colour] of decor) {
+    const pencil = cylinder(
+      scene,
+      0.07,
+      3.2,
+      x,
+      0.07,
+      z,
+      materials.felt(colour),
+    );
+    pencil.rotation.set(0, turn, Math.PI / 2);
+  }
+  for (const [x, z] of [
+    [19.6, -4.2],
+    [20.1, -3.6],
+    [-1.6, 7.4],
+    [-24, 12],
+  ] as const)
+    cylinder(scene, 0.32, 0.05, x, 0.025, z, brass);
+
+  const bulbMaterial = new MeshStandardMaterial({
+    color: 0xffefd0,
+    emissive: 0xffb34b,
+    emissiveIntensity: 3,
+    roughness: 0.3,
+  });
+  const cordMaterial = new LineBasicMaterial({ color: 0x372b24 });
+  const haloMaterial = new MeshBasicMaterial({
+    color: 0xedc778,
+    transparent: true,
+    opacity: 0.48,
+    side: DoubleSide,
+    depthWrite: false,
+  });
+  const bulbGeometry = new SphereGeometry(ARENA.lampRadius, 24, 16);
+  const socketGeometry = new CylinderGeometry(0.11, 0.13, 0.24, 16);
+  const haloGeometry = new RingGeometry(0.985, 1, 96);
+  // A fixed pool of lamps; the world decides how many are hanging.
+  const lampVisuals = Array.from({ length: MAX_LAMPS }, () => {
+    const group = new Group();
+    const bulb = new Mesh(bulbGeometry, bulbMaterial);
+    bulb.scale.y = 1.25;
+    group.add(bulb);
+    const socket = new Mesh(socketGeometry, brass);
+    socket.position.y = 0.28;
+    group.add(socket);
+    const cordGeometry = new BufferGeometry().setFromPoints([
+      new Vector3(),
+      new Vector3(),
+    ]);
+    const cord = new Line(cordGeometry, cordMaterial);
+    cord.frustumCulled = false;
+    // This ring shows the halo's cross-section on the desk, not a score.
+    const halo = new Mesh(haloGeometry, haloMaterial);
+    halo.rotation.x = -Math.PI / 2;
+    // Each lamp casts its own shadows from a smaller map to stay inexpensive.
+    const light = new SpotLight(
+      0xffc987,
+      LIGHTING.lampIntensity,
+      45,
+      1.25,
+      0.75,
+      1.4,
+    );
+    light.castShadow = true;
+    light.shadow.mapSize.set(1024, 1024);
+    light.shadow.bias = -0.0003;
+    light.shadow.normalBias = 0.035;
+    light.shadow.camera.near = 0.3;
+    light.shadow.camera.far = 45;
+    scene.add(group, cord, halo, light, light.target);
+    return { group, cord, cordGeometry, halo, light };
+  });
   const moths = ARENA.spawns.map(({ color }, index) =>
     createMoth(materials, color, index),
   );
@@ -304,8 +530,11 @@ export function createScene(host: HTMLElement) {
     const width = Math.max(host.clientWidth, 1);
     const height = Math.max(host.clientHeight, 1);
     camera.aspect = width / height;
+    applyShoulderOffset();
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.setSize(width, height);
   }
   const observer = new ResizeObserver(resize);
   observer.observe(host);
@@ -327,6 +556,15 @@ export function createScene(host: HTMLElement) {
   });
   return {
     resetCamera,
+    /** Switch between the shoulder camera and the whole-board view. */
+    toggleView(): CameraMode {
+      cameraMode = cameraMode === 'follow' ? 'board' : 'follow';
+      resetCamera();
+      return cameraMode;
+    },
+    get cameraMode() {
+      return cameraMode;
+    },
     movementDirection(x: number, z: number) {
       const backwards = camera.position
         .clone()
@@ -339,8 +577,12 @@ export function createScene(host: HTMLElement) {
       };
     },
     orbitCamera(x: number, y: number, deltaSeconds: number) {
-      if (x !== 0) controls.rotateLeft(-x * deltaSeconds * 1.5);
-      if (y !== 0) controls.rotateUp(-y * deltaSeconds * 1.2);
+      const flipX = CAMERA.invertX ? -1 : 1;
+      const flipY = CAMERA.invertY ? -1 : 1;
+      if (x !== 0)
+        controls.rotateLeft(-x * flipX * deltaSeconds * CAMERA.stickSpeed);
+      if (y !== 0)
+        controls.rotateUp(-y * flipY * deltaSeconds * CAMERA.stickSpeed * 0.8);
     },
     pickMoth(clientX: number, clientY: number): number | undefined {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -354,7 +596,7 @@ export function createScene(host: HTMLElement) {
       for (const hit of hits) {
         if (
           !(hit.object instanceof Mesh) ||
-          hit.object === halo ||
+          hit.object.material === haloMaterial ||
           hit.object === selection
         )
           continue;
@@ -375,28 +617,41 @@ export function createScene(host: HTMLElement) {
       }
     },
     render(view: WorldView, seconds: number) {
-      lampGroup.position.set(view.lamp.x, view.lamp.y, view.lamp.z);
-      const towardsAnchor = new Vector3(
-        ARENA.anchor.x - view.lamp.x,
-        ARENA.anchor.y - view.lamp.y,
-        ARENA.anchor.z - view.lamp.z,
-      ).normalize();
-      lampGroup.quaternion.setFromUnitVectors(
-        new Vector3(0, 1, 0),
-        towardsAnchor,
-      );
-      const positions = cordGeometry.getAttribute('position');
-      positions.setXYZ(0, ARENA.anchor.x, ARENA.anchor.y, ARENA.anchor.z);
-      positions.setXYZ(1, view.lamp.x, view.lamp.y, view.lamp.z);
-      positions.needsUpdate = true;
-      light.position.set(view.lamp.x, view.lamp.y - 0.15, view.lamp.z);
-      light.target.position.set(view.lamp.x, 0, view.lamp.z);
-      const haloAtFloor = Math.sqrt(
-        Math.max(0, ARENA.haloRadius ** 2 - view.lamp.y ** 2),
-      );
-      halo.visible = haloAtFloor > 0;
-      halo.scale.setScalar(haloAtFloor);
-      halo.position.set(view.lamp.x, 0.012, view.lamp.z);
+      applySettings();
+      updateFur();
+      lampVisuals.forEach((visual, index) => {
+        const lamp = view.lamps[index];
+        const { group, cord, cordGeometry, halo, light } = visual;
+        group.visible = cord.visible = light.visible = !!lamp;
+        if (!lamp) {
+          halo.visible = false;
+          return;
+        }
+        const { anchor } = lamp;
+        group.position.set(lamp.x, lamp.y, lamp.z);
+        group.quaternion.setFromUnitVectors(
+          new Vector3(0, 1, 0),
+          new Vector3(
+            anchor.x - lamp.x,
+            anchor.y - lamp.y,
+            anchor.z - lamp.z,
+          ).normalize(),
+        );
+        const positions = cordGeometry.getAttribute('position');
+        positions.setXYZ(0, anchor.x, anchor.y, anchor.z);
+        positions.setXYZ(1, lamp.x, lamp.y, lamp.z);
+        positions.needsUpdate = true;
+        light.intensity = LIGHTING.lampIntensity;
+        light.angle = LIGHTING.lampAngle;
+        light.position.set(lamp.x, lamp.y - 0.15, lamp.z);
+        light.target.position.set(lamp.x, 0, lamp.z);
+        const haloAtFloor = Math.sqrt(
+          Math.max(0, LAMPS.haloRadius ** 2 - lamp.y ** 2),
+        );
+        halo.visible = haloAtFloor > 0;
+        halo.scale.setScalar(haloAtFloor);
+        halo.position.set(lamp.x, 0.012, lamp.z);
+      });
       view.moths.forEach((position, index) => {
         const moth = moths[index];
         if (!moth) return;
@@ -412,8 +667,44 @@ export function createScene(host: HTMLElement) {
           active.y - ARENA.mothRadius + 0.035,
           active.z,
         );
+      const deltaSeconds =
+        lastSeconds === undefined ? 0 : Math.max(0, seconds - lastSeconds);
+      lastSeconds = seconds;
+      const firstView = !lastView;
+      lastView = view;
+      if (cameraMode === 'follow' && active) {
+        const switched = view.selectedMoth !== lastSelected;
+        const returned = lastRespawning && !active.respawning;
+        if (firstView || switched || returned) snapBehind();
+        else if (!active.respawning) {
+          // Carry the camera with the moth, keeping the player's chosen angle.
+          const goal = mothFocus(active, new Vector3());
+          const ease = 1 - Math.exp(-deltaSeconds * CAMERA.followEase);
+          const shift = goal.sub(controls.target).multiplyScalar(ease);
+          controls.target.add(shift);
+          camera.position.add(shift);
+        }
+      }
+      lastSelected = view.selectedMoth;
+      lastRespawning = !!active?.respawning;
       controls.update();
-      renderer.render(scene, camera);
+      // Keep the shoulder camera in front of the back wall.
+      if (camera.position.z < CAMERA.wallLimitZ)
+        camera.position.z = CAMERA.wallLimitZ;
+      if (!TILT_SHIFT.enabled) {
+        renderer.render(scene, camera);
+        return;
+      }
+      // Ease the focus band onto the active moth's height on screen.
+      let goal = TILT_SHIFT.focus;
+      if (TILT_SHIFT.followMoth && active && !active.respawning) {
+        focusPoint.set(active.x, active.y, active.z).project(camera);
+        goal = Math.min(0.95, Math.max(0.05, (focusPoint.y + 1) / 2));
+      }
+      focusLine += (goal - focusLine) * (1 - Math.exp(-deltaSeconds * 8));
+      const size = renderer.getDrawingBufferSize(new Vector2());
+      tiltShift.update({ ...TILT_SHIFT, focus: focusLine }, size.x, size.y);
+      composer.render(deltaSeconds);
     },
     destroy() {
       if (disposed) return;
@@ -436,7 +727,8 @@ export function createScene(host: HTMLElement) {
       geometries.forEach((geometry) => geometry.dispose());
       usedMaterials.forEach((material) => material.dispose());
       materials.dispose();
-      light.shadow.dispose();
+      lampVisuals.forEach(({ light }) => light.shadow.dispose());
+      composer.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

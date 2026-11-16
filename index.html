@@ -57,7 +57,8 @@
             PS5: left stick: move · Cross: hop / flutter · L1 / R1: select
           </p>
           <p class="hint">
-            Right stick / drag: camera · Triangle: reset view · Scroll: zoom
+            Right stick / drag: camera · Scroll: zoom · V / Triangle: board view
+            · R3: re-centre
           </p>
           <p class="hint" id="controller-status" role="status">
             Controller: connect, then press a button
@@ -67,8 +68,17 @@
           <button id="nudge" type="button" disabled>
             Nudge the lamp <span aria-hidden="true">↗</span>
           </button>
+          <button
+            id="view"
+            type="button"
+            class="secondary"
+            aria-pressed="false"
+            disabled
+          >
+            Board view
+          </button>
           <button id="camera" type="button" class="secondary" disabled>
-            Reset view
+            Re-centre view
           </button>
           <button id="reset" type="button" class="secondary" disabled>
             Reset scene

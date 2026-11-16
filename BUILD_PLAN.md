@@ -16,7 +16,16 @@ Status: 3D movement playground implemented, including keyboard/PS5 controls, hop
 - [x] Stepped walking and flutter poses, independent of smooth physics and camera movement.
 - [x] Automated validation: 30 passing tests across five files, TypeScript, formatting, and production build.
 - [ ] Physical DualSense playtest and movement tuning.
-- [ ] Wing Gust, movement allowance per turn, handover, scoring, victory, and full match restart.
+- [ ] **Attacking — Wing Gust (next up):** let the active moth push other moths and the lamp, using the short-range cone attack from `MOTH_FIGHT_CLUB.md`.
+  - [ ] Aim control: a facing direction plus a visible cone preview, mapped to keyboard/mouse and the PS5 controller (proposed: Square to gust, right stick or mouse to aim).
+  - [ ] Knockback in `game/gadgets.ts`: an impulse to every body in the cone, falling off with distance and including the lamp bulb; it can hit teammates too.
+  - [ ] Feedback: a gust pose on the attacker, hit/tumble reactions on targets, and a puff effect.
+  - [ ] Tuning: one gust should knock a moth off a book edge, but not across the whole desk.
+  - [ ] Tests with real cannon-es: a gust pushes an enemy away, moves the lamp, can knock a moth out of bounds, and has no effect outside the cone.
+  - [ ] Playground first (gust freely, with a short cooldown); once the turn loop exists, limit it to one action per turn.
+- [ ] Movement allowance per turn, handover, scoring, victory, and full match restart.
+- [ ] **Multiple lamps (16 November, playground only):** three lamps now hang over the centre, left and right of the enlarged desk, each with its own halo. Decide the scoring rule before building `match.ts`, e.g. one point per lamp controlled, or contested per lamp.
+- [ ] **Larger teams (proposed 4–5 moths each):** desk enlarged to 56 × 30 with team bases at each end and halos about 4.9 wide on the desk. Still two moths in code; needs spawn slots per team, selection for many moths, and a decision on how many moths move per turn.
 - [ ] Additional moths/gadgets, solo opponent, sound, hosting, and release checks.
 
 The movement portion of phase 2 is complete. A complete one-versus-one match is

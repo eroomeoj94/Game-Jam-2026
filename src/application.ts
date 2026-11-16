@@ -4,6 +4,7 @@ import type { WorldView } from './game/world';
 import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
+import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
 export function startApplication() {
   const host = document.querySelector<HTMLDivElement>('#game');
@@ -11,6 +12,7 @@ export function startApplication() {
   const nudge = document.querySelector<HTMLButtonElement>('#nudge');
   const reset = document.querySelector<HTMLButtonElement>('#reset');
   const camera = document.querySelector<HTMLButtonElement>('#camera');
+  const view = document.querySelector<HTMLButtonElement>('#view');
   const fuel = document.querySelector<HTMLProgressElement>('#flutter');
   const fuelText = document.querySelector<HTMLElement>('#flutter-value');
   const controllerStatus =
@@ -24,16 +26,18 @@ export function startApplication() {
     !nudge ||
     !reset ||
     !camera ||
+    !view ||
     !fuel ||
     !fuelText ||
     !controllerStatus ||
     selectors.length !== ARENA.spawns.length
   )
     throw new Error('Missing scene controls.');
+  loadSavedTuning();
   const scene = createScene(host);
   let world = createWorld();
   const gamepad = createGamepadInput();
-  const keyboard = createPlayerInput(selectMoth);
+  const keyboard = createPlayerInput(selectMoth, toggleView);
   let accumulator = 0;
   let previousTime: number | undefined;
   let seconds = 0;
@@ -56,6 +60,13 @@ export function startApplication() {
     wasRespawning = false;
     updateHUD(world.snapshot());
     focusCanvas();
+  }
+  function toggleView() {
+    const mode = scene.toggleView();
+    if (view) {
+      view.textContent = mode === 'follow' ? 'Board view' : 'Shoulder view';
+      view.setAttribute('aria-pressed', String(mode === 'board'));
+    }
   }
   function updateHUD(view: WorldView) {
     const active = view.moths[view.selectedMoth];
@@ -138,6 +149,7 @@ export function startApplication() {
             ARENA.spawns.length,
         );
       }
+      if (pad.toggleView) toggleView();
       if (pad.resetView) scene.resetCamera();
       scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
       accumulator += elapsed;
@@ -178,13 +190,23 @@ export function startApplication() {
     scene.resetCamera();
     focusCanvas();
   };
+  const onView = () => {
+    toggleView();
+    focusCanvas();
+  };
   const onSelect = (event: Event) => {
     if (event.currentTarget instanceof HTMLButtonElement)
       selectMoth(Number(event.currentTarget.dataset.moth));
   };
+  const tuning = createTuningPanel({
+    rebuild: onReset,
+    recentreCamera: () => scene.resetCamera(),
+    nudgeLamps: () => world.nudgeLamp(),
+  });
   nudge.addEventListener('click', onNudge);
   reset.addEventListener('click', onReset);
   camera.addEventListener('click', onCamera);
+  view.addEventListener('click', onView);
   selectors.forEach((button) => button.addEventListener('click', onSelect));
   host.addEventListener('pointerdown', onPointerDown);
   host.addEventListener('pointerup', onPointerUp);
@@ -192,7 +214,7 @@ export function startApplication() {
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('blur', onBlur);
   window.addEventListener('focus', onFocus);
-  nudge.disabled = reset.disabled = camera.disabled = false;
+  nudge.disabled = reset.disabled = camera.disabled = view.disabled = false;
   updateHUD(world.snapshot());
   frame = requestAnimationFrame(render);
   return () => {
@@ -200,10 +222,12 @@ export function startApplication() {
     disposed = true;
     cancelAnimationFrame(frame);
     keyboard.destroy();
+    tuning.destroy();
     gamepad.clear();
     nudge.removeEventListener('click', onNudge);
     reset.removeEventListener('click', onReset);
     camera.removeEventListener('click', onCamera);
+    view.removeEventListener('click', onView);
     selectors.forEach((button) =>
       button.removeEventListener('click', onSelect),
     );

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { ARENA } from '../config';
+import { LAMPS } from '../config';
 import { createWorld } from './world';
 
 it('survives ten simulated minutes of repeated lamp nudges without invalid or runaway physics', () => {
@@ -9,18 +9,20 @@ it('survives ten simulated minutes of repeated lamp nudges without invalid or ru
       if (tick % 37 === 0) world.nudgeLamp();
       world.step();
       if (tick % 60 !== 0) continue;
-      const { lamp, moths } = world.snapshot();
-      for (const position of [lamp, ...moths]) {
+      const { lamps, moths } = world.snapshot();
+      for (const position of [...lamps, ...moths]) {
         expect(
           [position.x, position.y, position.z].every(Number.isFinite),
         ).toBe(true);
       }
-      const distance = Math.hypot(
-        lamp.x - ARENA.anchor.x,
-        lamp.y - ARENA.anchor.y,
-        lamp.z - ARENA.anchor.z,
-      );
-      expect(Math.abs(distance - ARENA.tetherLength)).toBeLessThan(0.05);
+      for (const lamp of lamps) {
+        const distance = Math.hypot(
+          lamp.x - lamp.anchor.x,
+          lamp.y - lamp.anchor.y,
+          lamp.z - lamp.anchor.z,
+        );
+        expect(Math.abs(distance - LAMPS.tetherLength)).toBeLessThan(0.05);
+      }
       for (const moth of moths) {
         expect(moth.y).toBeGreaterThan(0.4);
         expect(moth.y).toBeLessThan(0.6);

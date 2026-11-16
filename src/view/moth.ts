@@ -1,16 +1,15 @@
 import {
   CatmullRomCurve3,
-  CylinderGeometry,
   Group,
-  InstancedMesh,
   Mesh,
   MeshStandardMaterial,
-  Object3D,
   SphereGeometry,
   TubeGeometry,
   Vector3,
 } from 'three';
+import { FUR } from '../config';
 import type { MothView } from '../game/world';
+import { createFurShells } from './fur';
 import type { createMaterials } from './materials';
 
 export function createMoth(
@@ -72,8 +71,8 @@ export function createMoth(
     puppet.add(wing);
     wings.push(wing);
   }
-  ball(puppet, cream, [0.29, 0.43, 0.25], [0, -0.02, 0]);
-  ball(puppet, cream, [0.34, 0.29, 0.28], [0, 0.3, 0.04]);
+  const body = ball(puppet, cream, [0.29, 0.43, 0.25], [0, -0.02, 0]);
+  const head = ball(puppet, cream, [0.34, 0.29, 0.28], [0, 0.3, 0.04]);
   for (const side of [-1, 1]) {
     ball(puppet, cream, [0.13, 0.08, 0.2], [side * 0.15, -0.42, 0.1]);
     ball(puppet, dark, [0.085, 0.1, 0.065], [side * 0.14, 0.33, 0.29]);
@@ -105,39 +104,21 @@ export function createMoth(
     puppet.add(antenna);
     ball(puppet, cream, [0.065, 0.085, 0.055], [side * 0.38, 0.85, 0.04]);
   }
-  // Short instanced fibres give a fuzzy outline without thousands of draw calls.
-  const fibres = new InstancedMesh(
-    new CylinderGeometry(0.002, 0.003, 0.035, 3),
-    cream,
-    550,
-  );
-  const dummy = new Object3D();
-  const up = new Vector3(0, 1, 0);
-  for (let i = 0; i < fibres.count; i++) {
-    const y = 1 - (2 * (i + 0.5)) / fibres.count;
-    const radius = Math.sqrt(1 - y * y);
-    const angle = i * 2.399963;
-    const normal = new Vector3(
-      Math.cos(angle) * radius,
-      y,
-      Math.sin(angle) * radius,
-    );
-    dummy.position.set(
-      normal.x * 0.295,
-      normal.y * 0.44 - 0.02,
-      normal.z * 0.255,
-    );
-    dummy.quaternion.setFromUnitVectors(up, normal);
-    dummy.updateMatrix();
-    fibres.setMatrixAt(i, dummy.matrix);
-  }
-  puppet.add(fibres);
+  // Shell-textured fur over the body and head; the solid felt is the root.
+  const shells = [body, head].map((part) => {
+    const fur = createFurShells(sphere, cream);
+    fur.position.copy(part.position);
+    fur.scale.copy(part.scale);
+    puppet.add(fur);
+    return fur;
+  });
   root.rotation.y = team === 0 ? 0.3 : -0.3;
   return {
     root,
     animate(seconds: number, state: MothView) {
       const steppedTime = Math.floor(seconds * 10) / 10;
       root.rotation.y = state.heading;
+      for (const fur of shells) fur.count = FUR.layers;
       const walking = state.moving && state.grounded;
       puppet.rotation.z =
         Math.sin(steppedTime * (walking ? 16 : 1.8) + team) *

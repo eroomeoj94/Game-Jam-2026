@@ -81,11 +81,19 @@ describe('moth movement', () => {
   it.each([0, 1])('lets moth %i hop onto its nearby book platform', (id) => {
     const world = setup();
     world.selectMoth(id);
-    const move = { ...idle, x: id === 0 ? 0.3 : -0.3, z: -1 };
-    world.step({ ...move, jump: true });
+    const platform = ARENA.terrain[id + 1]!;
+    // Hop, then steer towards the middle of the book as a player would. Air
+    // momentum carries a moth past small books if it keeps holding forward.
+    world.step({ ...idle, jump: true });
+    advance(world, 8);
     let landed = false;
     for (let tick = 0; tick < 120; tick++) {
-      world.step(move);
+      const moth = world.snapshot().moths[id]!;
+      const dx = platform.x - moth.x;
+      const dz = platform.z - moth.z;
+      const distance = Math.hypot(dx, dz);
+      const strength = Math.min(1, distance * 2) / (distance || 1);
+      world.step({ ...idle, x: dx * strength, z: dz * strength });
       if (world.snapshot().moths[id]!.grounded) {
         landed = true;
         break;
@@ -94,7 +102,6 @@ describe('moth movement', () => {
     expect(landed).toBe(true);
     advance(world, 12);
     const moth = world.snapshot().moths[id]!;
-    const platform = ARENA.terrain[id + 1]!;
     expect(moth.y).toBeCloseTo(
       platform.y + platform.height / 2 + ARENA.mothRadius,
       1,

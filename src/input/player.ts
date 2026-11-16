@@ -11,7 +11,10 @@ const MOVE_KEYS = new Set([
 ]);
 
 /** Tracks held movement separately from a one-shot jump, at simulation cadence. */
-export function createPlayerInput(onSelect: (id: number) => void) {
+export function createPlayerInput(
+  onSelect: (id: number) => void,
+  onToggleView: () => void = () => {},
+) {
   const held = new Set<string>();
   let jumpQueued = false;
   const clear = () => {
@@ -29,6 +32,11 @@ export function createPlayerInput(onSelect: (id: number) => void) {
     if (event.code === 'Digit1' || event.code === 'Digit2') {
       event.preventDefault();
       if (!event.repeat) onSelect(event.code === 'Digit1' ? 0 : 1);
+      return;
+    }
+    if (event.code === 'KeyV') {
+      event.preventDefault();
+      if (!event.repeat) onToggleView();
       return;
     }
     if (!MOVE_KEYS.has(event.code)) return;

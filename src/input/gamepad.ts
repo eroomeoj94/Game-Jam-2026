@@ -63,6 +63,7 @@ export function createGamepadInput(
         lookY: 0,
         switchMoth: 0,
         resetView: false,
+        toggleView: false,
       };
       if (!pad) {
         identity = '';
@@ -95,7 +96,8 @@ export function createGamepadInput(
       status.lookX = look.x;
       status.lookY = look.z;
       status.switchMoth = justPressed(5) ? 1 : justPressed(4) ? -1 : 0;
-      status.resetView = justPressed(3); // Triangle.
+      status.toggleView = justPressed(3); // Triangle: shoulder ⇄ board view.
+      status.resetView = justPressed(11); // R3: re-centre the camera.
       status.text = 'Controller ready · Cross: hop / hold flutter';
       previous = pressed;
       return status;

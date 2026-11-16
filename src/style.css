@@ -266,3 +266,19 @@ footer {
     font-size: 10px;
   }
 }
+/* Playtest tuning panel (lil-gui), kept clear of the title block. */
+.lil-gui.tuning {
+  --background-color: #101922ee;
+  --title-background-color: #2a2420;
+  --widget-color: #2c3a40;
+  --hover-color: #3a4a50;
+  --focus-color: #4a5a60;
+  --number-color: #edc778;
+  --string-color: #edc778;
+  --width: 280px;
+  top: 12px;
+  right: 12px;
+  max-height: calc(100svh - 24px);
+  overflow-y: auto;
+  z-index: 10;
+}
