@@ -11,7 +11,7 @@ import {
 } from '../config';
 
 // Bump the version when defaults change shape, so stale saves are ignored.
-const STORAGE_KEY = 'moth-fight-club:tuning:v2';
+const STORAGE_KEY = 'moth-fight-club:tuning:v3';
 const SETTINGS = { MOVEMENT, CAMERA, LAMPS, LIGHTING, TILT_SHIFT, FUR };
 type Settings = typeof SETTINGS;
 const DEFAULTS: Settings = structuredClone(SETTINGS);
@@ -77,6 +77,7 @@ export function createTuningPanel(actions: {
   movement.add(MOVEMENT, 'speed', 1, 14, 0.1).name('Walk speed');
   movement.add(MOVEMENT, 'groundAcceleration', 5, 120, 1).name('Grip');
   movement.add(MOVEMENT, 'airAcceleration', 0, 60, 1).name('Air control');
+  movement.add(MOVEMENT, 'airBrake', 0, 40, 0.5).name('Air brake');
   movement.add(MOVEMENT, 'jumpSpeed', 2, 14, 0.1).name('Hop power');
   movement.add(MOVEMENT, 'flutterSeconds', 0, 3, 0.05).name('Flutter time');
   movement

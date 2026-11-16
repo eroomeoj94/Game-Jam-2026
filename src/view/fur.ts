@@ -81,12 +81,19 @@ function shellMaterial(base: MeshStandardMaterial) {
         vec2 shellGrid = vShellUv * vec2(furDensity * 2.0, furDensity);
         vec2 shellCell = floor(shellGrid);
         float strandHeight = shellHash(shellCell);
-        float fromCentre = length(fract(shellGrid) - 0.5) * 2.0;
+        // Offset each strand inside its cell so the fur has no visible grid.
+        vec2 strandRoot = 0.5 + (vec2(
+          shellHash(shellCell + 17.3),
+          shellHash(shellCell + 41.9)
+        ) - 0.5) * 0.6;
+        float fromCentre = length(fract(shellGrid) - strandRoot) * 2.0;
         // Strands taper towards their tips and end at a random height.
         if (strandHeight < vShellLayer ||
             fromCentre > furThickness * (1.0 - vShellLayer))
           discard;
-        diffuseColor.rgb *= mix(1.0 - furRootShade, 1.0, vShellLayer);`,
+        diffuseColor.rgb *= mix(1.0 - furRootShade, 1.0, vShellLayer);
+        // Slight per-strand brightness variation reads as loose fibres.
+        diffuseColor.rgb *= 0.85 + 0.3 * shellHash(shellCell + 7.7);`,
       );
   };
   material.customProgramCacheKey = () => 'moth-fur-shell';

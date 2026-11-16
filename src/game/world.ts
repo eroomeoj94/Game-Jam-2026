@@ -68,6 +68,19 @@ export function createWorld() {
     terrain.add(body);
     world.addBody(body);
   }
+  /** Face the nearest hanging lamp, so a moth starts looking at the action. */
+  function headingTowardsLamp(x: number, z: number) {
+    const lamps = LAMPS.positions.slice(0, LAMPS.count);
+    let nearest = lamps[0];
+    for (const lamp of lamps)
+      if (
+        nearest &&
+        Math.hypot(lamp.x - x, lamp.z - z) <
+          Math.hypot(nearest.x - x, nearest.z - z)
+      )
+        nearest = lamp;
+    return nearest ? Math.atan2(nearest.x - x, nearest.z - z) : 0;
+  }
   const moths = ARENA.spawns.map(({ x, y, z }, id) => {
     const body = new Body({
       mass: 1,
@@ -84,7 +97,7 @@ export function createWorld() {
       grounded: false,
       fuel: MOVEMENT.flutterSeconds as number,
       fluttering: false,
-      heading: id === 0 ? 0.3 : -0.3,
+      heading: headingTowardsLamp(x, z),
       respawning: false,
       respawnTime: 0,
     };
@@ -156,6 +169,7 @@ export function createWorld() {
     moth.body.aabbNeedsUpdate = true;
     moth.body.wakeUp();
     moth.fuel = MOVEMENT.flutterSeconds;
+    moth.heading = headingTowardsLamp(position.x, position.z);
     moth.grounded = false;
     moth.respawning = false;
     world.addBody(moth.body);
@@ -198,7 +212,16 @@ export function createWorld() {
         const length = Math.max(1, Math.hypot(inputX, inputZ));
         const x = inputX / length;
         const z = inputZ / length;
-        if (moth.grounded || x !== 0 || z !== 0) {
+        if (!moth.grounded && x === 0 && z === 0) {
+          // Letting go in the air slows the moth, so hops can be aimed.
+          const speed = Math.hypot(body.velocity.x, body.velocity.z);
+          const scale = Math.max(
+            0,
+            1 - (MOVEMENT.airBrake * DT) / (speed || 1),
+          );
+          body.velocity.x *= scale;
+          body.velocity.z *= scale;
+        } else {
           const acceleration = moth.grounded
             ? MOVEMENT.groundAcceleration
             : MOVEMENT.airAcceleration;

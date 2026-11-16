@@ -112,7 +112,26 @@ export function createScene(host: HTMLElement) {
     controls.minAzimuthAngle = follow ? -Infinity : -0.85;
     controls.maxAzimuthAngle = follow ? Infinity : 0.85;
   }
+  // Scenery the shoulder camera must not sit behind (moths and lamps excluded).
+  const occluders: Mesh[] = [];
+  const occlusionRay = new Raycaster();
+  // Where the player's orbit puts the camera, before collision pulls it in.
+  let unobstructed: Vector3 | undefined;
+  /** Pull the camera in front of anything between it and the moth. */
+  function avoidOcclusion() {
+    const target = controls.target;
+    const offset = camera.position.clone().sub(target);
+    const distance = offset.length();
+    if (distance < 0.01) return;
+    occlusionRay.set(target, offset.divideScalar(distance));
+    occlusionRay.far = distance;
+    const hit = occlusionRay.intersectObjects(occluders, false)[0];
+    if (!hit) return;
+    const safe = Math.max(CAMERA.followMinDistance * 0.5, hit.distance - 0.3);
+    camera.position.copy(target).addScaledVector(offset, safe);
+  }
   function placeCamera(position: Vector3, target: Vector3) {
+    unobstructed = undefined;
     // Flush previous orbit damping so a snap cannot drift on the next frame.
     controls.enableDamping = false;
     controls.update();
@@ -184,6 +203,7 @@ export function createScene(host: HTMLElement) {
     mesh.position.set(x, y, z);
     mesh.castShadow = mesh.receiveShadow = true;
     parent.add(mesh);
+    occluders.push(mesh);
     return mesh;
   }
   function cylinder(
@@ -203,6 +223,7 @@ export function createScene(host: HTMLElement) {
     mesh.position.set(x, y, z);
     mesh.castShadow = mesh.receiveShadow = true;
     parent.add(mesh);
+    occluders.push(mesh);
     return mesh;
   }
   const ambient = new HemisphereLight(0xb7d0df, 0x775441, LIGHTING.ambient);
@@ -672,6 +693,9 @@ export function createScene(host: HTMLElement) {
       lastSeconds = seconds;
       const firstView = !lastView;
       lastView = view;
+      // Orbit from the player's chosen position, not last frame's pulled-in one.
+      if (unobstructed) camera.position.copy(unobstructed);
+      unobstructed = undefined;
       if (cameraMode === 'follow' && active) {
         const switched = view.selectedMoth !== lastSelected;
         const returned = lastRespawning && !active.respawning;
@@ -691,6 +715,10 @@ export function createScene(host: HTMLElement) {
       // Keep the shoulder camera in front of the back wall.
       if (camera.position.z < CAMERA.wallLimitZ)
         camera.position.z = CAMERA.wallLimitZ;
+      if (cameraMode === 'follow') {
+        unobstructed = camera.position.clone();
+        avoidOcclusion();
+      }
       if (!TILT_SHIFT.enabled) {
         renderer.render(scene, camera);
         return;

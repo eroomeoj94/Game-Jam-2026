@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { ARENA } from '../config';
+import { ARENA, LAMPS } from '../config';
 import { createWorld } from './world';
 import type { MovementCommand } from './world';
 
@@ -160,5 +160,41 @@ describe('moth movement', () => {
     expect(moth.x).toBeCloseTo(ARENA.spawns[0].x, 2);
     expect(moth.z).toBeCloseTo(ARENA.spawns[0].z, 2);
     expect(moth.flutter).toBe(1);
+  });
+
+  it('slows down in the air once movement is released, so hops can be aimed', () => {
+    const held = setup();
+    const released = setup();
+    for (const world of [held, released]) {
+      advance(world, 20, { ...idle, x: 1 });
+      world.step({ ...idle, x: 1, jump: true });
+    }
+    advance(held, 25, { ...idle, x: 1 });
+    advance(released, 25);
+    const start = ARENA.spawns[0].x;
+    const heldDistance = held.snapshot().moths[0]!.x - start;
+    const releasedDistance = released.snapshot().moths[0]!.x - start;
+    expect(released.snapshot().moths[0]!.grounded).toBe(false);
+    expect(releasedDistance).toBeLessThan(heldDistance - 1);
+  });
+
+  it('starts each moth facing its nearest lamp', () => {
+    const world = setup();
+    world.snapshot().moths.forEach((moth) => {
+      const nearest = LAMPS.positions
+        .slice(0, LAMPS.count)
+        .reduce((best, lamp) =>
+          Math.hypot(lamp.x - moth.x, lamp.z - moth.z) <
+          Math.hypot(best.x - moth.x, best.z - moth.z)
+            ? lamp
+            : best,
+        );
+      const facing = { x: Math.sin(moth.heading), z: Math.cos(moth.heading) };
+      const towards = { x: nearest.x - moth.x, z: nearest.z - moth.z };
+      const length = Math.hypot(towards.x, towards.z);
+      expect(
+        (facing.x * towards.x + facing.z * towards.z) / length,
+      ).toBeGreaterThan(0.99);
+    });
   });
 });

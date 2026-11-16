@@ -198,11 +198,11 @@ export const FUR = {
   /** Number of shells; more is smoother and costs more to draw. */
   layers: 16,
   /** Fur length in world units. */
-  length: 0.05,
+  length: 0.06,
   /** Strands per unit of texture height. */
-  density: 40,
+  density: 70,
   /** Strand width at the root, as a fraction of its cell. */
-  thickness: 0.9,
+  thickness: 0.55,
   /** How much the tips sag under gravity. */
   droop: 0.35,
   /** How much darker the roots are than the tips. */
@@ -217,7 +217,10 @@ export const MAX_FRAME_MS = 100;
 export const MOVEMENT = {
   speed: 5,
   groundAcceleration: 40,
-  airAcceleration: 12,
+  /** Steering strength in the air while a direction is held. */
+  airAcceleration: 22,
+  /** Horizontal slowing in the air once the stick or keys are released. */
+  airBrake: 12,
   jumpSpeed: 5.8,
   flutterSeconds: 0.9,
   flutterAcceleration: 16,

@@ -26,6 +26,8 @@ Status: 3D movement playground implemented, including keyboard/PS5 controls, hop
 - [ ] Movement allowance per turn, handover, scoring, victory, and full match restart.
 - [ ] **Multiple lamps (16 November, playground only):** three lamps now hang over the centre, left and right of the enlarged desk, each with its own halo. Decide the scoring rule before building `match.ts`, e.g. one point per lamp controlled, or contested per lamp.
 - [ ] **Larger teams (proposed 4–5 moths each):** desk enlarged to 56 × 30 with team bases at each end and halos about 4.9 wide on the desk. Still two moths in code; needs spawn slots per team, selection for many moths, and a decision on how many moths move per turn.
+- [ ] **Later — moths visible in board view (playtest 16 November):** at the enlarged map size moths are specks, findable only by their selection rings. Add a team-coloured marker or glow above each moth in board view, or bring the board camera closer.
+- [ ] **Later — bigger lamp nudge/swing (playtest 16 November):** lamp movement is hard to see from the board view at the new scale. Increase nudge strength (and later gust force on the lamp) so swings read clearly.
 - [ ] Additional moths/gadgets, solo opponent, sound, hosting, and release checks.
 
 The movement portion of phase 2 is complete. A complete one-versus-one match is
