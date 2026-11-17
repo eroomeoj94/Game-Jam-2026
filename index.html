@@ -23,35 +23,32 @@
       </aside>
       <div class="bottom-panel">
         <div class="caption">
-          <span class="tag">Movement playground</span>
-          <div class="moth-select" role="group" aria-label="Select a moth">
-            <button
-              id="moth-0"
-              type="button"
-              data-moth="0"
-              aria-pressed="true"
-              disabled
-            >
-              1 · Dusty
-            </button>
-            <button
-              id="moth-1"
-              type="button"
-              data-moth="1"
-              aria-pressed="false"
-              disabled
-            >
-              2 · Mothhew
-            </button>
-          </div>
+          <span class="tag">Weapon playground</span>
+          <div
+            class="moth-select"
+            id="moths"
+            role="group"
+            aria-label="Select a moth"
+          ></div>
           <p id="status" role="status">Warming up the light…</p>
+          <div
+            class="weapon-bar"
+            id="weapons"
+            role="group"
+            aria-label="Weapons"
+          ></div>
+          <div class="flight-meter">
+            <label for="charge">Power</label
+            ><progress id="charge" max="1" value="1"></progress
+            ><span id="charge-value">Ready</span>
+          </div>
           <div class="flight-meter">
             <label for="flutter">Flutter</label
             ><progress id="flutter" max="1" value="1"></progress
             ><span id="flutter-value">100%</span>
           </div>
           <p class="hint">
-            WASD / arrows: move · Space: hop / hold flutter · 1 / 2: select
+            WASD / arrows: move · Space: hop / hold flutter · 1–8: select moth
           </p>
           <p class="hint">
             PS5: left stick: move · Cross: hop / flutter · L1 / R1: select
@@ -60,6 +57,13 @@
             Right stick / drag: camera · Scroll: zoom · V / Triangle: board view
             · R3: re-centre
           </p>
+          <p class="hint">
+            F: hold to aim and charge, release to fire · Q / E: weapon · M: mute
+          </p>
+          <p class="hint">
+            PS5: R2 or Square: aim, release to fire · D-pad ← / →: weapon
+          </p>
+          <p class="hint" id="zaps" role="status">Zapped · none yet</p>
           <p class="hint" id="controller-status" role="status">
             Controller: connect, then press a button
           </p>
@@ -80,6 +84,15 @@
           <button id="camera" type="button" class="secondary" disabled>
             Re-centre view
           </button>
+          <button
+            id="mute"
+            type="button"
+            class="secondary"
+            aria-pressed="false"
+            disabled
+          >
+            Sound on
+          </button>
           <button id="reset" type="button" class="secondary" disabled>
             Reset scene
           </button>
@@ -87,7 +100,7 @@
       </div>
       <footer>
         <span>Felt, fury &amp; questionable decisions.</span
-        ><span>Movement playground · Turns and attacks coming next</span>
+        ><span>Weapon playground · Turns and scoring coming next</span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

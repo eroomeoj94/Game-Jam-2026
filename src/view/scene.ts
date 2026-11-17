@@ -28,10 +28,12 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
+  AIM,
   ARENA,
   CAMERA,
   LAMPS,
   LIGHTING,
+  BOSH,
   MAX_LAMPS,
   TILT_SHIFT,
 } from '../config';
@@ -39,6 +41,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { createTiltShiftPasses } from './tiltShift';
+import { createWeaponEffects } from './weaponEffects';
+import type { AimPreview } from './weaponEffects';
+import type { Aim } from '../game/gadgets';
+import type { WorldEvent } from '../game/world';
 import { updateFur } from './fur';
 import type { BoxPiece, CylinderPiece } from '../config';
 import type { MothView, WorldView } from '../game/world';
@@ -67,7 +73,7 @@ export function createScene(host: HTMLElement) {
   const scene = new Scene();
   scene.background = new Color(0x101922);
   scene.fog = new FogExp2(0x101922, 0.012);
-  const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 260);
+  const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 900);
   // Post-processing renders in linear light; OutputPass applies tone mapping
   // and sRGB conversion at the end, as the renderer does without it.
   const composer = new EffectComposer(renderer);
@@ -94,8 +100,8 @@ export function createScene(host: HTMLElement) {
     ambient.intensity = LIGHTING.ambient;
     moon.intensity = LIGHTING.moon;
   }
-  const homePosition = new Vector3(24, 36, 58);
-  const homeTarget = new Vector3(0, 0.5, 0.5);
+  const homePosition = new Vector3(95, 150, 235);
+  const homeTarget = new Vector3(0, 0, 8);
   // 'follow' sits behind the active moth's shoulder; 'board' shows the desk.
   let cameraMode: CameraMode = 'follow';
   let lastView: WorldView | undefined;
@@ -105,8 +111,8 @@ export function createScene(host: HTMLElement) {
   const followTarget = new Vector3();
   function applyLimits() {
     const follow = cameraMode === 'follow';
-    controls.minDistance = follow ? CAMERA.followMinDistance : 18;
-    controls.maxDistance = follow ? CAMERA.followMaxDistance : 100;
+    controls.minDistance = follow ? CAMERA.followMinDistance : 30;
+    controls.maxDistance = follow ? CAMERA.followMaxDistance : 420;
     controls.minPolarAngle = follow ? 0.55 : 0.45;
     controls.maxPolarAngle = follow ? 1.42 : 1.43;
     controls.minAzimuthAngle = follow ? -Infinity : -0.85;
@@ -228,13 +234,13 @@ export function createScene(host: HTMLElement) {
   }
   const ambient = new HemisphereLight(0xb7d0df, 0x775441, LIGHTING.ambient);
   scene.add(ambient);
-  const moon = new SpotLight(0x9dbfe0, LIGHTING.moon, 70, 0.9, 1, 1.4);
-  moon.position.set(-26, 18, -13);
-  moon.target.position.set(-6, 0, 2);
+  const moon = new SpotLight(0x9dbfe0, LIGHTING.moon, 320, 0.9, 1, 1.2);
+  moon.position.set(-120, 70, -60);
+  moon.target.position.set(-30, 0, 10);
   scene.add(moon, moon.target);
 
   const deskDepth = ARENA.desk.depth;
-  const floorY = -7.5;
+  const floorY = -40;
   const wallZ = -deskDepth / 2 - 1.5;
   const wallMaterial = new MeshStandardMaterial({
     color: 0x38484c,
@@ -244,35 +250,85 @@ export function createScene(host: HTMLElement) {
     color: 0x435154,
     roughness: 1,
   });
-  box(scene, 110, 30, 0.2, 0, floorY + 15, wallZ, wallMaterial);
-  box(scene, 110, 0.2, 75, 0, floorY, wallZ + 37, materials.wood);
-  for (let x = -54; x < 55; x += 1.2)
-    box(scene, 0.025, 30, 0.02, x, floorY + 15, wallZ + 0.12, wallStripe);
-  box(scene, 110, 0.3, 0.2, 0, floorY + 0.15, wallZ + 0.15, cream);
+  const roomWidth = ARENA.desk.width + 160;
+  const wallHeight = 120;
+  box(
+    scene,
+    roomWidth,
+    wallHeight,
+    0.4,
+    0,
+    floorY + wallHeight / 2,
+    wallZ,
+    wallMaterial,
+  );
+  box(scene, roomWidth, 0.4, 260, 0, floorY, wallZ + 130, materials.wood);
+  for (let x = -roomWidth / 2 + 2; x < roomWidth / 2; x += 4)
+    box(
+      scene,
+      0.08,
+      wallHeight,
+      0.04,
+      x,
+      floorY + wallHeight / 2,
+      wallZ + 0.22,
+      wallStripe,
+    );
+  box(scene, roomWidth, 1, 0.4, 0, floorY + 0.5, wallZ + 0.3, cream);
   // Moonlit window and a simple framed print anchor the room behind the arena.
-  const windowX = -18;
-  box(scene, 5, 6, 0.15, windowX, 6, wallZ + 0.22, dark);
+  const windowX = -60;
+  // Window and prints are scaled up with the room; y is height on the wall.
+  const W = 3;
+  box(scene, 5 * W, 6 * W, 0.15, windowX, 6 * W, wallZ + 0.22, dark);
   const glass = new MeshStandardMaterial({
     color: 0x344f6c,
     emissive: 0x304a68,
     emissiveIntensity: 0.4,
     roughness: 0.3,
   });
-  box(scene, 4.6, 5.6, 0.08, windowX, 6, wallZ + 0.33, glass);
-  box(scene, 0.12, 5.6, 0.12, windowX, 6, wallZ + 0.43, cream);
-  box(scene, 4.6, 0.12, 0.12, windowX, 6, wallZ + 0.43, cream);
-  box(scene, 5.5, 0.18, 0.7, windowX, 2.95, wallZ + 0.4, cream);
+  box(scene, 4.6 * W, 5.6 * W, 0.08, windowX, 6 * W, wallZ + 0.33, glass);
+  box(scene, 0.12 * W, 5.6 * W, 0.12, windowX, 6 * W, wallZ + 0.43, cream);
+  box(scene, 4.6 * W, 0.12 * W, 0.12, windowX, 6 * W, wallZ + 0.43, cream);
+  box(
+    scene,
+    5.5 * W,
+    0.18 * W,
+    0.7 * W,
+    windowX,
+    2.95 * W,
+    wallZ + 0.4 * W,
+    cream,
+  );
   const moonDisc = new Mesh(
     new SphereGeometry(0.6, 24, 16),
     new MeshBasicMaterial({ color: 0xe5d9b4 }),
   );
   moonDisc.scale.z = 0.08;
-  moonDisc.position.set(windowX - 1.1, 7.6, wallZ + 0.41);
+  moonDisc.position.set(windowX - 1.1 * W, 7.6 * W, wallZ + 0.41);
+  moonDisc.scale.multiplyScalar(W);
   scene.add(moonDisc);
-  box(scene, 2.8, 3.6, 0.12, 17, 6, wallZ + 0.22, brass);
-  box(scene, 2.45, 3.25, 0.08, 17, 6, wallZ + 0.31, materials.felt(0x927d63));
-  box(scene, 1.8, 1.8, 0.12, 21, 4.6, wallZ + 0.22, brass);
-  box(scene, 1.55, 1.55, 0.08, 21, 4.6, wallZ + 0.31, materials.felt(0x6e8a7a));
+  box(scene, 2.8 * W, 3.6 * W, 0.12, 55, 6 * W, wallZ + 0.22, brass);
+  box(
+    scene,
+    2.45 * W,
+    3.25 * W,
+    0.08,
+    55,
+    6 * W,
+    wallZ + 0.31,
+    materials.felt(0x927d63),
+  );
+  box(scene, 1.8 * W, 1.8 * W, 0.12, 70, 4.6 * W, wallZ + 0.22, brass);
+  box(
+    scene,
+    1.55 * W,
+    1.55 * W,
+    0.08,
+    70,
+    4.6 * W,
+    wallZ + 0.31,
+    materials.felt(0x6e8a7a),
+  );
 
   function drawBooks(piece: BoxPiece) {
     const { x, y, z, width, height, depth, color } = piece;
@@ -314,14 +370,15 @@ export function createScene(host: HTMLElement) {
         z,
         cover,
       );
-      for (let j = 1; j < 5; j++) {
+      // Two page lines per book keeps draw calls down on the large desk.
+      for (let j = 1; j < 3; j++) {
         box(
           scene,
           width - 0.2,
           0.008,
           0.012,
           x + nudge,
-          bottom + 0.05 + (j * (bookHeight - 0.1)) / 5,
+          bottom + 0.05 + (j * (bookHeight - 0.1)) / 3,
           z + depth / 2 - 0.04,
           brass,
         );
@@ -333,15 +390,15 @@ export function createScene(host: HTMLElement) {
     const top = y + height / 2;
     if (piece.kind === 'desk') {
       box(scene, width, height, depth, x, y, z, materials.wood);
-      box(scene, width - 0.6, 0.9, depth - 0.6, x, -0.95, z, materials.wood);
-      const legHeight = -1.4 - floorY;
-      for (const legX of [-width / 2 + 0.8, width / 2 - 0.8])
-        for (const legZ of [-depth / 2 + 0.8, depth / 2 - 0.8])
+      box(scene, width - 2, 3, depth - 2, x, -2, z, materials.wood);
+      const legHeight = -3.5 - floorY;
+      for (const legX of [-width / 2 + 3, width / 2 - 3])
+        for (const legZ of [-depth / 2 + 3, depth / 2 - 3])
           box(
             scene,
-            0.8,
+            4,
             legHeight,
-            0.8,
+            4,
             legX,
             floorY + legHeight / 2,
             legZ,
@@ -507,14 +564,27 @@ export function createScene(host: HTMLElement) {
   const socketGeometry = new CylinderGeometry(0.11, 0.13, 0.24, 16);
   const haloGeometry = new RingGeometry(0.985, 1, 96);
   // A fixed pool of lamps; the world decides how many are hanging.
-  const lampVisuals = Array.from({ length: MAX_LAMPS }, () => {
+  const cageGeometry = new CylinderGeometry(0.42, 0.42, 0.75, 10, 4, true);
+  // Only the lamps nearest the camera's focus cast shadows: the shadowed
+  // lights are handed to them each frame, so the light count never changes.
+  const SHADOWED_LIGHTS = 3;
+  const lampVisuals = Array.from({ length: MAX_LAMPS }, (_, lightIndex) => {
     const group = new Group();
-    const bulb = new Mesh(bulbGeometry, bulbMaterial);
+    // Per-lamp materials, so one lamp can turn into a zapper on its own.
+    const glow = bulbMaterial.clone();
+    const bulb = new Mesh(bulbGeometry, glow);
     bulb.scale.y = 1.25;
     group.add(bulb);
     const socket = new Mesh(socketGeometry, brass);
     socket.position.y = 0.28;
     group.add(socket);
+    // The bug-zapper grid, shown only while the lamp is inverted.
+    const cage = new Mesh(
+      cageGeometry,
+      new MeshBasicMaterial({ color: 0x8f7bd6, wireframe: true }),
+    );
+    cage.position.y = -0.05;
+    group.add(cage);
     const cordGeometry = new BufferGeometry().setFromPoints([
       new Vector3(),
       new Vector3(),
@@ -522,7 +592,8 @@ export function createScene(host: HTMLElement) {
     const cord = new Line(cordGeometry, cordMaterial);
     cord.frustumCulled = false;
     // This ring shows the halo's cross-section on the desk, not a score.
-    const halo = new Mesh(haloGeometry, haloMaterial);
+    const ring = haloMaterial.clone();
+    const halo = new Mesh(haloGeometry, ring);
     halo.rotation.x = -Math.PI / 2;
     // Each lamp casts its own shadows from a smaller map to stay inexpensive.
     const light = new SpotLight(
@@ -533,17 +604,21 @@ export function createScene(host: HTMLElement) {
       0.75,
       1.4,
     );
-    light.castShadow = true;
+    light.castShadow = lightIndex < SHADOWED_LIGHTS;
     light.shadow.mapSize.set(1024, 1024);
     light.shadow.bias = -0.0003;
     light.shadow.normalBias = 0.035;
     light.shadow.camera.near = 0.3;
     light.shadow.camera.far = 45;
     scene.add(group, cord, halo, light, light.target);
-    return { group, cord, cordGeometry, halo, light };
+    return { group, cord, cordGeometry, halo, light, glow, cage, ring };
   });
-  const moths = ARENA.spawns.map(({ color }, index) =>
-    createMoth(materials, color, index),
+  const weaponEffects = createWeaponEffects(scene, camera, host);
+  // Screen shake strength, decaying each frame; applied only while drawing.
+  let shake = 0;
+  const shakeOffset = new Vector3();
+  const moths = ARENA.spawns.map(({ color, team }, index) =>
+    createMoth(materials, color, team, index * 1.7),
   );
   moths.forEach((moth) => scene.add(moth.root));
   let disposed = false;
@@ -577,6 +652,40 @@ export function createScene(host: HTMLElement) {
   });
   return {
     resetCamera,
+    /**
+     * Where a weapon fired now would go: along the camera's view in the
+     * shoulder camera, or the moth's facing in the board view, tilted up by
+     * the aim offset so that the usual slightly-downward view aims level.
+     */
+    aimDirection(view: WorldView): Aim {
+      const active = view.moths[view.selectedMoth];
+      let yaw = active?.heading ?? 0;
+      let pitch = AIM.boardPitch;
+      if (cameraMode === 'follow') {
+        const forward = controls.target.clone().sub(camera.position);
+        if (forward.lengthSq() > 1e-6) {
+          forward.normalize();
+          yaw = Math.atan2(forward.x, forward.z);
+          pitch = Math.asin(forward.y) + AIM.pitchOffset;
+        }
+      }
+      pitch = Math.min(AIM.maxPitch, Math.max(AIM.minPitch, pitch));
+      return {
+        x: Math.sin(yaw) * Math.cos(pitch),
+        y: Math.sin(pitch),
+        z: Math.cos(yaw) * Math.cos(pitch),
+      };
+    },
+    setAim(preview: AimPreview | undefined) {
+      weaponEffects.setAim(preview);
+    },
+    playEvents(events: WorldEvent[], view: WorldView) {
+      if (!events.length) return;
+      weaponEffects.play(events, view);
+      for (const event of events)
+        if (event.type === 'bosh' && event.moth !== undefined)
+          shake = Math.max(shake, BOSH.shake);
+    },
     /** Switch between the shoulder camera and the whole-board view. */
     toggleView(): CameraMode {
       cameraMode = cameraMode === 'follow' ? 'board' : 'follow';
@@ -640,10 +749,25 @@ export function createScene(host: HTMLElement) {
     render(view: WorldView, seconds: number) {
       applySettings();
       updateFur();
+      // Nearest lamps to the camera's focus get the shadow-casting lights.
+      const focus = controls.target;
+      const nearest = view.lamps
+        .map((lamp, index) => ({
+          index,
+          distance: Math.hypot(lamp.x - focus.x, lamp.z - focus.z),
+        }))
+        .sort((a, b) => a.distance - b.distance);
+      const lightFor = new Map(
+        nearest.map(({ index }, rank) => [index, lampVisuals[rank]!.light]),
+      );
+      lampVisuals.forEach((visual, index) => {
+        visual.light.visible = index < view.lamps.length;
+      });
       lampVisuals.forEach((visual, index) => {
         const lamp = view.lamps[index];
-        const { group, cord, cordGeometry, halo, light } = visual;
-        group.visible = cord.visible = light.visible = !!lamp;
+        const { group, cord, cordGeometry, halo, glow, cage, ring } = visual;
+        const light = lightFor.get(index) ?? visual.light;
+        group.visible = cord.visible = !!lamp;
         if (!lamp) {
           halo.visible = false;
           return;
@@ -662,7 +786,18 @@ export function createScene(host: HTMLElement) {
         positions.setXYZ(0, anchor.x, anchor.y, anchor.z);
         positions.setXYZ(1, lamp.x, lamp.y, lamp.z);
         positions.needsUpdate = true;
-        light.intensity = LIGHTING.lampIntensity;
+        // A zapper is cold violet, buzzing with an uneven flicker.
+        const flicker = lamp.zapper
+          ? 0.75 + 0.25 * Math.sin(seconds * 47) * Math.sin(seconds * 13.3)
+          : 1;
+        light.color.setHex(lamp.zapper ? 0x9b7bff : 0xffc987);
+        light.intensity = LIGHTING.lampIntensity * flicker;
+        glow.emissive.setHex(lamp.zapper ? 0x8a5cff : 0xffb34b);
+        glow.color.setHex(lamp.zapper ? 0xe6dcff : 0xffefd0);
+        glow.emissiveIntensity = 3 * flicker;
+        cage.visible = lamp.zapper;
+        ring.color.setHex(lamp.zapper ? 0xb48cff : 0xedc778);
+        ring.opacity = lamp.zapper ? 0.85 : 0.48;
         light.angle = LIGHTING.lampAngle;
         light.position.set(lamp.x, lamp.y - 0.15, lamp.z);
         light.target.position.set(lamp.x, 0, lamp.z);
@@ -673,6 +808,9 @@ export function createScene(host: HTMLElement) {
         halo.scale.setScalar(haloAtFloor);
         halo.position.set(lamp.x, 0.012, lamp.z);
       });
+      const frameDelta =
+        lastSeconds === undefined ? 0 : Math.max(0, seconds - lastSeconds);
+      weaponEffects.update(view, frameDelta);
       view.moths.forEach((position, index) => {
         const moth = moths[index];
         if (!moth) return;
@@ -719,8 +857,16 @@ export function createScene(host: HTMLElement) {
         unobstructed = camera.position.clone();
         avoidOcclusion();
       }
+      shake = Math.max(0, shake - frameDelta * BOSH.shake * 4);
+      shakeOffset.set(
+        (Math.random() - 0.5) * 2 * shake,
+        (Math.random() - 0.5) * 2 * shake,
+        (Math.random() - 0.5) * 2 * shake,
+      );
+      camera.position.add(shakeOffset);
       if (!TILT_SHIFT.enabled) {
         renderer.render(scene, camera);
+        camera.position.sub(shakeOffset);
         return;
       }
       // Ease the focus band onto the active moth's height on screen.
@@ -733,6 +879,7 @@ export function createScene(host: HTMLElement) {
       const size = renderer.getDrawingBufferSize(new Vector2());
       tiltShift.update({ ...TILT_SHIFT, focus: focusLine }, size.x, size.y);
       composer.render(deltaSeconds);
+      camera.position.sub(shakeOffset);
     },
     destroy() {
       if (disposed) return;
@@ -756,6 +903,7 @@ export function createScene(host: HTMLElement) {
       usedMaterials.forEach((material) => material.dispose());
       materials.dispose();
       lampVisuals.forEach(({ light }) => light.shadow.dispose());
+      weaponEffects.destroy();
       composer.dispose();
       renderer.dispose();
       renderer.domElement.remove();

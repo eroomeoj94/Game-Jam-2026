@@ -8,12 +8,14 @@ const MOVE_KEYS = new Set([
   'ArrowDown',
   'ArrowRight',
   'Space',
+  'KeyF',
 ]);
 
 /** Tracks held movement separately from a one-shot jump, at simulation cadence. */
 export function createPlayerInput(
   onSelect: (id: number) => void,
   onToggleView: () => void = () => {},
+  onWeapon: (step: number) => void = () => {},
 ) {
   const held = new Set<string>();
   let jumpQueued = false;
@@ -29,9 +31,15 @@ export function createPlayerInput(
       return;
     if (event.altKey || event.ctrlKey || event.metaKey || document.hidden)
       return;
-    if (event.code === 'Digit1' || event.code === 'Digit2') {
+    const digit = /^Digit([1-9])$/.exec(event.code);
+    if (digit) {
       event.preventDefault();
-      if (!event.repeat) onSelect(event.code === 'Digit1' ? 0 : 1);
+      if (!event.repeat) onSelect(Number(digit[1]) - 1);
+      return;
+    }
+    if (event.code === 'KeyQ' || event.code === 'KeyE') {
+      event.preventDefault();
+      if (!event.repeat) onWeapon(event.code === 'KeyQ' ? -1 : 1);
       return;
     }
     if (event.code === 'KeyV') {
@@ -78,6 +86,10 @@ export function createPlayerInput(
         jump,
         flutter: held.has('Space'),
       };
+    },
+    /** True while the fire key is held: aim and charge, release to fire. */
+    fireHeld() {
+      return held.has('KeyF');
     },
     destroy() {
       clear();

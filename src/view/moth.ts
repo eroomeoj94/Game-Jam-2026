@@ -1,5 +1,6 @@
 import {
   CatmullRomCurve3,
+  Color,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -16,6 +17,8 @@ export function createMoth(
   materials: ReturnType<typeof createMaterials>,
   color: number,
   team: number,
+  /** Offsets idle animation so teammates do not move in lockstep. */
+  phase = team,
 ) {
   const root = new Group();
   const puppet = new Group();
@@ -113,26 +116,70 @@ export function createMoth(
     return fur;
   });
   root.rotation.y = team === 0 ? 0.3 : -0.3;
+  // Remember every material's colour so a zap can char it and it can recover.
+  const tintable: { material: MeshStandardMaterial; colour: Color }[] = [];
+  root.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const list = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of list)
+      if (
+        material instanceof MeshStandardMaterial &&
+        !tintable.some((item) => item.material === material)
+      )
+        tintable.push({ material, colour: material.color.clone() });
+  });
+  const soot = new Color(0x1c1714);
+  let char = 0;
+  let lastSeconds = 0;
+  let tumble = 0;
   return {
     root,
     animate(seconds: number, state: MothView) {
+      const delta = Math.max(0, seconds - lastSeconds);
+      lastSeconds = seconds;
+      // Charred instantly by a zap, then slowly back to clean felt.
+      const nextChar = state.zapped ? 1 : Math.max(0, char - delta * 0.35);
+      if (nextChar !== char) {
+        char = nextChar;
+        for (const { material, colour } of tintable)
+          material.color.copy(colour).lerp(soot, char * 0.82);
+      }
+      if (state.zapped) {
+        // Cartoon tumble: smooth spin, stiff limbs, wings flung wide.
+        tumble += delta * 13;
+        root.rotation.y = state.heading + tumble * 0.6;
+        puppet.rotation.set(tumble, 0, Math.sin(tumble * 0.7) * 0.9);
+        puppet.position.y = 0;
+        wings.forEach((wing, index) => {
+          wing.rotation.y = (index === 0 ? -1 : 1) * 1.1;
+        });
+        return;
+      }
+      tumble = 0;
       const steppedTime = Math.floor(seconds * 10) / 10;
       root.rotation.y = state.heading;
       for (const fur of shells) fur.count = FUR.layers;
       const walking = state.moving && state.grounded;
       puppet.rotation.z =
-        Math.sin(steppedTime * (walking ? 16 : 1.8) + team) *
+        Math.sin(steppedTime * (walking ? 16 : 1.8) + phase) *
         (walking ? 0.075 : 0.025);
       puppet.position.y = walking
         ? Math.abs(Math.sin(steppedTime * 16)) * 0.04
         : 0;
       puppet.rotation.x = !state.grounded && state.moving ? 0.16 : 0;
+      if (state.punching) {
+        // Throw the whole body into the punch.
+        puppet.rotation.x = 0.35;
+        puppet.position.z = 0.28;
+      } else puppet.position.z = 0;
       wings.forEach((wing, index) => {
         wing.rotation.y =
           (index === 0 ? -1 : 1) *
           (state.fluttering
             ? 0.35 + Math.sin(steppedTime * 28) * 0.8
-            : 0.15 + Math.sin(steppedTime * 3 + team) * 0.08);
+            : 0.15 + Math.sin(steppedTime * 3 + phase) * 0.08);
       });
     },
   };

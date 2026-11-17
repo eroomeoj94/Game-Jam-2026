@@ -16,6 +16,9 @@ vi.mock('./view/scene', () => ({
       render: vi.fn(),
       resetCamera: vi.fn(),
       toggleView: vi.fn(() => 'board'),
+      aimDirection: vi.fn(() => ({ x: 1, y: 0.4, z: 0 })),
+      setAim: vi.fn(),
+      playEvents: vi.fn(),
       movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
       orbitCamera: vi.fn(),
       pickMoth: vi.fn<() => number | undefined>(() => undefined),
@@ -89,7 +92,7 @@ describe('application smoke tests', () => {
     for (let tick = 0; tick < 120; tick++) frame(tick * 20);
     expect(render).toHaveBeenCalledTimes(120);
     expect(pendingFrames.size).toBe(1);
-    expect(render.mock.lastCall?.[0].moths).toHaveLength(2);
+    expect(render.mock.lastCall?.[0].moths).toHaveLength(ARENA.spawns.length);
   });
 
   it('survives 100 nudge/reset cycles and restores the initial world every time', () => {
@@ -203,6 +206,56 @@ function key(code: string, type = 'keydown', repeat = false) {
 function frames(from: number, count: number) {
   for (let tick = 1; tick <= count; tick++) frame(from + tick * 20);
 }
+
+describe('weapon playground smoke tests', () => {
+  it('cycles weapons with Q/E and fires on release of a held F', () => {
+    const { scene, render } = mount();
+    frames(0, 30);
+    expect(
+      document
+        .querySelector('[data-weapon="gust"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    key('KeyE');
+    key('KeyE', 'keyup');
+    expect(
+      document
+        .querySelector('[data-weapon="bosh"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    key('KeyE');
+    key('KeyE', 'keyup');
+    key('KeyE');
+    key('KeyE', 'keyup');
+    expect(
+      document
+        .querySelector('[data-weapon="cap"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    key('KeyF');
+    frames(600, 25);
+    // Charging shows the preview and fills the power meter.
+    expect(scene.setAim).toHaveBeenLastCalledWith(
+      expect.objectContaining({ weapon: 'cap' }),
+    );
+    const power = Number(
+      (document.querySelector('#charge') as HTMLProgressElement).value,
+    );
+    expect(power).toBeGreaterThan(0.2);
+    expect(render.mock.lastCall![0].projectiles).toHaveLength(0);
+    key('KeyF', 'keyup');
+    frames(1200, 2);
+    expect(scene.setAim).toHaveBeenLastCalledWith(undefined);
+    expect(render.mock.lastCall![0].projectiles).toHaveLength(1);
+    expect(scene.playEvents).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ type: 'launch' })]),
+      expect.anything(),
+    );
+    expect(document.querySelector('#charge-value')?.textContent).toBe(
+      'Reloading',
+    );
+  });
+});
 
 describe('movement control smoke tests', () => {
   it('selects with 1/2 and translates keyboard movement through the camera direction', () => {
@@ -340,7 +393,7 @@ describe('movement control smoke tests', () => {
       pads = [makePad([1, 0, 0.6, 0])];
       frames(600, 20);
       expect(render.mock.lastCall![0].moths[0]!.x).toBeGreaterThan(
-        ARENA.spawns[0].x + 0.7,
+        ARENA.spawns[0]!.x + 0.7,
       );
       expect(scene.orbitCamera).toHaveBeenLastCalledWith(
         expect.any(Number),

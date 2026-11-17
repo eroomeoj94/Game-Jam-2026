@@ -58,7 +58,7 @@ describe('3D starter physics world', () => {
     try {
       for (let tick = 0; tick < 300; tick++) world.step();
       const { moths } = world.snapshot();
-      expect(moths).toHaveLength(2);
+      expect(moths).toHaveLength(ARENA.spawns.length);
       moths.forEach((moth, index) => {
         expect(moth.y).toBeCloseTo(ARENA.mothRadius, 2);
         expect(moth.x).toBeCloseTo(ARENA.spawns[index]!.x, 2);

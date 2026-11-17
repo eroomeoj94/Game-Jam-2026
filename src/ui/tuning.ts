@@ -1,18 +1,40 @@
 import GUI from 'lil-gui';
 import {
+  AIM,
+  ARENA,
+  BOSH,
   CAMERA,
+  CAP,
+  FIRECRACKER,
   FUR,
+  GUST,
   LAMPS,
   LIGHTING,
   MAX_FUR_LAYERS,
   MAX_LAMPS,
   MOVEMENT,
+  PLAYGROUND,
   TILT_SHIFT,
+  ZAP,
 } from '../config';
 
 // Bump the version when defaults change shape, so stale saves are ignored.
-const STORAGE_KEY = 'moth-fight-club:tuning:v3';
-const SETTINGS = { MOVEMENT, CAMERA, LAMPS, LIGHTING, TILT_SHIFT, FUR };
+const STORAGE_KEY = 'moth-fight-club:tuning:v5';
+const SETTINGS = {
+  MOVEMENT,
+  CAMERA,
+  LAMPS,
+  LIGHTING,
+  TILT_SHIFT,
+  FUR,
+  GUST,
+  BOSH,
+  ZAP,
+  CAP,
+  FIRECRACKER,
+  AIM,
+  PLAYGROUND,
+};
 type Settings = typeof SETTINGS;
 const DEFAULTS: Settings = structuredClone(SETTINGS);
 
@@ -111,8 +133,8 @@ export function createTuningPanel(actions: {
     .onFinishChange(changed);
   LAMPS.positions.forEach((position, index) => {
     const folder = lamps.addFolder(`Lamp ${index + 1} position`).close();
-    folder.add(position, 'x', -28, 28, 0.1);
-    folder.add(position, 'z', -15, 15, 0.1);
+    folder.add(position, 'x', -ARENA.desk.width / 2, ARENA.desk.width / 2, 0.5);
+    folder.add(position, 'z', -ARENA.desk.depth / 2, ARENA.desk.depth / 2, 0.5);
   });
   lamps.onFinishChange(({ property }) => {
     if (property !== 'haloRadius') rebuild();
@@ -127,6 +149,49 @@ export function createTuningPanel(actions: {
   lighting.add(LIGHTING, 'fog', 0, 0.05, 0.001).name('Fog');
   lighting.onFinishChange(changed);
   movement.onFinishChange(changed);
+
+  const weapons = gui.addFolder('Weapons');
+  weapons.add(PLAYGROUND, 'cooldown', 0, 3, 0.05).name('Cooldown (s)');
+  weapons.add(AIM, 'chargeSeconds', 0.2, 3, 0.05).name('Charge time (s)');
+  weapons.add(AIM, 'pitchOffset', -0.5, 1.5, 0.01).name('Aim tilt');
+  const gust = weapons.addFolder('Wing Gust').close();
+  gust.add(GUST, 'range', 1, 10, 0.1).name('Range');
+  gust.add(GUST, 'halfAngle', 0.1, 1.4, 0.01).name('Cone half-angle');
+  gust.add(GUST, 'force', 0, 25, 0.1).name('Push');
+  gust.add(GUST, 'lift', 0, 12, 0.1).name('Lift');
+  gust.add(GUST, 'lampForce', 0, 15, 0.1).name('Lamp push');
+  gust.add(GUST, 'reachUp', 0, 10, 0.1).name('Reach upwards');
+  gust.add(GUST, 'stagger', 0, 2, 0.05).name('Stagger (s)');
+  const bosh = weapons.addFolder('Bosh').close();
+  bosh.add(BOSH, 'range', 0.5, 4, 0.05).name('Reach');
+  bosh.add(BOSH, 'halfAngle', 0.1, 1.4, 0.01).name('Arc half-angle');
+  bosh.add(BOSH, 'force', 0, 40, 0.5).name('Knockback');
+  bosh.add(BOSH, 'lift', 0, 15, 0.1).name('Lift');
+  bosh.add(BOSH, 'lampForce', 0, 20, 0.1).name('Lamp punch');
+  bosh.add(BOSH, 'stagger', 0, 3, 0.05).name('Stagger (s)');
+  bosh.add(BOSH, 'shake', 0, 1, 0.01).name('Screen shake');
+  const zap = weapons.addFolder('Zap Switch').close();
+  zap.add(ZAP, 'duration', 1, 30, 0.5).name('Zapper time (s)');
+  zap.add(ZAP, 'launch', 0, 20, 0.1).name('Launch sideways');
+  zap.add(ZAP, 'lift', 0, 20, 0.1).name('Launch upwards');
+  zap.add(ZAP, 'flightTime', 0.3, 4, 0.05).name('Flight time (s)');
+  zap.add(ZAP, 'hitstop', 0, 0.6, 0.01).name('Freeze-frame (s)');
+  const cap = weapons.addFolder('Bottle-Cap Flick').close();
+  cap.add(CAP, 'minSpeed', 1, 30, 0.5).name('Min speed');
+  cap.add(CAP, 'maxSpeed', 1, 40, 0.5).name('Max speed');
+  cap.add(CAP, 'knock', 0, 25, 0.1).name('Knockback');
+  cap.add(CAP, 'lift', 0, 12, 0.1).name('Lift');
+  cap.add(CAP, 'lifetime', 0.5, 8, 0.1).name('Lifetime (s)');
+  const cracker = weapons.addFolder('Firecracker').close();
+  cracker.add(FIRECRACKER, 'minSpeed', 1, 25, 0.5).name('Min speed');
+  cracker.add(FIRECRACKER, 'maxSpeed', 1, 30, 0.5).name('Max speed');
+  cracker.add(FIRECRACKER, 'fuse', 0.3, 6, 0.1).name('Fuse (s)');
+  cracker.add(FIRECRACKER, 'blastRadius', 0.5, 8, 0.1).name('Blast radius');
+  cracker.add(FIRECRACKER, 'force', 0, 30, 0.1).name('Blast push');
+  cracker.add(FIRECRACKER, 'lift', 0, 15, 0.1).name('Blast lift');
+  cracker.add(FIRECRACKER, 'lampRadius', 0, 10, 0.1).name('Lamp reach');
+  cracker.add(FIRECRACKER, 'lampForce', 0, 20, 0.1).name('Lamp push');
+  weapons.onFinishChange(changed);
 
   const tilt = gui.addFolder('Tilt shift');
   tilt.add(TILT_SHIFT, 'enabled').name('On');

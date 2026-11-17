@@ -46,7 +46,7 @@ describe('moth movement', () => {
     advance(diagonal, 25, { ...idle, x: 1, z: 1 });
     const a = straight.snapshot().moths[0]!;
     const b = diagonal.snapshot().moths[0]!;
-    const origin = ARENA.spawns[0];
+    const origin = ARENA.spawns[0]!;
     expect(Math.hypot(b.x - origin.x, b.z - origin.z)).toBeCloseTo(
       a.x - origin.x,
       2,
@@ -58,8 +58,8 @@ describe('moth movement', () => {
     const partial = setup();
     advance(full, 30, { ...idle, x: 1 });
     advance(partial, 30, { ...idle, x: 0.5 });
-    const fullDistance = full.snapshot().moths[0]!.x - ARENA.spawns[0].x;
-    const partialDistance = partial.snapshot().moths[0]!.x - ARENA.spawns[0].x;
+    const fullDistance = full.snapshot().moths[0]!.x - ARENA.spawns[0]!.x;
+    const partialDistance = partial.snapshot().moths[0]!.x - ARENA.spawns[0]!.x;
     expect(partialDistance).toBeGreaterThan(0.3);
     expect(partialDistance).toBeLessThan(fullDistance * 0.65);
   });
@@ -113,7 +113,8 @@ describe('moth movement', () => {
     const world = setup();
     advance(world, 80, { ...idle, z: -1 });
     const moth = world.snapshot().moths[0]!;
-    expect(moth.z).toBeGreaterThan(0.7);
+    // The perch's near side is 1.1 in front of the spawn.
+    expect(moth.z).toBeGreaterThan(ARENA.spawns[0]!.z - 1.1);
     expect(moth.y).toBeLessThan(0.55);
   });
 
@@ -143,6 +144,8 @@ describe('moth movement', () => {
 
   it('recovers from a desk fall with a fresh flutter reserve', () => {
     const world = setup();
+    // Start a few steps from the front edge of the large desk.
+    world.placeMoth(0, { x: 0, y: 0.5, z: ARENA.desk.depth / 2 - 2 });
     let fell = false;
     for (let tick = 0; tick < 300; tick++) {
       world.step({ ...idle, z: 1 });
@@ -157,8 +160,8 @@ describe('moth movement', () => {
     const moth = world.snapshot().moths[0]!;
     expect(moth.respawning).toBe(false);
     expect(moth.grounded).toBe(true);
-    expect(moth.x).toBeCloseTo(ARENA.spawns[0].x, 2);
-    expect(moth.z).toBeCloseTo(ARENA.spawns[0].z, 2);
+    expect(moth.x).toBeCloseTo(ARENA.spawns[0]!.x, 2);
+    expect(moth.z).toBeCloseTo(ARENA.spawns[0]!.z, 2);
     expect(moth.flutter).toBe(1);
   });
 
@@ -171,7 +174,7 @@ describe('moth movement', () => {
     }
     advance(held, 25, { ...idle, x: 1 });
     advance(released, 25);
-    const start = ARENA.spawns[0].x;
+    const start = ARENA.spawns[0]!.x;
     const heldDistance = held.snapshot().moths[0]!.x - start;
     const releasedDistance = released.snapshot().moths[0]!.x - start;
     expect(released.snapshot().moths[0]!.grounded).toBe(false);

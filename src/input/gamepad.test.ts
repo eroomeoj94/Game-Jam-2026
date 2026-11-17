@@ -69,6 +69,19 @@ describe('standard-mapped PS5 controls', () => {
     expect(input.poll().switchMoth).toBe(-1);
   });
 
+  it('changes weapon once per D-pad press and holds fire on R2 or Square', () => {
+    let state = pad();
+    const input = createGamepadInput(() => [state]);
+    input.poll();
+    state = pad({ buttons: buttons(15, 7) });
+    expect(input.poll()).toMatchObject({ weaponStep: 1, fire: true });
+    expect(input.poll()).toMatchObject({ weaponStep: 0, fire: true });
+    state = pad({ buttons: buttons(14, 2) });
+    expect(input.poll()).toMatchObject({ weaponStep: -1, fire: true });
+    state = pad();
+    expect(input.poll().fire).toBe(false);
+  });
+
   it('clears held controls on disconnect and requires neutral input after reconnect or focus loss', () => {
     let state: GamepadState | null = pad();
     const input = createGamepadInput(() => [state]);

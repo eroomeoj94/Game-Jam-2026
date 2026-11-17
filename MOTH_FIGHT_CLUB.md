@@ -1,12 +1,14 @@
 # Moth Fight Club
 
-Game design and build tracker · Updated 16 November 2026
+Game design and build tracker · Updated 17 November 2026
 
 **Status:** 3D movement playground implemented with keyboard and PS5 controls, selection, grounded hopping, limited flutter, and fall recovery. Full turn/scoring loop pending.
 
 **Direction update, 13 November:** Following review of the first starter, use true 3D moths and a miniature bedroom in Three.js, with cannon-es physics. The handmade felt and stop-motion direction remains. This supersedes the earlier 2D sprite proposal.
 
-**Pitch:** A turn-based physics brawler about handmade felt moths fighting over a swinging light bulb. Think Worms-style mischief on a miniature bedroom set.
+**Pitch:** A turn-based artillery-style physics brawler about handmade felt moths fighting over swinging lamps, where any lamp can be flipped into a bug zapper. Pick a moth, pick a weapon, and knock rivals out of the light or into the zap.
+
+**Core loop update, 17 November:** Teams score each round for every lamp whose light they hold by majority. A weapon can invert a lamp into a bug zapper: anyone in its light is zapped, losing their team a point and launching them comically back to base. Pushing enemies into a zapper is the central trick shot.
 
 **Demo:** Friday 27 November 2026, afternoon. Five minutes to explain and demonstrate the game.
 
@@ -49,34 +51,52 @@ Working names: Dusty, The Big Flap, Mothhew. Final names can wait.
 
 ### Arena and teams
 
-- One 3D bedroom desk arena, with an elevated perspective camera showing the battlefield. Camera orbit is available in the scene study; gameplay camera behaviour is still to test.
-- Two teams with two moths each. The earliest prototype uses one moth per team.
-- A bulb hangs from a single physics constraint and carries a spherical scoring halo. Display its reach clearly on platforms and indicate which moth body centres count; the scene study currently shows its desk-plane cross-section.
-- Books and other fixed props create reachable platforms and useful firing positions.
-- The lamp remains attached and cannot break. Decorative scenery stays fixed initially.
+- One 3D bedroom desk arena (currently 56 × 30) with a team base at each end. A shoulder camera follows the active moth; a board view shows the whole desk.
+- Two teams of **four to five moths** each. The current build has one moth per team; extra moths come with the turn system.
+- **Three hanging lamps** by default (centre, left and right), each on a physics cord with its own spherical light zone. Display each zone's reach clearly on the desk.
+- Books and other fixed props create reachable perches and firing positions.
+- Lamps stay attached and cannot break. Scenery stays fixed initially.
+
+### Lamps and zappers
+
+Each lamp is in one of two states:
+
+| State | Look | Effect |
+| --- | --- | --- |
+| **Warm lamp** (default) | Warm orange glow | Scores for the team holding its light at the end of each round. |
+| **Bug zapper** | Cold violet glow, buzz and crackle | Any moth whose body centre is inside its light zone is zapped, from either team. It never scores. |
+
+- A weapon (working name **Zap Switch**) inverts one lamp into a zapper. It uses the turn's action, each team has **two per match**, and the zapper lasts **one full round** before turning back into a warm lamp. These numbers are starting values to playtest.
+- Inverting a lamp immediately zaps every moth already in its light, friend or foe, so flipping a crowded lamp is the big play.
+- While a lamp is a zapper, any moth that enters its light is zapped at once. This includes moths pushed in by gusts or projectiles, or caught by the zapper swinging on its cord.
+- Zappers do **not** pull moths towards them. Revisit after playtesting.
+
+### Getting zapped
+
+- The zapped moth's team **loses one point**. Scores can drop, so a single good push can swing the lead.
+- The moth is launched comically: a violet flash with a brief freeze-frame, charred fur and a smoke trail, a tumbling flight across the desk, a cartoon landing, then a puff back to its base.
+- A zapped moth sits out the next round, the same as a moth that falls off the desk.
+- A launched moth that hits another moth can zap it too (rare and memorable; optional for the first build).
 
 ### Winning
 
-- First team to **three points** wins; tune this after playtesting.
-- At the start of a team's turn, that team earns one point if a friendly moth is inside the halo and no enemy moth is inside it.
-- Both teams present means contested: no point. An empty halo also gives no point.
-- Two friendly moths do not score faster than one.
-- Starting positions are outside the halo, so the opening turn awards no point.
-- Score using moth body centres and a clear radius. Show a visible indicator when a moth counts as inside.
-- Intended match duration: roughly three to five minutes; this is a target to test.
-
-This scoring rule gives the opponent a response before a newly occupied position earns a point.
+- **Each round, both teams take one turn.** At the end of the round, each warm lamp awards **one point** to the team with more moths inside its light.
+- A tie inside a lamp's light, or an empty light, awards nothing for that lamp. A zapper awards nothing.
+- More moths do not score more than one point per lamp: holding the majority is what counts.
+- Score using moth body centres and each lamp's radius. Show which team holds each lamp, and whether it is contested, with text or icons as well as colour.
+- Target score and match length are to tune. Starting proposal: first to **ten points**, aiming for roughly five to eight minutes.
+- Starting positions are outside every light, so the first round can only score if a team reaches a lamp during it.
 
 ### Turn sequence
 
-1. Check the incoming team's score and victory condition.
-2. Return any of that team's fallen moths to its starting perch.
-3. Select one friendly moth. Either moth may be chosen each turn initially.
-4. Move using a limited movement/flight allowance.
-5. Aim and use one gadget, or pass.
-6. Let the physics resolve, then hand over to the other team.
+1. Return the incoming team's moths that sat out the last round to their base.
+2. Select one friendly moth. Any non-resting moth may be chosen.
+3. Move using a limited movement allowance.
+4. Choose a weapon, aim, and fire, or pass.
+5. Let physics resolve, then hand over to the other team.
+6. After both teams have played, end the round: score warm lamps, count down zapper durations, and check for victory.
 
-The world pauses during selection and handover. Physics runs during movement and action resolution. After an action, wait for motion to settle, with a maximum resolution time so a swinging lamp cannot stall a match. Pause the resulting state for the next turn. Exact thresholds are implementation details to tune.
+The world pauses during selection, aiming and handover. Physics runs during movement and action resolution, with a maximum resolution time so a swinging lamp cannot stall a match. Exact thresholds are implementation details to tune.
 
 ### Movement and falls
 
@@ -97,26 +117,32 @@ The world pauses during selection and handover. Physics runs during movement and
 
 Show the available controls on screen. Final bindings depend on the first playtest, including a laptop trackpad check.
 
-## 4. Gadgets
+## 4. Weapons
 
-| Gadget | Behaviour | Build priority |
+Worms-style: choose a weapon each turn, each with a distinct job. All names are working names, and all designs are original bedroom objects and moth tricks.
+
+| Weapon | Behaviour | Build priority |
 | --- | --- | --- |
-| Wing Gust | Short-range cone pushes moths and the lamp. Unlimited use, one action per turn. | First playable |
-| Bottle-Cap Launcher | Precise projectile with strong knockback and possible ricochets. | Core build |
-| Firecracker | Bouncing projectile with a short fuse and radial knockback. Affects both teams. | Core build |
-| Decoy Glow | Temporary lure applies a visible physical pull to nearby moths. It never awards points. | Stretch |
+| Wing Gust | Short-range cone pushes moths and swings lamps overhead. Unlimited. Physics implemented 17 November, controls pending. | First playable |
+| Zap Switch | Inverts one lamp into a bug zapper for one round. Two per team per match. | First playable |
+| Bottle-Cap Flick | Fairly straight shot with strong knockback; ricochets off books. | Core build |
+| Firecracker | Lobbed, bouncy, short fuse, radial blast that affects both teams and the lamps. | Core build |
+| Thread Swing | Fire a thread at a lamp cord and swing across the desk. | Stretch |
+| Thumbtack | Placed trap that launches the next moth to step on it. | Stretch |
+| Sticky Note | Moth standing on it cannot be pushed; a counter to zapper plays. | Stretch |
+| Draught from the window | Per-turn wind that affects projectiles and fluttering moths. | Stretch |
 
-Start with unlimited gadget use while testing their basic behaviour. Add limited charges to powerful gadgets only if playtests show a need; display remaining charges clearly. Decoy duration and strength remain undecided.
+Aiming: aim along the camera's view, tilt up or down for arcing shots, hold to charge power where relevant, release to fire. Do not add a guide that promises an exact landing position when collisions or lamp movement can change it; a short initial trajectory guide is enough.
 
-Do not add an aiming guide that promises an exact landing position when collisions or lamp movement can change it. A short initial trajectory guide is sufficient.
+Start with unlimited use for basic weapons while testing; limit powerful ones and show remaining uses clearly.
 
 ## 5. What makes the lamp interesting
 
-The halo follows the physical bulb. Players can push an enemy away, swing the bulb towards a teammate, or enter the halo simply to deny a point.
+Each light zone follows its physical bulb. Players can push an enemy out of the light, swing a lamp towards their own moths, crowd a lamp to take the majority, or flip a crowded lamp into a zapper.
 
-Build the arena around a modest, reachable swing range. The main tuning question is whether moving the lamp creates understandable opportunities without making scoring feel arbitrary.
+The best-scoring position is also the most exposed one: the more moths a team stacks under a lamp, the more a Zap Switch costs them. Swinging a zapper into a crowd on its cord is the signature moment to show in the demo.
 
-Example: a firecracker misses its intended target but knocks the bulb towards a waiting teammate, turning a failed attack into a steal.
+Example: a firecracker misses its target but swings a zapper into two waiting enemies, turning a failed shot into a double zap.
 
 ## 6. Visual and audio direction
 
@@ -289,8 +315,10 @@ Keep a short backup recording in case the live demo has a technical problem. Pre
 | 13 November | Focus on Moth Fight Club. | Agreed |
 | 13 November | Felt puppet characters and a stop-motion-style miniature world. | Agreed |
 | 13 November | Replace the initial 2D starter with modelled 3D felt-style puppets and a miniature bedroom, using Three.js and cannon-es. | User requested; scene study implemented |
-| 13 November | Two moths per team; first to three points; score at start of own turn. | Proposed; playtest |
+| 13 November | Two moths per team; first to three points; score at start of own turn. | Superseded 17 November |
 | 13 November | One arena, local play first, simple bot after the core works. | Proposed build order |
+| 16 November | Desk enlarged; three lamps with larger light zones; teams of four to five moths proposed. | Implemented (lamps, desk); teams pending |
+| 17 November | Worms-style weapon choice each turn. Score one point per warm lamp held by majority at the end of each round. Zap Switch inverts a lamp into a bug zapper for a round; zapped moths cost their team a point and are launched comically back to base. No zapper pull for now. | Agreed; replaces "first to three" and start-of-turn scoring |
 
 ### Current next task
 

@@ -64,6 +64,10 @@ export function createGamepadInput(
         switchMoth: 0,
         resetView: false,
         toggleView: false,
+        /** -1 / +1 when the D-pad changes weapon this frame. */
+        weaponStep: 0,
+        /** True while R2 or Square is held: aim and charge, release to fire. */
+        fire: false,
       };
       if (!pad) {
         identity = '';
@@ -98,7 +102,10 @@ export function createGamepadInput(
       status.switchMoth = justPressed(5) ? 1 : justPressed(4) ? -1 : 0;
       status.toggleView = justPressed(3); // Triangle: shoulder ⇄ board view.
       status.resetView = justPressed(11); // R3: re-centre the camera.
-      status.text = 'Controller ready · Cross: hop / hold flutter';
+      status.weaponStep = justPressed(15) ? 1 : justPressed(14) ? -1 : 0;
+      status.fire = pressed.has(7) || pressed.has(2); // R2 or Square.
+      status.text =
+        'Controller ready · Cross: hop / flutter · R2: aim, release to fire';
       previous = pressed;
       return status;
     },

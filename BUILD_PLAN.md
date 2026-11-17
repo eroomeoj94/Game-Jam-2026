@@ -1,8 +1,8 @@
 # Moth Fight Club build plan
 
-Updated 16 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
+Updated 17 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
 Demo: Friday 27 November, afternoon. User availability: 15–25 hours for direction, playtesting, and demo preparation; AI handles implementation.
-Status: 3D movement playground implemented, including keyboard/PS5 controls, hop/flutter, selection, and automatic fall recovery; the turn/scoring loop is next. Recommendations below are provisional until playtested.
+Status: weapon playground implemented on a 250 × 134 desk with seven lamps and four moths per team: Wing Gust, Bosh, Zap Switch (bug zapper), Bottle-Cap Flick and Firecracker, with aiming, charging, effects and sound. The turn/scoring loop is next. Recommendations below are provisional until playtested.
 
 ## Progress at 16 November
 
@@ -16,17 +16,27 @@ Status: 3D movement playground implemented, including keyboard/PS5 controls, hop
 - [x] Stepped walking and flutter poses, independent of smooth physics and camera movement.
 - [x] Automated validation: 30 passing tests across five files, TypeScript, formatting, and production build.
 - [ ] Physical DualSense playtest and movement tuning.
-- [ ] **Attacking — Wing Gust (next up):** let the active moth push other moths and the lamp, using the short-range cone attack from `MOTH_FIGHT_CLUB.md`.
-  - [ ] Aim control: a facing direction plus a visible cone preview, mapped to keyboard/mouse and the PS5 controller (proposed: Square to gust, right stick or mouse to aim).
-  - [ ] Knockback in `game/gadgets.ts`: an impulse to every body in the cone, falling off with distance and including the lamp bulb; it can hit teammates too.
-  - [ ] Feedback: a gust pose on the attacker, hit/tumble reactions on targets, and a puff effect.
-  - [ ] Tuning: one gust should knock a moth off a book edge, but not across the whole desk.
-  - [ ] Tests with real cannon-es: a gust pushes an enemy away, moves the lamp, can knock a moth out of bounds, and has no effect outside the cone.
-  - [ ] Playground first (gust freely, with a short cooldown); once the turn loop exists, limit it to one action per turn.
+- [x] **Weapon playground (17 November):** free play with a short cooldown. Hold to aim along the camera (and charge), release to fire; Q/E or D-pad to change weapon. Aim previews, projectile models, effects, `world.useWeapon`, and 27 weapon tests.
+  - [x] Wing Gust: cone push on moths, swings lamps overhead.
+  - [x] Bosh: big close-range punch on the nearest moth, with thump, spoken "Bosh!" (or `public/sounds/bosh.mp3`), pop-up and screen shake; mute with M.
+  - [x] Zap Switch: flips the targeted lamp into a bug zapper; zapped moths cost their team a point, char, tumble and return to base.
+  - [x] Bottle-Cap Flick and Firecracker: charged projectiles; ricochet knockback and fused radial blast.
+  - [ ] Physical playtest of feel and tuning; limit to one action per turn once turns exist.
 - [ ] Movement allowance per turn, handover, scoring, victory, and full match restart.
-- [ ] **Multiple lamps (16 November, playground only):** three lamps now hang over the centre, left and right of the enlarged desk, each with its own halo. Decide the scoring rule before building `match.ts`, e.g. one point per lamp controlled, or contested per lamp.
-- [ ] **Larger teams (proposed 4–5 moths each):** desk enlarged to 56 × 30 with team bases at each end and halos about 4.9 wide on the desk. Still two moths in code; needs spawn slots per team, selection for many moths, and a decision on how many moths move per turn.
-- [ ] **Later — moths visible in board view (playtest 16 November):** at the enlarged map size moths are specks, findable only by their selection rings. Add a team-coloured marker or glow above each moth in board view, or bring the board camera closer.
+- [x] **Multiple lamps (16 November):** three lamps over the centre, left and right of the enlarged desk, each with its own light zone. Scoring rule decided 17 November (below).
+- [ ] **Core loop (agreed 17 November; see `MOTH_FIGHT_CLUB.md` §3–5):**
+  - [ ] Rounds: each team takes one turn per round; pick a moth, move, choose a weapon, fire or pass, resolve, hand over.
+  - [ ] Scoring at the end of each round: one point per warm lamp to the team with the majority of moth centres in its light; ties, empty lights and zappers score nothing.
+  - [ ] Lamp states: warm lamp and bug zapper, with distinct glow, halo and sound.
+  - [ ] Zap Switch weapon: inverts a lamp for one round, two uses per team per match; zaps everyone already in its light.
+  - [ ] Zapping: any moth centre inside a zapper's light is zapped; team loses one point; moth sits out the next round.
+  - [ ] Zap launch comedy: freeze-frame flash, charred fur and smoke, tumbling flight, cartoon landing, puff back to base, "ZAPPED! −1" pop-up.
+  - [ ] Weapon selection UI and controls (keyboard and PS5), aim along the camera, charge where relevant.
+  - [ ] Score HUD showing each lamp's state and who holds it, with text/icons as well as colour.
+  - [ ] Rule tests: majority, ties, zapper scoring nothing, zap penalty, resting moths, round order, victory.
+- [x] **Larger teams and desk (17 November):** four moths per team (keys 1–8), desk enlarged to 250 × 134 (20× the area) with seven lamps, clusters of perches under each, seeded scatter between them, and faster walking. Only the three lamps nearest the camera cast shadows. Still to decide: how many moths move per turn.
+- [ ] **Performance check:** about 1,000 meshes plus three shadow passes on the large desk; merge static scenery if the M1 check is slow.
+- [ ] **Next — moths visible in board view (playtest 16 November, urgent at the new desk size):** at the enlarged map size moths are specks, findable only by their selection rings. Add a team-coloured marker or glow above each moth in board view, or bring the board camera closer.
 - [ ] **Later — bigger lamp nudge/swing (playtest 16 November):** lamp movement is hard to see from the board view at the new scale. Increase nudge strength (and later gust force on the lamp) so swings read clearly.
 - [ ] Additional moths/gadgets, solo opponent, sound, hosting, and release checks.
 
