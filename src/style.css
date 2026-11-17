@@ -256,6 +256,48 @@ footer {
   background: #b9a3ff;
   border-color: #b9a3ff;
 }
+/* Board-view moth pins: a numbered team-coloured badge with a pointer. */
+.moth-pin {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: translate(-50%, calc(-100% - 6px)) rotate(-45deg);
+  font:
+    700 11px/1 system-ui,
+    sans-serif;
+  color: #1c1712;
+  background: #e7c28b;
+  box-shadow: 0 2px 6px #0008;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+.moth-pin[data-team='1'] {
+  background: #7fd1c8;
+}
+/* Counter-rotate the number so it reads upright inside the tilted pin. */
+.moth-pin span {
+  transform: rotate(45deg);
+}
+.moth-pin.active {
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+  outline: 2px solid #fff6e0;
+  outline-offset: 2px;
+  z-index: 5;
+}
+.moth-pin.zapped {
+  background: #b48cff;
+}
+.moth-pin[hidden] {
+  display: none;
+}
+
 /* "ZAPPED! −1" and other pop-ups float above the moth that earned them. */
 .popup {
   position: absolute;

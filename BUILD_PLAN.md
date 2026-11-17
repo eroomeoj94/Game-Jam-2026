@@ -36,7 +36,7 @@ Status: weapon playground implemented on a 250 × 134 desk with seven lamps and 
   - [ ] Rule tests: majority, ties, zapper scoring nothing, zap penalty, resting moths, round order, victory.
 - [x] **Larger teams and desk (17 November):** four moths per team (keys 1–8), desk enlarged to 250 × 134 (20× the area) with seven lamps, clusters of perches under each, seeded scatter between them, and faster walking. Only the three lamps nearest the camera cast shadows. Still to decide: how many moths move per turn.
 - [ ] **Performance check:** about 1,000 meshes plus three shadow passes on the large desk; merge static scenery if the M1 check is slow.
-- [ ] **Next — moths visible in board view (playtest 16 November, urgent at the new desk size):** at the enlarged map size moths are specks, findable only by their selection rings. Add a team-coloured marker or glow above each moth in board view, or bring the board camera closer.
+- [x] **Moths visible in board view (17 November):** team-coloured numbered pins above each moth in the board view; the active moth's pin is larger, a zapped moth's turns violet, and clicking a pin selects that moth.
 - [ ] **Later — bigger lamp nudge/swing (playtest 16 November):** lamp movement is hard to see from the board view at the new scale. Increase nudge strength (and later gust force on the lamp) so swings read clearly.
 - [ ] Additional moths/gadgets, solo opponent, sound, hosting, and release checks.
 

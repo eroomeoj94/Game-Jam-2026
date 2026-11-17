@@ -614,6 +614,37 @@ export function createScene(host: HTMLElement) {
     return { group, cord, cordGeometry, halo, light, glow, cage, ring };
   });
   const weaponEffects = createWeaponEffects(scene, camera, host);
+  // Board-view pins: at full-desk zoom a moth is a speck, so each gets a
+  // team-coloured numbered pin overlaid on the canvas. Clicking one selects.
+  const pins = ARENA.spawns.map(({ name, team }, index) => {
+    const pin = document.createElement('div');
+    pin.className = 'moth-pin';
+    pin.dataset.team = String(team);
+    const label = document.createElement('span');
+    label.textContent = String(index + 1);
+    pin.appendChild(label);
+    pin.title = name;
+    pin.hidden = true;
+    host.appendChild(pin);
+    return pin;
+  });
+  const pinPoint = new Vector3();
+  function updatePins(view: WorldView) {
+    const board = cameraMode === 'board';
+    pins.forEach((pin, index) => {
+      const moth = view.moths[index];
+      let visible = board && !!moth && !moth.respawning;
+      if (visible && moth) {
+        pinPoint.set(moth.x, moth.y + ARENA.mothRadius, moth.z).project(camera);
+        visible = pinPoint.z < 1;
+        pin.style.left = `${((pinPoint.x + 1) / 2) * 100}%`;
+        pin.style.top = `${((1 - pinPoint.y) / 2) * 100}%`;
+        pin.classList.toggle('active', index === view.selectedMoth);
+        pin.classList.toggle('zapped', !!moth.zapped);
+      }
+      if (pin.hidden === visible) pin.hidden = !visible;
+    });
+  }
   // Screen shake strength, decaying each frame; applied only while drawing.
   let shake = 0;
   const shakeOffset = new Vector3();
@@ -715,6 +746,18 @@ export function createScene(host: HTMLElement) {
         controls.rotateUp(-y * flipY * deltaSeconds * CAMERA.stickSpeed * 0.8);
     },
     pickMoth(clientX: number, clientY: number): number | undefined {
+      // A pin under the pointer wins over anything in the 3D scene.
+      for (const [index, pin] of pins.entries()) {
+        if (pin.hidden) continue;
+        const box = pin.getBoundingClientRect();
+        if (
+          clientX >= box.left &&
+          clientX <= box.right &&
+          clientY >= box.top &&
+          clientY <= box.bottom
+        )
+          return index;
+      }
       const rect = renderer.domElement.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       pointer.set(
@@ -857,6 +900,7 @@ export function createScene(host: HTMLElement) {
         unobstructed = camera.position.clone();
         avoidOcclusion();
       }
+      updatePins(view);
       shake = Math.max(0, shake - frameDelta * BOSH.shake * 4);
       shakeOffset.set(
         (Math.random() - 0.5) * 2 * shake,
@@ -904,6 +948,7 @@ export function createScene(host: HTMLElement) {
       materials.dispose();
       lampVisuals.forEach(({ light }) => light.shadow.dispose());
       weaponEffects.destroy();
+      pins.forEach((pin) => pin.remove());
       composer.dispose();
       renderer.dispose();
       renderer.domElement.remove();
