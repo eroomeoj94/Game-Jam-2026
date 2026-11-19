@@ -2,6 +2,7 @@ import GUI from 'lil-gui';
 import {
   AIM,
   ARENA,
+  AUDIO,
   BOSH,
   CAMERA,
   CAP,
@@ -34,6 +35,7 @@ const SETTINGS = {
   FIRECRACKER,
   AIM,
   PLAYGROUND,
+  AUDIO,
 };
 type Settings = typeof SETTINGS;
 const DEFAULTS: Settings = structuredClone(SETTINGS);
@@ -192,6 +194,13 @@ export function createTuningPanel(actions: {
   cracker.add(FIRECRACKER, 'lampRadius', 0, 10, 0.1).name('Lamp reach');
   cracker.add(FIRECRACKER, 'lampForce', 0, 20, 0.1).name('Lamp push');
   weapons.onFinishChange(changed);
+
+  const sound = gui.addFolder('Sound').close();
+  sound.add(AUDIO, 'master', 0, 1.5, 0.01).name('Master volume');
+  sound.add(AUDIO, 'effects', 0, 1.5, 0.01).name('Effects volume');
+  sound.add(AUDIO, 'ambience', 0, 1, 0.01).name('Night ambience');
+  sound.add(AUDIO, 'falloff', 5, 150, 1).name('Distance falloff');
+  sound.onFinishChange(changed);
 
   const tilt = gui.addFolder('Tilt shift');
   tilt.add(TILT_SHIFT, 'enabled').name('On');

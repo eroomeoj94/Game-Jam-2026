@@ -19,6 +19,7 @@ vi.mock('./view/scene', () => ({
       aimDirection: vi.fn(() => ({ x: 1, y: 0.4, z: 0 })),
       setAim: vi.fn(),
       playEvents: vi.fn(),
+      listenerPosition: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
       movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
       orbitCamera: vi.fn(),
       pickMoth: vi.fn<() => number | undefined>(() => undefined),
@@ -32,7 +33,8 @@ let cleanups: Array<() => void>;
 let nextFrameId: number;
 
 function mount() {
-  const cleanup = startApplication();
+  // Fixed spawn slots keep these tests repeatable.
+  const cleanup = startApplication({ randomSpawns: false });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
   if (!scene) throw new Error('Application did not create a scene.');

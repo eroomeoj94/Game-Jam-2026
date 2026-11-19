@@ -7,6 +7,7 @@ import {
   ZAP,
 } from './config';
 import { createWorld } from './game/world';
+import { randomPlacement } from './game/spawns';
 import type { WorldView } from './game/world';
 import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
@@ -14,7 +15,16 @@ import { createScene } from './view/scene';
 import { createSfx } from './audio/sfx';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
-export function startApplication() {
+export type ApplicationOptions = {
+  /** Scatter moths across the desk at random (on by default). */
+  randomSpawns?: boolean;
+};
+
+export function startApplication({
+  randomSpawns = true,
+}: ApplicationOptions = {}) {
+  const newWorld = () =>
+    createWorld({ placement: randomSpawns ? randomPlacement() : undefined });
   const host = document.querySelector<HTMLDivElement>('#game');
   const status = document.querySelector<HTMLParagraphElement>('#status');
   const nudge = document.querySelector<HTMLButtonElement>('#nudge');
@@ -52,7 +62,7 @@ export function startApplication() {
   loadSavedTuning();
   const scene = createScene(host);
   const sfx = createSfx();
-  let world = createWorld();
+  let world = newWorld();
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(selectMoth, toggleView, (step) =>
     selectWeapon(weaponIndex + step),
@@ -159,7 +169,18 @@ export function startApplication() {
       view.setAttribute('aria-pressed', String(mode === 'board'));
     }
   }
+  /** Say why it is silent: muted, or waiting for the browser to allow audio. */
+  function updateSoundLabel() {
+    if (!mute) return;
+    const label = sfx.muted
+      ? 'Sound off'
+      : sfx.status === 'on'
+        ? 'Sound on'
+        : 'Sound: press any key';
+    if (mute.textContent !== label) mute.textContent = label;
+  }
   function updateHUD(view: WorldView) {
+    updateSoundLabel();
     const active = view.moths[view.selectedMoth];
     if (
       !active ||
@@ -290,8 +311,9 @@ export function startApplication() {
         hitstop = ZAP.hitstop;
         accumulator = 0;
       }
-      for (const event of events)
-        if (event.type === 'bosh') sfx.bosh(event.moth !== undefined);
+      const listener = scene.listenerPosition();
+      sfx.playEvents(events, listener);
+      sfx.update(view, listener);
       scene.playEvents(events, view);
       updateHUD(view);
       scene.render(view, seconds);
@@ -305,7 +327,7 @@ export function startApplication() {
   const onReset = () => {
     clearInput();
     world.destroy();
-    world = createWorld();
+    world = newWorld();
     resetClock();
     seconds = 0;
     wasRespawning = false;
@@ -323,9 +345,10 @@ export function startApplication() {
   // Browsers only start audio from a user gesture.
   const onFirstGesture = () => sfx.unlock();
   const onMute = () => {
+    sfx.unlock();
     sfx.setMuted(!sfx.muted);
     mute.setAttribute('aria-pressed', String(sfx.muted));
-    mute.textContent = sfx.muted ? 'Sound off' : 'Sound on';
+    updateSoundLabel();
     focusCanvas();
   };
   const onMuteKey = (event: KeyboardEvent) => {

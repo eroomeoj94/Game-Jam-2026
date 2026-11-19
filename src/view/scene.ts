@@ -707,6 +707,11 @@ export function createScene(host: HTMLElement) {
         z: Math.cos(yaw) * Math.cos(pitch),
       };
     },
+    /** Where sound is heard from: the point the camera is looking at. */
+    listenerPosition() {
+      const { x, y, z } = controls.target;
+      return { x, y, z };
+    },
     setAim(preview: AimPreview | undefined) {
       weaponEffects.setAim(preview);
     },

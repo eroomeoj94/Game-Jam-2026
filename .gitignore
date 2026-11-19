@@ -7,3 +7,7 @@ coverage/
 .env.*
 !.env.example
 *.log
+
+# Artlist sound effects are licensed to the downloader and must not be
+# redistributed from this public repository. See public/sounds/README.md.
+public/sounds/artlist/

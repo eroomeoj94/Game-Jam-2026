@@ -436,6 +436,16 @@ export const FIRECRACKER = {
   lampForce: 6,
 };
 
+/** Sound mix. Samples are optional; see public/sounds/README.md. */
+export const AUDIO = {
+  master: 0.9,
+  effects: 1,
+  /** Night room tone with crickets, under everything. */
+  ambience: 0.35,
+  /** Distance at which a sound is at half volume. */
+  falloff: 30,
+};
+
 export const PHYSICS_STEP_MS = 1000 / 60;
 export const MAX_FRAME_MS = 100;
 

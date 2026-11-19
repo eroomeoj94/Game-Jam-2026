@@ -345,4 +345,4 @@ Duplicate this entry for each session:
 | Moth puppet | TBD | TBD | Needed after greybox |
 | Bedroom arena | TBD | TBD | Needed after greybox |
 | Lamp and props | TBD | TBD | Needed after greybox |
-| Sound effects | TBD | TBD | Needed for polish |
+| Sound effects and night ambience | Artlist sound-effect catalogue, 11 clips listed in `public/sounds/README.md`; synthesised fallbacks in code | Licensed to the downloader's Artlist plan; git-ignored because the repository is public. Confirm the licence covers a hosted game before publishing. | In use locally, 17 November |

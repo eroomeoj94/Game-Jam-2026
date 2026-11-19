@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
-import { createSfx } from './sfx';
+import { createSfx, normalisingGain } from './sfx';
 
 function fakeSpeech() {
   const spoken: string[] = [];
@@ -53,5 +53,175 @@ describe('sound effects', () => {
       sfx.bosh(true);
     }).not.toThrow();
     sfx.destroy();
+  });
+});
+
+/** A fake Web Audio context that records which samples start, and how loud. */
+function fakeAudio() {
+  const started: { name: string; volume: number; loop: boolean }[] = [];
+  const param = (value = 1) => ({
+    value,
+    setValueAtTime: vi.fn(),
+    setTargetAtTime: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
+  });
+  const node = () => {
+    const self: Record<string, unknown> = {
+      gain: param(),
+      frequency: param(),
+      connect: (next: unknown) => next,
+    };
+    return self;
+  };
+  const context = {
+    state: 'running',
+    currentTime: 0,
+    sampleRate: 8000,
+    destination: node(),
+    resume: vi.fn(),
+    close: vi.fn(async () => undefined),
+    createGain: () => node(),
+    createBiquadFilter: () => ({ ...node(), type: '' }),
+    createOscillator: () => ({
+      ...node(),
+      type: '',
+      start: vi.fn(),
+      stop: vi.fn(),
+    }),
+    createBuffer: (_c: number, length: number) => ({
+      getChannelData: () => new Float32Array(length),
+    }),
+    createBufferSource: () => {
+      const gainNode = { gain: param() };
+      const source = {
+        buffer: undefined as { name: string } | undefined,
+        loop: false,
+        playbackRate: param(),
+        connect: (next: { gain?: { value: number } }) => {
+          Object.assign(gainNode, next);
+          return next;
+        },
+        start: vi.fn(() =>
+          started.push({
+            name: source.buffer?.name ?? 'synth',
+            volume: gainNode.gain.value,
+            loop: source.loop,
+          }),
+        ),
+        stop: vi.fn(),
+      };
+      return source;
+    },
+  };
+  return { context: context as unknown as AudioContext, started };
+}
+
+async function loadedSfx() {
+  const { context, started } = fakeAudio();
+  const sfx = createSfx({
+    createContext: () => context,
+    speech: undefined,
+    findRecording: async () => undefined,
+    loadSample: async (_ctx, name) =>
+      ({ name, duration: 2 }) as unknown as AudioBuffer,
+  });
+  sfx.unlock();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  return { sfx, started };
+}
+
+const here = { x: 0, y: 0.5, z: 0 };
+const direction = { x: 1, z: 0 };
+
+describe('sampled sound effects', () => {
+  it('plays the matching sample for each game event', async () => {
+    const { sfx, started } = await loadedSfx();
+    sfx.playEvents([{ type: 'gust', origin: here, direction }], here);
+    sfx.playEvents(
+      [
+        { type: 'hit', moth: 1, position: here },
+        { type: 'bosh', origin: here, direction, moth: 1, position: here },
+      ],
+      here,
+    );
+    sfx.playEvents([{ type: 'explode', position: here }], here);
+    sfx.playEvents(
+      [{ type: 'zap', moth: 1, team: 1, lamp: 0, position: here }],
+      here,
+    );
+    sfx.playEvents([{ type: 'lamp', lamp: 0, zapper: true }], here);
+    sfx.playEvents([{ type: 'launch', kind: 'cap', position: here }], here);
+    expect(started.map(({ name }) => name)).toEqual([
+      'whoosh',
+      // The punch covers the knock it causes: one sound, not two.
+      'punch',
+      'bang',
+      'zap',
+      'switch',
+      'zap',
+      'pop',
+    ]);
+  });
+
+  it('makes distant events quieter and stays silent when muted', async () => {
+    const { sfx, started } = await loadedSfx();
+    sfx.playEvents([{ type: 'explode', position: here }], here);
+    sfx.playEvents(
+      [{ type: 'explode', position: { x: 90, y: 0.5, z: 0 } }],
+      here,
+    );
+    expect(started[1]!.volume).toBeLessThan(started[0]!.volume / 2);
+    sfx.setMuted(true);
+    sfx.playEvents([{ type: 'explode', position: here }], here);
+    expect(started).toHaveLength(2);
+  });
+
+  it('loops the ambience, and the zapper hum only while a zapper is on', async () => {
+    const { sfx, started } = await loadedSfx();
+    const view = (zapper: boolean) =>
+      ({
+        lamps: [{ x: 0, y: 5, z: 0, anchor: here, zapper, zapperLeft: 1 }],
+        projectiles: [],
+        moths: [],
+        selectedMoth: 0,
+        weaponCooldown: 0,
+        teamZaps: [0, 0],
+      }) as unknown as import('../game/world').WorldView;
+    sfx.update(view(false), here);
+    expect(started.filter((item) => item.loop).map(({ name }) => name)).toEqual(
+      ['ambience'],
+    );
+    sfx.update(view(true), here);
+    sfx.update(view(true), here);
+    expect(started.filter((item) => item.name === 'zapper-hum')).toHaveLength(
+      1,
+    );
+  });
+});
+
+describe('loudness and status', () => {
+  it('boosts quiet samples and tames loud ones to the same peak', () => {
+    const buffer = (peak: number) =>
+      ({
+        numberOfChannels: 1,
+        getChannelData: () => new Float32Array([0, peak, -peak / 2]),
+      }) as unknown as AudioBuffer;
+    expect(normalisingGain(buffer(0.09)) * 0.09).toBeCloseTo(0.9);
+    expect(normalisingGain(buffer(1)) * 1).toBeCloseTo(0.9);
+    // Near-silent clips are not boosted into noise.
+    expect(normalisingGain(buffer(0.00001))).toBe(1);
+  });
+
+  it('reports waiting until audio starts, then on, or unsupported', async () => {
+    const { sfx } = await loadedSfx();
+    expect(sfx.status).toBe('on');
+    const pending = createSfx({
+      createContext: () => undefined,
+      speech: undefined,
+      findRecording: async () => undefined,
+    });
+    expect(pending.status).toBe('waiting');
+    pending.unlock();
+    expect(pending.status).toBe('unsupported');
   });
 });

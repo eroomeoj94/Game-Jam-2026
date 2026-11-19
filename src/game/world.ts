@@ -31,6 +31,7 @@ import {
   pickLamp,
 } from './gadgets';
 import type { Aim, Direction } from './gadgets';
+import type { Placement } from './spawns';
 
 export type Position = Readonly<{ x: number; y: number; z: number }>;
 export type MovementCommand = {
@@ -103,7 +104,15 @@ const IDLE: MovementCommand = { x: 0, z: 0, jump: false, flutter: false };
 const DT = PHYSICS_STEP_MS / 1000;
 
 /** Owns movement and physics; commands are consumed once per fixed tick. */
-export function createWorld() {
+export type WorldOptions = {
+  /**
+   * Where moths start and return after a fall or zap. Defaults to each
+   * moth's fixed slot in the arena, which keeps tests predictable.
+   */
+  placement?: Placement;
+};
+
+export function createWorld({ placement }: WorldOptions = {}) {
   const world = new World({ gravity: new Vec3(0, -9.82, 0) });
   world.defaultContactMaterial.friction = 0.6;
   world.defaultContactMaterial.restitution = 0;
@@ -161,7 +170,12 @@ export function createWorld() {
         nearest = lamp;
     return nearest ? Math.atan2(nearest.x - x, nearest.z - z) : 0;
   }
-  const moths = ARENA.spawns.map(({ x, y, z, team }, id) => {
+  // Place moths one at a time so each spot accounts for those already placed.
+  const starts: Position[] = [];
+  for (const [id, spawn] of ARENA.spawns.entries())
+    starts.push(placement?.(id, starts) ?? spawn);
+  const moths = ARENA.spawns.map(({ team }, id) => {
+    const { x, y, z } = starts[id]!;
     const body = new Body({
       mass: 1,
       material: mothMaterial,
@@ -311,6 +325,10 @@ export function createWorld() {
   function tryRespawn(moth: Moth) {
     const spawn = ARENA.spawns[moth.id];
     if (!spawn) return;
+    const others = moths
+      .filter((other) => other !== moth && !other.respawning)
+      .map((other) => positionOf(other.body));
+    const chosen = placement?.(moth.id, others);
     // Clear alternate slots prevent teleporting into a moth camping on the perch.
     const candidates = [
       new Vec3(spawn.x, spawn.y, spawn.z),
@@ -318,15 +336,17 @@ export function createWorld() {
       new Vec3(spawn.x + 1.1, spawn.y, spawn.z),
       new Vec3(spawn.x, spawn.y, spawn.z + 1.1),
     ];
-    const position = candidates.find((candidate) =>
-      moths.every(
-        (other) =>
-          other === moth ||
-          other.respawning ||
-          other.body.position.distanceTo(candidate) >
-            ARENA.mothRadius * 2 + 0.1,
-      ),
-    );
+    const position = chosen
+      ? new Vec3(chosen.x, chosen.y, chosen.z)
+      : candidates.find((candidate) =>
+          moths.every(
+            (other) =>
+              other === moth ||
+              other.respawning ||
+              other.body.position.distanceTo(candidate) >
+                ARENA.mothRadius * 2 + 0.1,
+          ),
+        );
     if (!position) return;
     moth.body.position.copy(position);
     moth.body.previousPosition.copy(position);
