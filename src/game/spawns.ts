@@ -1,4 +1,4 @@
-import { ARENA, LAMPS } from '../config';
+import { ARENA, LAMPS, trackGap } from '../config';
 import type { Position } from './world';
 
 /** Chooses where moth `id` appears, given where the other moths are. */
@@ -11,6 +11,7 @@ const EDGE_MARGIN = 4;
 const MOTH_SPACING = 3;
 const PROP_CLEARANCE = 0.4;
 const LIGHT_MARGIN = 1.5;
+const TRACK_CLEARANCE = 1.8;
 
 /** Radius of a lamp's light on the desk while the lamp hangs at rest. */
 export function restingLightRadius() {
@@ -34,6 +35,8 @@ export function isClearSpot(
     Math.abs(z) > depth / 2 - EDGE_MARGIN
   )
     return false;
+  // Nobody is dropped straight into the wind-up mouse's path.
+  if (trackGap(x, z) < TRACK_CLEARANCE) return false;
   const reach = ARENA.mothRadius + PROP_CLEARANCE;
   for (const piece of ARENA.terrain) {
     if (piece.kind === 'desk') continue;
@@ -64,6 +67,33 @@ export function randomPlacement(random: () => number = Math.random): Placement {
       if (isClearSpot(x, z, occupied)) return { x, y: 0.5, z };
     }
     return undefined;
+  };
+}
+
+/**
+ * Clear spots just outside a lamp's light, one lamp after another, so every
+ * moth starts a short walk from the action and the teams are spread around
+ * the desk. Falls back to anywhere clear when a lamp's surroundings are full.
+ */
+export function nearLampPlacement(
+  random: () => number = Math.random,
+): Placement {
+  const anywhere = randomPlacement(random);
+  const lamps = LAMPS.positions.slice(0, LAMPS.count);
+  // Start from a random lamp so matches do not all open the same way.
+  let next = Math.floor(random() * Math.max(lamps.length, 1));
+  return (id, occupied) => {
+    const lamp = lamps[next++ % Math.max(lamps.length, 1)];
+    if (!lamp) return anywhere(id, occupied);
+    const inner = restingLightRadius() + LIGHT_MARGIN;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const angle = random() * Math.PI * 2;
+      const distance = inner + 0.2 + random() * 4;
+      const x = lamp.x + Math.cos(angle) * distance;
+      const z = lamp.z + Math.sin(angle) * distance;
+      if (isClearSpot(x, z, occupied)) return { x, y: 0.5, z };
+    }
+    return anywhere(id, occupied);
   };
 }
 

@@ -35,6 +35,8 @@ import {
   LIGHTING,
   BOSH,
   MAX_LAMPS,
+  MOTH_LOOK,
+  TEAM_COLOURS,
   TILT_SHIFT,
 } from '../config';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -52,6 +54,7 @@ import type { MothView, WorldView } from '../game/world';
 export type CameraMode = 'follow' | 'board';
 import { createMaterials } from './materials';
 import { createMoth } from './moth';
+import { createMouse } from './mouse';
 
 export function createScene(host: HTMLElement) {
   const renderer = new WebGLRenderer({
@@ -97,11 +100,14 @@ export function createScene(host: HTMLElement) {
     }
     renderer.toneMappingExposure = LIGHTING.exposure;
     if (scene.fog instanceof FogExp2) scene.fog.density = LIGHTING.fog;
-    ambient.intensity = LIGHTING.ambient;
+    ambient.intensity =
+      LIGHTING.ambient * (cameraMode === 'board' ? MOTH_LOOK.boardLight : 1);
     moon.intensity = LIGHTING.moon;
   }
-  const homePosition = new Vector3(95, 150, 235);
-  const homeTarget = new Vector3(0, 0, 8);
+  // The board view pulls back in proportion to the desk it has to frame.
+  const boardScale = ARENA.desk.width / 250;
+  const homePosition = new Vector3(95, 150, 235).multiplyScalar(boardScale);
+  const homeTarget = new Vector3(0, 0, 8 * boardScale);
   // 'follow' sits behind the active moth's shoulder; 'board' shows the desk.
   let cameraMode: CameraMode = 'follow';
   let lastView: WorldView | undefined;
@@ -111,7 +117,7 @@ export function createScene(host: HTMLElement) {
   const followTarget = new Vector3();
   function applyLimits() {
     const follow = cameraMode === 'follow';
-    controls.minDistance = follow ? CAMERA.followMinDistance : 30;
+    controls.minDistance = follow ? CAMERA.followMinDistance : 30 * boardScale;
     controls.maxDistance = follow ? CAMERA.followMaxDistance : 420;
     controls.minPolarAngle = follow ? 0.55 : 0.45;
     controls.maxPolarAngle = follow ? 1.42 : 1.43;
@@ -168,7 +174,7 @@ export function createScene(host: HTMLElement) {
   function applyShoulderOffset() {
     const width = Math.max(host.clientWidth, 1);
     const height = Math.max(host.clientHeight, 1);
-    // Shift the frame so the moth sits left of centre, over its right shoulder.
+    // Shift the frame so the moth sits to one side, clear of the HUD panel.
     if (cameraMode === 'follow')
       camera.setViewOffset(
         width,
@@ -652,6 +658,8 @@ export function createScene(host: HTMLElement) {
     createMoth(materials, color, team, index * 1.7),
   );
   moths.forEach((moth) => scene.add(moth.root));
+  const mouse = createMouse(materials);
+  scene.add(mouse.root, mouse.track);
   let disposed = false;
   function resize() {
     const width = Math.max(host.clientWidth, 1);
@@ -669,7 +677,7 @@ export function createScene(host: HTMLElement) {
   const picker = new Raycaster();
   const pointer = new Vector2();
   const selection = new Mesh(
-    new RingGeometry(0.61, 0.65, 48),
+    new RingGeometry(0.68, 0.8, 48),
     new MeshBasicMaterial({
       color: 0xffe1a0,
       side: DoubleSide,
@@ -678,6 +686,23 @@ export function createScene(host: HTMLElement) {
   );
   selection.rotation.x = -Math.PI / 2;
   scene.add(selection);
+  // A team-coloured ring under every moth, so they are easy to find.
+  const teamRingGeometry = new RingGeometry(0.5, 0.6, 40);
+  const teamRings = ARENA.spawns.map(({ team }) => {
+    const ring = new Mesh(
+      teamRingGeometry,
+      new MeshBasicMaterial({
+        color: TEAM_COLOURS[team] ?? 0xffffff,
+        side: DoubleSide,
+        transparent: true,
+        opacity: MOTH_LOOK.ring,
+        depthWrite: false,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    scene.add(ring);
+    return ring;
+  });
   moths.forEach((moth, id) => {
     moth.root.userData.mothId = id;
   });
@@ -865,7 +890,19 @@ export function createScene(host: HTMLElement) {
         moth.root.visible = !position.respawning;
         moth.root.position.set(position.x, position.y, position.z);
         moth.animate(seconds, position);
+        const ring = teamRings[index];
+        if (!ring) return;
+        ring.visible = !position.respawning && !position.zapped;
+        ring.material.opacity = MOTH_LOOK.ring;
+        ring.position.set(
+          position.x,
+          position.y - ARENA.mothRadius + 0.03,
+          position.z,
+        );
       });
+      mouse.animate(seconds, view.hazards[0]);
+      // The active moth's ring pulses.
+      selection.scale.setScalar(1 + Math.sin(seconds * 5) * 0.08);
       const active = view.moths[view.selectedMoth];
       selection.visible = !!active && !active.respawning;
       if (active)

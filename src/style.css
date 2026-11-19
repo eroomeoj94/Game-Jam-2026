@@ -313,7 +313,12 @@ footer {
   animation: popup-rise 1.4s ease-out forwards;
 }
 .popup-big {
-  font-size: 44px;
+  font-size: 96px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 28px #ff8a00,
+    5px 6px 0 #b3261e;
   font-style: italic;
   -webkit-text-stroke: 2px #2a1a10;
   animation-name: popup-slam;
@@ -321,7 +326,7 @@ footer {
 @keyframes popup-slam {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(2.2) rotate(-12deg);
+    transform: translate(-50%, -50%) scale(4) rotate(-18deg);
   }
   12% {
     opacity: 1;
@@ -409,4 +414,114 @@ footer {
   max-height: calc(100svh - 24px);
   overflow-y: auto;
   z-index: 10;
+}
+/* Match HUD: score line, one chip per lamp, and the turn banner. */
+[hidden] {
+  display: none !important;
+}
+.score {
+  margin: 8px 0 0;
+  color: #f1e3c6;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.lamp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.lamp-bar span {
+  min-width: 34px;
+  padding: 3px 7px;
+  border: 1px solid #78827b55;
+  border-radius: 3px;
+  color: #a3aca8;
+  background: #172128cf;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: auto;
+}
+.lamp-bar span[data-state='team-0'] {
+  color: #29261f;
+  background: #e7c28b;
+  border-color: #e7c28b;
+}
+.lamp-bar span[data-state='team-1'] {
+  color: #10221f;
+  background: #7fd1c8;
+  border-color: #7fd1c8;
+}
+.lamp-bar span[data-state='contested'] {
+  color: #f1e3c6;
+  border-style: dashed;
+  border-color: #f1e3c6;
+}
+.lamp-bar span[data-state='zapper'] {
+  color: #1d1430;
+  background: #b9a3ff;
+  border-color: #b9a3ff;
+}
+.banner {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  margin: 0;
+  padding: 10px 26px;
+  transform: translateX(-50%);
+  border: 1px solid #c69d6266;
+  color: #f1e3c6;
+  background: #101922d9;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.banner[data-phase='plan'] {
+  top: 12%;
+  padding: 6px 18px;
+  font-size: 16px;
+}
+.banner[data-phase='won'] {
+  font-size: 34px;
+  border-color: #e7c28b;
+}
+
+/* Start screen: the title and rules sit over a dimmed desk until Start. */
+header {
+  right: 4.5%;
+  bottom: 0;
+  pointer-events: auto;
+}
+header::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #101922b8;
+}
+.intro-rules {
+  max-width: 440px;
+  margin: 22px 0;
+  color: #dfd3bd;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#start {
+  padding: 14px 34px;
+  font-size: 18px;
+}
+.banner.paused {
+  top: 44%;
+}
+/* Keep the HUD panel narrow so it never sits over the active moth. */
+.caption {
+  max-width: 400px;
+}
+.moth-select {
+  max-width: 400px;
+}
+#status {
+  font-size: 16px;
 }

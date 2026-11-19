@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import page from '../index.html?raw';
 import { startApplication } from './application';
 import { createScene } from './view/scene';
-import { ARENA, MAX_FRAME_MS } from './config';
+import { ARENA, MATCH, MAX_FRAME_MS } from './config';
 import type { GamepadState } from './input/gamepad';
 
 // Only the GPU-facing scene is replaced. Controls, lifecycle, clock handling,
@@ -32,12 +32,14 @@ let pendingFrames: Map<number, FrameRequestCallback>;
 let cleanups: Array<() => void>;
 let nextFrameId: number;
 
-function mount() {
+function mount(mode: 'match' | 'playground' = 'playground') {
   // Fixed spawn slots keep these tests repeatable.
-  const cleanup = startApplication({ randomSpawns: false });
+  const cleanup = startApplication({ randomSpawns: false, mode });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
   if (!scene) throw new Error('Application did not create a scene.');
+  // Past the title screen, which takes no game input.
+  document.querySelector<HTMLButtonElement>('#start')?.click();
   return { scene, cleanup, render: vi.mocked(scene.render) };
 }
 
@@ -438,5 +440,147 @@ describe('movement control smoke tests', () => {
       if (original) Object.defineProperty(navigator, 'getGamepads', original);
       else Reflect.deleteProperty(navigator, 'getGamepads');
     }
+  });
+});
+
+describe('match smoke tests', () => {
+  const text = (selector: string) =>
+    document.querySelector(selector)?.textContent ?? '';
+
+  it('plays a round: frozen planning, a timed move, one action, handover and scoring', () => {
+    const { scene, render } = mount('match');
+    frames(0, 10);
+    expect(text('#mode')).toBe('Match');
+    expect(text('#score')).toContain('Mustard 0');
+    expect(text('#status')).toContain('Mustard');
+    expect(text('#status')).toContain('Dusty');
+    expect(text('#banner')).toContain("Mustard's turn");
+    expect(document.querySelectorAll('#lamps span')).toHaveLength(7);
+    expect(document.querySelector('#nudge')).toHaveProperty('hidden', true);
+    // The other team's moth cannot be picked, by key or by button.
+    key('Digit2');
+    expect(render.mock.lastCall![0].selectedMoth).toBe(0);
+    expect(document.querySelector('#moth-1')).toHaveProperty('disabled', true);
+    expect(document.querySelector('#moth-2')).toHaveProperty('disabled', false);
+    // Nothing moves while the player plans.
+    const planned = render.mock.lastCall![0].moths[0]!;
+    frames(200, 20);
+    expect(render.mock.lastCall![0].moths[0]).toEqual(planned);
+
+    key('KeyD');
+    frames(600, 25);
+    key('KeyD', 'keyup');
+    const moved = render.mock.lastCall![0].moths[0]!;
+    expect(moved.x).toBeGreaterThan(planned.x + 1);
+    // No move limit by default, so there is no meter to watch.
+    expect(document.querySelector('#move-meter')).toHaveProperty(
+      'hidden',
+      true,
+    );
+    expect(document.querySelector('#moth-2')).toHaveProperty('disabled', true);
+
+    // Holding fire freezes the world; releasing takes the turn's one action.
+    key('KeyF');
+    frames(1200, 5);
+    const frozen = render.mock.lastCall![0].moths[0]!;
+    key('KeyD');
+    frames(1400, 20);
+    key('KeyD', 'keyup');
+    expect(render.mock.lastCall![0].moths[0]).toEqual(frozen);
+    key('KeyF', 'keyup');
+    frames(1900, 2);
+    expect(scene.playEvents).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ type: 'gust' })]),
+      expect.anything(),
+    );
+    expect(text('#status')).toContain('resolving');
+    expect(document.querySelector('#pass')).toHaveProperty('disabled', true);
+    // A second shot in the same turn does nothing.
+    vi.mocked(scene.playEvents).mockClear();
+    key('KeyF');
+    frames(2000, 3);
+    key('KeyF', 'keyup');
+    frames(2100, 3);
+    expect(scene.playEvents).not.toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ type: 'gust' })]),
+      expect.anything(),
+    );
+
+    // The same team's next moth goes; the one that acted is finished.
+    frames(2200, 140);
+    expect(text('#status')).toContain('Mustard');
+    expect(text('#status')).toContain('Big Flap');
+    expect(text('#banner')).toContain('3 moths to go');
+    expect(render.mock.lastCall![0].selectedMoth).toBe(2);
+    expect(document.querySelector('#moth-0')).toHaveProperty('disabled', true);
+    key('Digit1');
+    expect(render.mock.lastCall![0].selectedMoth).toBe(2);
+
+    // Ending a go without attacking is a dance.
+    let now = 5200;
+    const danceGo = () => {
+      key('KeyP');
+      key('KeyP', 'keyup');
+      frames(now, 140);
+      now += 3000;
+    };
+    vi.mocked(scene.playEvents).mockClear();
+    key('KeyP');
+    key('KeyP', 'keyup');
+    frames(now, 5);
+    expect(scene.playEvents).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'dance', moth: 2 }),
+      ]),
+      expect.anything(),
+    );
+    expect(render.mock.lastCall![0].moths[2]!.dance).toBeGreaterThan(0);
+    frames(now + 100, 140);
+    now += 3000;
+    danceGo();
+    danceGo();
+    // Every Mustard moth has had its go: over to Teal.
+    expect(text('#status')).toContain('Teal');
+    expect(text('#status')).toContain('Mothhew');
+    expect(render.mock.lastCall![0].selectedMoth).toBe(1);
+    for (let go = 0; go < 4; go++) danceGo();
+    expect(text('#banner')).toContain('Round 1');
+    expect(text('#score')).toContain('Round 1');
+    frames(now, 170);
+    // Teams keep the same order every round.
+    expect(text('#score')).toContain('Round 2');
+    expect(text('#banner')).toContain("Mustard's turn");
+  });
+
+  it('spends a timed movement allowance, then waits for an action or a pass', () => {
+    MATCH.moveSeconds = 6;
+    const { render } = mount('match');
+    frames(0, 10);
+    key('KeyD');
+    frames(200, 330);
+    const stopped = render.mock.lastCall![0].moths[0]!;
+    expect(text('#move-value')).toBe('Spent');
+    frames(7000, 30);
+    expect(render.mock.lastCall![0].moths[0]!.x).toBe(stopped.x);
+    expect(text('#status')).toContain('Mustard');
+    key('KeyD', 'keyup');
+    click('pass');
+    frames(7800, 140);
+    expect(text('#status')).toContain('Big Flap');
+    MATCH.moveSeconds = 0;
+  });
+
+  it('starts a fresh match from New match', () => {
+    const { render } = mount('match');
+    frames(0, 10);
+    key('KeyP');
+    frames(200, 140);
+    expect(text('#status')).toContain('Big Flap');
+    expect(text('#reset')).toBe('New match');
+    click('reset');
+    frames(4000, 5);
+    expect(text('#status')).toContain('Mustard');
+    expect(text('#score')).toContain('Round 1');
+    expect(render.mock.lastCall![0].selectedMoth).toBe(0);
   });
 });

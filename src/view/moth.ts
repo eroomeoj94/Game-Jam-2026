@@ -8,7 +8,7 @@ import {
   TubeGeometry,
   Vector3,
 } from 'three';
-import { FUR } from '../config';
+import { FUR, MOTH_LOOK } from '../config';
 import type { MothView } from '../game/world';
 import { createFurShells } from './fur';
 import type { createMaterials } from './materials';
@@ -23,11 +23,18 @@ export function createMoth(
   const root = new Group();
   const puppet = new Group();
   root.add(puppet);
-  const cream = materials.felt(0xd3b993);
+  const cream = materials.felt(0xf0dcb8);
   const wingMaterial = materials.felt(color);
   const dark = new MeshStandardMaterial({ color: 0x211b1c, roughness: 0.22 });
   const stitches = new MeshStandardMaterial({ color: 0xe6cc9b, roughness: 1 });
   const gloveMaterial = materials.felt(team === 0 ? 0x963e32 : 0x624871);
+  // Felt that glows a little in its own colour, so moths read in the dark.
+  const lit = [cream, wingMaterial, gloveMaterial];
+  for (const material of lit) {
+    material.emissive.copy(material.color);
+    material.emissiveMap = material.map;
+    material.emissiveIntensity = MOTH_LOOK.glow;
+  }
   const sphere = new SphereGeometry(1, 24, 16);
   function ball(
     parent: Group,
@@ -146,6 +153,10 @@ export function createMoth(
         for (const { material, colour } of tintable)
           material.color.copy(colour).lerp(soot, char * 0.82);
       }
+      // A charred moth stops glowing until its felt recovers.
+      for (const { material } of tintable)
+        if (material.emissiveMap)
+          material.emissiveIntensity = MOTH_LOOK.glow * (1 - char);
       if (state.zapped) {
         // Cartoon tumble: smooth spin, stiff limbs, wings flung wide.
         tumble += delta * 13;
@@ -174,12 +185,43 @@ export function createMoth(
         puppet.rotation.x = 0.35;
         puppet.position.z = 0.28;
       } else puppet.position.z = 0;
+      puppet.rotation.y = 0;
+      let wingSpread = state.fluttering
+        ? 0.35 + Math.sin(steppedTime * 28) * 0.8
+        : 0.15 + Math.sin(steppedTime * 3 + phase) * 0.08;
+      if (state.dance) {
+        // Stepped like the rest of the puppet, for a stop-motion routine.
+        const t = Math.floor(state.danceTime * 12) / 12;
+        if (state.dance === 1) {
+          // The Spin: a pirouette with the wings flung wide.
+          root.rotation.y = state.heading + t * 9;
+          puppet.position.y = Math.abs(Math.sin(t * 9)) * 0.12;
+          wingSpread = 1.1;
+        } else if (state.dance === 2) {
+          // The Wiggle: hips side to side with a little bounce.
+          puppet.rotation.z = Math.sin(t * 16) * 0.5;
+          puppet.rotation.y = Math.sin(t * 8) * 0.5;
+          puppet.position.y = Math.abs(Math.sin(t * 16)) * 0.08;
+        } else if (state.dance === 3) {
+          // Shadow Boxing: jabs at nobody, switching sides.
+          const jab = Math.sin(t * 14);
+          puppet.rotation.y = Math.sign(jab) * 0.55;
+          puppet.rotation.x = 0.3;
+          puppet.position.z = Math.abs(jab) * 0.3;
+          puppet.position.y = Math.abs(Math.sin(t * 7)) * 0.06;
+        } else if (state.dance === 4) {
+          // The Big Flap: star jumps with frantic wings.
+          puppet.position.y = Math.abs(Math.sin(t * 7)) * 0.55;
+          wingSpread = 0.4 + Math.sin(t * 30) * 0.9;
+        } else {
+          // The Worm: rocking flat out, nose to tail.
+          puppet.rotation.x = 1.1 + Math.sin(t * 11) * 0.45;
+          puppet.position.y = -0.18 + Math.abs(Math.sin(t * 11)) * 0.2;
+          puppet.position.z = Math.sin(t * 5.5) * 0.25;
+        }
+      }
       wings.forEach((wing, index) => {
-        wing.rotation.y =
-          (index === 0 ? -1 : 1) *
-          (state.fluttering
-            ? 0.35 + Math.sin(steppedTime * 28) * 0.8
-            : 0.15 + Math.sin(steppedTime * 3 + phase) * 0.08);
+        wing.rotation.y = (index === 0 ? -1 : 1) * wingSpread;
       });
     },
   };

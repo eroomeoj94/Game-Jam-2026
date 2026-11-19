@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { ARENA, FIRECRACKER, LAMPS, PLAYGROUND, ZAP } from '../config';
+import {
+  ARENA,
+  DANCE,
+  FIRECRACKER,
+  HAZARD,
+  LAMPS,
+  PLAYGROUND,
+  ZAP,
+} from '../config';
 import { createWorld } from './world';
 
 const worlds: ReturnType<typeof createWorld>[] = [];
@@ -149,12 +157,8 @@ describe('Zap Switch', () => {
     const lamp = world.snapshot().lamps[0]!;
     world.placeMoth(1, { x: lamp.x + 1, y: 0.5, z: lamp.z });
     advance(world, 30);
-    world.placeMoth(0, { x: lamp.x - 12, y: 0.5, z: lamp.z + 8 });
-    world.useWeapon('zap', {
-      x: lamp.x - (lamp.x - 12),
-      y: 0,
-      z: lamp.z - (lamp.z + 8),
-    });
+    world.placeMoth(0, { x: lamp.x - 7, y: 0.5, z: lamp.z + 5 });
+    world.useWeapon('zap', { x: 7, y: 0, z: -5 });
     advance(world, 10);
     const flying = world.snapshot().moths[1]!;
     expect(flying.zapped).toBe(true);
@@ -169,6 +173,19 @@ describe('Zap Switch', () => {
     ).toBeLessThan(1.6);
     // Zapped once only, despite starting the flight inside the light.
     expect(world.snapshot().teamZaps).toEqual([0, 1]);
+  });
+
+  it('only reaches a lamp within range', () => {
+    const world = setup();
+    const lamp = world.snapshot().lamps[0]!;
+    world.placeMoth(0, { x: lamp.x - ZAP.range - 1, y: 0.5, z: lamp.z });
+    expect(world.zapTarget(east)).toBeUndefined();
+    expect(world.useWeapon('zap', east)).toBe(false);
+    expect(world.snapshot().lamps[0]!.zapper).toBe(false);
+    world.placeMoth(0, { x: lamp.x - ZAP.range + 1, y: 0.5, z: lamp.z });
+    expect(world.zapTarget(east)).toBe(0);
+    expect(world.useWeapon('zap', east)).toBe(true);
+    expect(world.snapshot().lamps[0]!.zapper).toBe(true);
   });
 
   it('zaps a moth pushed into its light, then turns back into a warm lamp', () => {
@@ -230,5 +247,115 @@ describe('projectiles', () => {
     expect(events.some((event) => event.type === 'explode')).toBe(true);
     const hits = events.filter((event) => event.type === 'hit');
     expect(hits.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('Dance', () => {
+  it('performs one of five routines, never the same twice running, then stops', () => {
+    const world = setup();
+    advance(world, 30);
+    expect(DANCE.names).toHaveLength(5);
+    let previous = 0;
+    const seen = new Set<number>();
+    for (let turn = 0; turn < 60; turn++) {
+      const routine = world.dance();
+      expect(routine).toBeGreaterThanOrEqual(1);
+      expect(routine).toBeLessThanOrEqual(5);
+      expect(routine).not.toBe(previous);
+      previous = routine;
+      seen.add(routine);
+    }
+    expect(seen.size).toBe(5);
+    expect(world.dance(3)).toBe(3);
+    expect(world.drainEvents().at(-1)).toMatchObject({
+      type: 'dance',
+      moth: 0,
+      variant: 3,
+    });
+    advance(world, 10);
+    expect(world.snapshot().moths[0]).toMatchObject({ dance: 3 });
+    expect(world.snapshot().moths[0]!.danceTime).toBeGreaterThan(0.1);
+    advance(world, Math.ceil(DANCE.seconds * 60));
+    expect(world.snapshot().moths[0]!.dance).toBe(0);
+  });
+
+  it('is cut short by a hit', () => {
+    const world = setup();
+    world.placeMoth(0, { x: 0, y: 0.5, z: FRONT });
+    world.placeMoth(1, { x: 1.2, y: 0.5, z: FRONT });
+    advance(world, 30);
+    world.selectMoth(1);
+    world.dance(2);
+    world.selectMoth(0);
+    world.useWeapon('bosh', east);
+    expect(world.snapshot().moths[1]!.dance).toBe(0);
+  });
+});
+
+describe('wind-up mouse', () => {
+  const mouseOf = (world: ReturnType<typeof createWorld>) =>
+    world.snapshot().hazards[0]!;
+
+  it('runs round its track only while the world is stepping', () => {
+    const world = setup();
+    const start = mouseOf(world);
+    expect(
+      Math.hypot(start.x / ARENA.track.rx, start.z / ARENA.track.rz),
+    ).toBeCloseTo(1);
+    expect(mouseOf(world)).toEqual(start);
+    advance(world, 60);
+    const later = mouseOf(world);
+    expect(Math.hypot(later.x - start.x, later.z - start.z)).toBeGreaterThan(
+      HAZARD.speed * 0.8,
+    );
+    expect(
+      Math.hypot(later.x / ARENA.track.rx, later.z / ARENA.track.rz),
+    ).toBeCloseTo(1);
+  });
+
+  it('boots a moth standing in its way, but not one perched up high', () => {
+    const world = setup();
+    const ahead = () => {
+      const mouse = mouseOf(world);
+      return {
+        x: mouse.x + Math.sin(mouse.heading) * 2.5,
+        z: mouse.z + Math.cos(mouse.heading) * 2.5,
+      };
+    };
+    world.placeMoth(1, { ...ahead(), y: 0.5 });
+    const before = world.snapshot().moths[1]!;
+    world.drainEvents();
+    advance(world, 45);
+    const hit = world.snapshot().moths[1]!;
+    expect(world.drainEvents().map((event) => event.type)).toContain('bonk');
+    expect(Math.hypot(hit.x - before.x, hit.z - before.z)).toBeGreaterThan(2);
+    // High above the track, the mouse passes underneath.
+    world.placeMoth(0, { ...ahead(), y: 6 });
+    world.drainEvents();
+    advance(world, 20);
+    expect(
+      world
+        .drainEvents()
+        .some((event) => event.type === 'bonk' && event.moth === 0),
+    ).toBe(false);
+  });
+
+  it('turns round when a punch lands beside it', () => {
+    const world = setup();
+    advance(world, 30);
+    const mouse = mouseOf(world);
+    world.placeMoth(0, { x: mouse.x * 0.94, y: 0.5, z: mouse.z * 0.94 });
+    world.drainEvents();
+    expect(world.useWeapon('bosh', east)).toBe(true);
+    expect(world.drainEvents().map((event) => event.type)).toContain('squeak');
+    const turned = mouseOf(world);
+    expect(turned.startled).toBe(true);
+    expect(Math.cos(turned.heading - mouse.heading)).toBeLessThan(-0.9);
+  });
+
+  it('can be switched off', () => {
+    const world = createWorld({ hazards: false });
+    worlds.push(world);
+    expect(world.snapshot().hazards).toEqual([]);
   });
 });

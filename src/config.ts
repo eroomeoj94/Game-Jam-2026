@@ -15,7 +15,13 @@ export type CylinderPiece = Piece & {
 };
 export type TerrainPiece = BoxPiece | CylinderPiece;
 
-const DESK = { width: 250, depth: 134 } as const;
+/** Shrinks or grows the desk and everything laid out on it. */
+const BOARD_SCALE = 0.36;
+const DESK = { width: 250 * BOARD_SCALE, depth: 134 * BOARD_SCALE } as const;
+const scaled = <T extends { x: number; z: number }>(spot: T) => ({
+  x: spot.x * BOARD_SCALE,
+  z: spot.z * BOARD_SCALE,
+});
 
 function books(
   x: number,
@@ -85,8 +91,8 @@ function round(
  * Fixed start slots at each end of the desk, beside a low book perch. The game
  * drops moths in at random; tests and the respawn fallback use these slots.
  */
-const START_A = { x: -110, z: 0 } as const;
-const START_B = { x: 110, z: 0 } as const;
+const START_A = scaled({ x: -110, z: 0 });
+const START_B = scaled({ x: 110, z: 0 });
 
 /** Where the lamps hang; each one gets a cluster of perches beneath it. */
 const LAMP_SPOTS = [
@@ -98,7 +104,28 @@ const LAMP_SPOTS = [
   { x: -80, z: 0 },
   { x: 80, z: 0 },
   { x: 0, z: 45 },
-] as const;
+].map(scaled);
+
+/**
+ * The wind-up mouse's circuit: an oval through the light of every outer
+ * lamp, so nowhere good to stand is entirely safe.
+ */
+const TRACK = { rx: 80 * BOARD_SCALE, rz: 36.3 * BOARD_SCALE } as const;
+/** How far (x, z) is from the track's centre line, roughly. */
+export function trackGap(x: number, z: number) {
+  const radial = Math.hypot(x, z);
+  const scaled = Math.hypot(x / TRACK.rx, z / TRACK.rz);
+  return scaled < 1e-6
+    ? Math.min(TRACK.rx, TRACK.rz)
+    : Math.abs(radial - radial / scaled);
+}
+/** Props are kept off the track so the mouse has a clear run. */
+const offTrack = (piece: TerrainPiece) =>
+  trackGap(piece.x, piece.z) >
+  (piece.shape === 'box'
+    ? Math.hypot(piece.width, piece.depth) / 2
+    : piece.radius) +
+    1.1;
 
 type Cluster = (x: number, z: number) => TerrainPiece[];
 /** A ring of low perches inside a lamp's light. */
@@ -237,10 +264,14 @@ export const ARENA = {
     books(START_A.x + 0.9, START_A.z - 2.1, 2.5, 2, 2, 0x995845),
     books(START_B.x - 0.9, START_B.z - 2.25, 2.2, 2.4, 3, 0x526e6d),
     // A wide notebook behind the centre lamp makes a raised stage.
-    block('pad', 0, -10, 7, 0.3, 5, 0x4a6b5a),
-    ...LAMP_SPOTS.flatMap((spot, index) => CLUSTERS[index]!(spot.x, spot.z)),
-    ...scatter(60, 20261127),
+    ...[
+      block('pad', 0, -10 * BOARD_SCALE * 2, 7, 0.3, 5, 0x4a6b5a),
+      ...LAMP_SPOTS.flatMap((spot, index) => CLUSTERS[index]!(spot.x, spot.z)),
+      // Keep the clutter about as dense whatever the desk size.
+      ...scatter(Math.round(60 * BOARD_SCALE ** 2 * 1.6), 20261127),
+    ].filter(offTrack),
   ] satisfies TerrainPiece[] as TerrainPiece[],
+  track: TRACK,
   /**
    * Moth 0 and moth 1 lead each team, so key 1 is Dusty and key 2 is
    * Mothhew; the rest alternate teams.
@@ -298,6 +329,18 @@ export const TILT_SHIFT = {
   focus: 0.45,
   saturation: 1.15,
 };
+
+/** How much the moths stand out from the dim desk. */
+export const MOTH_LOOK = {
+  /** Self-lit felt, so a moth reads clearly outside the lamps. 0 is off. */
+  glow: 0.45,
+  /** Opacity of the team-coloured ring under every moth. */
+  ring: 0.8,
+  /** Extra room light in the board view, so the whole desk reads. */
+  boardLight: 2.4,
+};
+/** Ring and HUD colour for each team. */
+export const TEAM_COLOURS = [0xffc65c, 0x5fe6d6] as const;
 
 export const MAX_FUR_LAYERS = 32;
 
@@ -361,17 +404,91 @@ export const BOSH = {
   /** Height difference it can still connect across. */
   reach: 1.2,
   /** Horizontal speed given to the moth it hits. */
-  force: 17,
-  lift: 6,
+  force: 21,
+  lift: 7.5,
   /** Push given to a lamp bulb punched directly. */
   lampForce: 8,
   /** Seconds the hit moth slides without braking. */
   stagger: 0.9,
   /** Screen shake on a connecting punch, in world units. */
-  shake: 0.22,
+  shake: 0.55,
+  /** Real-time freeze-frame when a punch lands, in seconds. */
+  hitstop: 0.14,
+  /** Loudness of the punch and its boom, over the normal effect level. */
+  loudness: 2.2,
 };
 
-/** Weapon playground rules; the turn system replaces these later. */
+/** The two teams, told apart by an icon and a name as well as colour. */
+export const TEAM_LABELS = [
+  { name: 'Mustard', icon: '▲' },
+  { name: 'Teal', icon: '●' },
+] as const;
+
+/** Match rules: rounds, turns, scoring and zappers. All values are tunable. */
+export const MATCH = {
+  /** First team to reach this, ahead of the other at the end of a round. */
+  targetScore: 10,
+  /**
+   * Seconds a moth may move in a turn, counted from its first movement.
+   * 0 means no limit: the move ends when the player aims or passes.
+   */
+  moveSeconds: 0,
+  /** Longest wait for a moth to land once its movement runs out. */
+  settleSeconds: 1,
+  /**
+   * Shortest time the world runs after an action or pass. It keeps running
+   * past this while anything is still flying, tumbling or dancing.
+   */
+  resolveSeconds: 0.8,
+  /** Hard cap on a resolution that never comes to rest. */
+  maxResolveSeconds: 6,
+  /** Zap Switches each team may use in a match. */
+  zapSwitches: 2,
+  /** Turns a zapper stays live after the turn it was flipped in. */
+  zapperTurns: 1,
+  /** Points a team loses when one of its moths is zapped. */
+  zapPenalty: 1,
+  /** Full rounds a zapped or fallen moth sits out before dropping back in. */
+  restRounds: 1,
+  /** Seconds the end-of-round result is shown before the next round. */
+  bannerSeconds: 3,
+};
+
+/**
+ * The wind-up mouse: a toy that trundles round its track whenever the world
+ * is running and boots any moth standing in its way.
+ */
+export const HAZARD = {
+  /** Travel speed along the track. */
+  speed: 6,
+  /** How close its centre must come to a moth's to hit it. */
+  radius: 0.75,
+  /** A moth standing higher than this (on a book, say) is safe. */
+  reach: 1.2,
+  /** Horizontal and upward speed given to a moth it hits. */
+  force: 13,
+  lift: 7.5,
+  /** Seconds the hit moth tumbles without braking. */
+  stagger: 1,
+  /** Extra speed, as a fraction, just after it is startled into reversing. */
+  startleBoost: 1.2,
+};
+
+/** The end-of-turn dance: a moth shows off instead of attacking. */
+export const DANCE = {
+  /** Seconds a dance lasts; keep it within the match's resolve time. */
+  seconds: 2.2,
+  /** One name per routine, shown as a pop-up. */
+  names: [
+    'The Spin',
+    'The Wiggle',
+    'Shadow Boxing',
+    'The Big Flap',
+    'The Worm',
+  ],
+};
+
+/** Weapon playground rules (open the page with ?playground). */
 export const PLAYGROUND = {
   /** Seconds between any two weapon uses. */
   cooldown: 0.8,
@@ -390,8 +507,10 @@ export const AIM = {
 
 /** Zap Switch: inverts a lamp into a bug zapper. */
 export const ZAP = {
-  /** Playground seconds a lamp stays a zapper (a full round, later). */
+  /** Playground seconds a lamp stays a zapper. */
   duration: 8,
+  /** How far across the desk a moth can be from the lamp it flips. */
+  range: 10,
   /** Horizontal launch speed away from the zapper. */
   launch: 7,
   /** Upward launch speed. */
@@ -435,8 +554,10 @@ export const FIRECRACKER = {
 export const AUDIO = {
   master: 0.9,
   effects: 1,
-  /** Night room tone with crickets, under everything. */
-  ambience: 0.35,
+  /** Background music: a light, sneaky pizzicato tune on a loop. */
+  music: 0.3,
+  /** Night room tone with crickets, kept faint under the music. */
+  ambience: 0.1,
   /** Distance at which a sound is at half volume. */
   falloff: 30,
 };
@@ -468,10 +589,13 @@ export const CAMERA = {
   followHeight: 0.55,
   followMinDistance: 2,
   followMaxDistance: 22,
-  /** Fraction of the screen width the view is shifted to frame the shoulder. */
-  shoulderOffset: 0.12,
+  /**
+   * Fraction of the screen width the view is shifted. Negative puts the moth
+   * right of centre, clear of the HUD panel on the left.
+   */
+  shoulderOffset: -0.12,
   followEase: 10,
-  wallLimitZ: -69,
+  wallLimitZ: -(DESK.depth / 2 + 2),
   /** Flip camera look direction for the right stick and mouse drag. */
   invertX: true,
   invertY: true,

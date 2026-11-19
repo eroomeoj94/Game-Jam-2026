@@ -139,5 +139,9 @@ and demo preparation. The presentation has changed to 3D following the original 
 The target remains the full core described in the design,
 with scope cuts available if testing or stability requires them.
 
-Next: playtest movement with a PS5 controller, then add Wing Gust and complete
-the one-versus-one turn/scoring loop before expanding the roster and gadgets.
+The page now opens on a full match: rounds, turns, lamp scoring, zappers and
+victory (rules in `src/game/match.ts`, values in `MATCH` in `src/config.ts`).
+Add `?playground` to the address for the free-play weapon playground.
+
+Next: playtest a match with two people and a PS5 controller, then tune move
+time, match length and scoring before adding anything new.

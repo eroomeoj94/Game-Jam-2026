@@ -16,6 +16,7 @@ export function createPlayerInput(
   onSelect: (id: number) => void,
   onToggleView: () => void = () => {},
   onWeapon: (step: number) => void = () => {},
+  onPass: () => void = () => {},
 ) {
   const held = new Set<string>();
   let jumpQueued = false;
@@ -40,6 +41,11 @@ export function createPlayerInput(
     if (event.code === 'KeyQ' || event.code === 'KeyE') {
       event.preventDefault();
       if (!event.repeat) onWeapon(event.code === 'KeyQ' ? -1 : 1);
+      return;
+    }
+    if (event.code === 'KeyP') {
+      event.preventDefault();
+      if (!event.repeat) onPass();
       return;
     }
     if (event.code === 'KeyV') {

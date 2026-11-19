@@ -153,7 +153,14 @@ describe('sampled sound effects', () => {
     sfx.playEvents([{ type: 'launch', kind: 'cap', position: here }], here);
     expect(started.map(({ name }) => name)).toEqual([
       'whoosh',
-      // The punch covers the knock it causes: one sound, not two.
+      // A landed Bosh is layered: wind-up, smack, boom and two echoes. It
+      // also covers the knock it causes, so that is not heard separately.
+      'swish',
+      'punch',
+      // The synthesised sub-bass thump under the smack.
+      'synth',
+      'bang',
+      'punch',
       'punch',
       'bang',
       'zap',
@@ -176,7 +183,7 @@ describe('sampled sound effects', () => {
     expect(started).toHaveLength(2);
   });
 
-  it('loops the ambience, and the zapper hum only while a zapper is on', async () => {
+  it('loops the ambience and music, and the zapper hum only while a zapper is on', async () => {
     const { sfx, started } = await loadedSfx();
     const view = (zapper: boolean) =>
       ({
@@ -189,7 +196,7 @@ describe('sampled sound effects', () => {
       }) as unknown as import('../game/world').WorldView;
     sfx.update(view(false), here);
     expect(started.filter((item) => item.loop).map(({ name }) => name)).toEqual(
-      ['ambience'],
+      ['ambience', 'music'],
     );
     sfx.update(view(true), here);
     sfx.update(view(true), here);

@@ -8,7 +8,8 @@ back to small synthesised sounds when they are not.
 These clips come from the Artlist sound-effect catalogue and are licensed to
 the person who downloaded them under their Artlist plan. The repository is
 public, so `artlist/` is git-ignored: do not commit these files. To play with
-the full sound set, download each clip from Artlist (AAC) and save it in
+the full sound set, download each clip from Artlist (AAC, or MP3 for the
+music) and save it in
 `public/sounds/artlist/` under the file name shown.
 
 | File             | Used for                                            | Artlist clip                                                                                                                                    |
@@ -23,7 +24,8 @@ the full sound set, download each clip from Artlist (AAC) and save it in
 | `fuse.aac`       | Loop while a firecracker fuse burns                 | [Fire – Fuse, Dynamite, Burning, Sizzling](https://artlist.io/sfx/track/fire---fuse-dynamite-burning-sizzling/50385)                            |
 | `pop.aac`        | Bottle-Cap Flick                                    | [Cartoon Elements – Bottle Pop](https://artlist.io/sfx/track/cartoon-elements---bottle-pop/69729)                                               |
 | `flutter.aac`    | Loop while the active moth flutters                 | [Creatures of Darkness – Winged Insect Flutter](https://artlist.io/sfx/track/creatures-of-darkness---winged-insect-flutter/102378)              |
-| `ambience.aac`   | Background: night room tone with crickets           | [American Suburbs – Night Crickets](https://artlist.io/sfx/track/american-suburbs---night-crickets/110996)                                      |
+| `music.mp3`      | Background music on a loop (download as MP3)        | [Steven Beddall – Jellybean Heist](https://artlist.io/royalty-free-music/song/jellybean-heist/137223)                                           |
+| `ambience.aac`   | Background: faint night crickets under the music    | [American Suburbs – Night Crickets](https://artlist.io/sfx/track/american-suburbs---night-crickets/110996)                                      |
 
 Before hosting a public build that serves these files, confirm that your
 Artlist licence covers use in a game.

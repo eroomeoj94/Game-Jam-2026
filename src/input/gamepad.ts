@@ -68,6 +68,8 @@ export function createGamepadInput(
         weaponStep: 0,
         /** True while R2 or Square is held: aim and charge, release to fire. */
         fire: false,
+        /** True when Circle is pressed this frame: pass the turn. */
+        pass: false,
       };
       if (!pad) {
         identity = '';
@@ -104,6 +106,7 @@ export function createGamepadInput(
       status.resetView = justPressed(11); // R3: re-centre the camera.
       status.weaponStep = justPressed(15) ? 1 : justPressed(14) ? -1 : 0;
       status.fire = pressed.has(7) || pressed.has(2); // R2 or Square.
+      status.pass = justPressed(1); // Circle.
       status.text =
         'Controller ready · Cross: hop / flutter · R2: aim, release to fire';
       previous = pressed;

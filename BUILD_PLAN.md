@@ -1,8 +1,37 @@
 # Moth Fight Club build plan
 
-Updated 17 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
+Updated 19 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
 Demo: Friday 27 November, afternoon. User availability: 15–25 hours for direction, playtesting, and demo preparation; AI handles implementation.
-Status: weapon playground implemented on a 250 × 134 desk with seven lamps and four moths per team: Wing Gust, Bosh, Zap Switch (bug zapper), Bottle-Cap Flick and Firecracker, with aiming, charging, effects and sound. The turn/scoring loop is next. Recommendations below are provisional until playtested.
+Status (19 November): a full match is playable in code — rounds, one moth and one action per turn, a timed move, majority scoring per lamp, round-based zappers, resting moths, victory and restart — on the 250 × 134 desk with seven lamps and four moths per team. The free-play weapon playground is still available with `?playground`. Nobody has playtested the match yet; that is next. Recommendations below are provisional until playtested.
+
+## Where we left off (19 November)
+
+Read this first when picking the project up in a new session.
+
+**State of the build.** The page opens on a start screen, then a full hot-seat match. `npm run check` passes (102 tests, type check, formatting, production build). `npm run dev` runs it; add `?playground` for free play.
+
+**How a match works now.**
+
+- Mustard plays, then Teal, every round. On a team's turn each of its moths on the desk has one go, in any order: move for as long as you like, then one action (hold F to aim, release to fire) or a dance (P), which ends that go.
+- At the end of each round every warm lamp gives a point to the team with more moths in its light. First to ten with the lead wins.
+- Zap Switch (two per team) flips a lamp within 10 units into a bug zapper for the rest of that turn and the next one; each zapped moth costs its team a point and sits out the next round.
+- A wind-up mouse runs an oval track through the outer lamps while the world is running and boots moths in its way. A gust, Bosh or firecracker beside it turns it round.
+- The desk is 90 × 48 with seven lamps and four moths per team.
+
+**Where things live.** Rules: `src/game/match.ts`. Physics, weapons, dance and the mouse: `src/game/world.ts`. Wiring, HUD and input: `src/application.ts`. Every tunable number: `src/config.ts` (`MATCH`, `BOARD_SCALE`, `HAZARD`, `BOSH`, `ZAP`, `DANCE`, `MOTH_LOOK`, `AUDIO`). Sounds and their Artlist sources: `public/sounds/README.md` (the audio files themselves are git-ignored).
+
+**Not yet seen or heard by anyone.** One browser playtest was done before the last four batches of changes. Everything after it is covered by tests only and needs a look and a listen:
+
+- the start screen and the narrower HUD (the active moth should sit right of centre, clear of the panel);
+- the brighter board view;
+- the wind-up mouse: its model, its track line, and whether it is fun or just annoying;
+- how crowded the 90 × 48 desk feels, and whether props removed from the mouse's track left the outer lamps too bare;
+- the five dance routines;
+- the louder, layered Bosh (check for distortion) and the background music level.
+
+**Open questions for playtesting.** With no move limit a player can walk about to wind the mouse round, or wait for a lamp to swing; bring back `MATCH.moveSeconds` if that is abused. Bosh now launches moths far enough to leave the small desk often. First to ten may be too short or too long now that every moth moves each turn.
+
+**Not built.** Scoring chime, win celebration, solo opponent, hosting. The demo is Friday 27 November.
 
 ## Progress at 16 November
 
@@ -22,19 +51,23 @@ Status: weapon playground implemented on a 250 × 134 desk with seven lamps and 
   - [x] Zap Switch: flips the targeted lamp into a bug zapper; zapped moths cost their team a point, char, tumble and drop back in at a random spot.
   - [x] Bottle-Cap Flick and Firecracker: charged projectiles; ricochet knockback and fused radial blast.
   - [ ] Physical playtest of feel and tuning; limit to one action per turn once turns exist.
-- [ ] Movement allowance per turn, handover, scoring, victory, and full match restart.
+- [x] Movement allowance per turn, handover, scoring, victory, and full match restart (19 November).
 - [x] **Multiple lamps (16 November):** three lamps over the centre, left and right of the enlarged desk, each with its own light zone. Scoring rule decided 17 November (below).
-- [ ] **Core loop (agreed 17 November; see `MOTH_FIGHT_CLUB.md` §3–5):**
-  - [ ] Rounds: each team takes one turn per round; pick a moth, move, choose a weapon, fire or pass, resolve, hand over.
-  - [ ] Scoring at the end of each round: one point per warm lamp to the team with the majority of moth centres in its light; ties, empty lights and zappers score nothing.
-  - [ ] Lamp states: warm lamp and bug zapper, with distinct glow, halo and sound.
-  - [ ] Zap Switch weapon: inverts a lamp for one round, two uses per team per match; zaps everyone already in its light.
-  - [ ] Zapping: any moth centre inside a zapper's light is zapped; team loses one point; moth sits out the next round.
-  - [ ] Zap launch comedy: freeze-frame flash, charred fur and smoke, tumbling flight, cartoon landing, puff back in at a random spot, "ZAPPED! −1" pop-up.
-  - [ ] Weapon selection UI and controls (keyboard and PS5), aim along the camera, charge where relevant.
-  - [ ] Score HUD showing each lamp's state and who holds it, with text/icons as well as colour.
-  - [ ] Rule tests: majority, ties, zapper scoring nothing, zap penalty, resting moths, round order, victory.
-- [x] **Larger teams and desk (17 November):** four moths per team (keys 1–8), desk enlarged to 250 × 134 (20× the area) with seven lamps, clusters of perches under each, seeded scatter between them, and faster walking. Only the three lamps nearest the camera cast shadows. Still to decide: how many moths move per turn.
+- [x] **Core loop (19 November; `game/match.ts`, rules tunable in `MATCH` and the tuning panel):**
+  - [x] Rounds: each team takes one turn per round; the first turn alternates each round. Pick one moth, move for up to six seconds, then one action or a pass.
+  - [x] The world is frozen while planning, aiming and showing the score; it runs during movement and for 2.5 seconds of resolution (longer while projectiles or zapped moths are in flight, capped at six seconds).
+  - [x] Scoring at the end of each round: one point per warm lamp to the team with the majority of moth centres in its light; ties, empty lights and zappers score nothing. First to ten with the lead wins.
+  - [x] Zap Switch: two per team per match; the zapper stays live for the two turns after it is flipped. A zapped moth costs its team a point (scores can go negative).
+  - [x] A zapped or fallen moth sits out the next full round, then drops back in at the start of its team's turn.
+  - [x] Score HUD: score line, a chip per lamp (team icon, `=` tied, `·` empty, `⚡` zapper), move meter, turn banner, Pass (P / Circle) and New match.
+  - [x] Rule tests: turn order, legal actions, majority, ties, zappers, zap penalty, resting moths and victory, plus three end-to-end match smoke tests.
+  - [x] Playtest feedback (19 November): no move limit by default (`MATCH.moveSeconds = 0`; a turn's move ends when the player aims or passes), desk halved to 125 × 67 (`BOARD_SCALE` in `config.ts`), and brighter self-lit moths with a team-coloured ring under each.
+  - [x] Playtest feedback (19 November): a team's turn now gives every one of its moths on the desk one go (a move and an action, in any order) before play passes across, so a rival cannot immediately undo a single move. Passing is a dance (five routines), and background music replaces the bare cricket ambience.
+  - [x] Browser playtest fixes (19 November): narrow HUD with the control hints behind a Controls (H) toggle and the moth framed right of centre; teams always play in the same order; tuning panel starts collapsed; Zap Switch needs the lamp within 14 units and a zapper lasts one further turn; moths start just outside a lamp's light, spread around the desk; title and rules moved to a start screen; brighter board view; a "Paused" notice when the window loses focus; a go ends as soon as everything is still (0.8 s minimum).
+  - [x] Smaller desk and a moving hazard (19 November): desk reduced to 90 × 48 (`BOARD_SCALE` 0.36). A wind-up mouse runs an oval track through the light of every outer lamp whenever the world is running, and boots any moth standing on the desk in its path (moths perched on props are safe). A gust, Bosh or firecracker landing beside it startles it into reversing at speed.
+  - [ ] Playtest: move time, match length, first-to-ten, the two-in-a-row turn at each round change, and whether one moth per turn is enough.
+  - [ ] Not built yet: scoring chime, win celebration, and a solo opponent.
+- [x] **Larger teams and desk (17 November):** four moths per team (keys 1–8), desk enlarged to 250 × 134 (20× the area) with seven lamps, clusters of perches under each, seeded scatter between them, and faster walking. Only the three lamps nearest the camera cast shadows. Every moth in the team has a go each turn (19 November).
 - [ ] **Performance check:** about 1,000 meshes plus three shadow passes on the large desk; merge static scenery if the M1 check is slow.
 - [x] **Moths visible in board view (17 November):** team-coloured numbered pins above each moth in the board view; the active moth's pin is larger, a zapped moth's turns violet, and clicking a pin selects that moth.
 - [ ] **Later — bigger lamp nudge/swing (playtest 16 November):** lamp movement is hard to see from the board view at the new scale. Increase nudge strength (and later gust force on the lamp) so swings read clearly.

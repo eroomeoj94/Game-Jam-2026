@@ -13,8 +13,10 @@ import {
   ARENA,
   BOSH,
   CAP,
+  DANCE,
   FIRECRACKER,
   GUST,
+  HAZARD,
   LAMPS,
   MOVEMENT,
   PHYSICS_STEP_MS,
@@ -55,6 +57,10 @@ export type MothView = Position & {
   zapped: boolean;
   /** True for a moment after throwing a Bosh, for the lunge pose. */
   punching: boolean;
+  /** The dance routine being performed, from 1; 0 when not dancing. */
+  dance: number;
+  /** Seconds into the current dance. */
+  danceTime: number;
 };
 export type LampView = Position & {
   anchor: Position;
@@ -88,10 +94,23 @@ export type WorldEvent =
       lamp: number;
       position: Position;
     }
+  | { type: 'dance'; moth: number; variant: number; position: Position }
+  /** The wind-up mouse ran into a moth. */
+  | { type: 'bonk'; moth: number; position: Position }
+  /** The wind-up mouse was startled and turned round. */
+  | { type: 'squeak'; position: Position }
   | { type: 'explode'; position: Position }
   | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position };
+export type HazardView = Position & {
+  /** Direction of travel, as a heading like a moth's. */
+  heading: number;
+  /** True for a moment after being startled. */
+  startled: boolean;
+};
 export type WorldView = {
   lamps: LampView[];
+  /** Moving toys on the desk that knock moths about. */
+  hazards: HazardView[];
   projectiles: ProjectileView[];
   /** 0 when a weapon is ready, rising to 1 just after one is used. */
   weaponCooldown: number;
@@ -110,9 +129,20 @@ export type WorldOptions = {
    * moth's fixed slot in the arena, which keeps tests predictable.
    */
   placement?: Placement;
+  /** Run the wind-up mouse round its track (on by default). */
+  hazards?: boolean;
+  /**
+   * Match rules: no weapon cooldown, zappers last until `restoreLamp`, and
+   * fallen or zapped moths stay off the desk until `returnMoth`.
+   */
+  match?: boolean;
 };
 
-export function createWorld({ placement }: WorldOptions = {}) {
+export function createWorld({
+  placement,
+  match = false,
+  hazards = true,
+}: WorldOptions = {}) {
   const world = new World({ gravity: new Vec3(0, -9.82, 0) });
   world.defaultContactMaterial.friction = 0.6;
   world.defaultContactMaterial.restitution = 0;
@@ -200,11 +230,34 @@ export function createWorld({ placement }: WorldOptions = {}) {
       zap: 0,
       /** Seconds left of the punch lunge pose. */
       punch: 0,
+      /** Seconds before the wind-up mouse can hit this moth again. */
+      bonkCooldown: 0,
+      /** Dance routine in progress, from 1; 0 when not dancing. */
+      dance: 0,
+      danceTime: 0,
     };
   });
   type Moth = (typeof moths)[number];
   const mothByBody = new Map(moths.map((moth) => [moth.body, moth]));
   const teamZaps = [0, 0];
+  let lastDance = 0;
+  // The wind-up mouse: an angle round its oval track and a direction.
+  const mouse = { angle: Math.PI * 0.5, direction: 1, boost: 0 };
+  const track = ARENA.track;
+  function mousePosition(): Position {
+    return {
+      x: Math.cos(mouse.angle) * track.rx,
+      y: HAZARD.radius * 0.7,
+      z: Math.sin(mouse.angle) * track.rz,
+    };
+  }
+  /** Unit direction of travel along the track. */
+  function mouseTravel() {
+    const x = -Math.sin(mouse.angle) * track.rx * mouse.direction;
+    const z = Math.cos(mouse.angle) * track.rz * mouse.direction;
+    const length = Math.hypot(x, z) || 1;
+    return { x: x / length, z: z / length, length };
+  }
   let weaponCooldown = 0;
   let selectedMoth = 0;
   let events: WorldEvent[] = [];
@@ -264,6 +317,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
     z: number,
     stagger = GUST.stagger,
   ) {
+    moth.dance = 0;
     moth.body.wakeUp();
     moth.body.velocity.x += x;
     moth.body.velocity.y = Math.max(moth.body.velocity.y, 0) + y;
@@ -302,6 +356,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
     moth.grounded = false;
     moth.fluttering = false;
     moth.stagger = 0;
+    moth.dance = 0;
     moth.zap = ZAP.flightTime;
     events.push({
       type: 'zap',
@@ -324,7 +379,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
 
   function tryRespawn(moth: Moth) {
     const spawn = ARENA.spawns[moth.id];
-    if (!spawn) return;
+    if (!spawn) return false;
     const others = moths
       .filter((other) => other !== moth && !other.respawning)
       .map((other) => positionOf(other.body));
@@ -347,7 +402,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
                 ARENA.mothRadius * 2 + 0.1,
           ),
         );
-    if (!position) return;
+    if (!position) return false;
     moth.body.position.copy(position);
     moth.body.previousPosition.copy(position);
     moth.body.interpolatedPosition.copy(position);
@@ -362,6 +417,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
     moth.grounded = false;
     moth.respawning = false;
     world.addBody(moth.body);
+    return true;
   }
 
   function launch(
@@ -443,6 +499,56 @@ export function createWorld({ placement }: WorldOptions = {}) {
       bulb.velocity.z += push.z;
     }
     events.push({ type: 'explode', position: centre });
+    startleMouse(centre, FIRECRACKER.blastRadius);
+  }
+
+  /** A blow landing near the wind-up mouse sends it back the way it came. */
+  function startleMouse(origin: Position, range: number) {
+    if (!hazards) return;
+    const at = mousePosition();
+    if (Math.hypot(at.x - origin.x, at.z - origin.z) > range) return;
+    mouse.direction *= -1;
+    mouse.boost = HAZARD.startleBoost;
+    events.push({ type: 'squeak', position: at });
+  }
+
+  function stepMouse() {
+    if (!hazards) return;
+    mouse.boost = Math.max(0, mouse.boost - DT * 0.8);
+    const travel = mouseTravel();
+    mouse.angle +=
+      (mouse.direction * HAZARD.speed * (1 + mouse.boost) * DT) / travel.length;
+    const at = mousePosition();
+    for (const moth of moths) {
+      moth.bonkCooldown = Math.max(0, moth.bonkCooldown - DT);
+      if (!inPlay(moth) || moth.bonkCooldown > 0) continue;
+      const p = moth.body.position;
+      const dx = p.x - at.x;
+      const dz = p.z - at.z;
+      const gap = Math.hypot(dx, dz);
+      if (gap > HAZARD.radius + ARENA.mothRadius || p.y > HAZARD.reach)
+        continue;
+      // Booted along the mouse's path and a little off to the side.
+      const away = gap > 1e-3 ? { x: dx / gap, z: dz / gap } : { x: 0, z: 0 };
+      const push = horizontal({
+        x: travel.x + away.x * 0.6,
+        y: 0,
+        z: travel.z + away.z * 0.6,
+      }) ?? { x: travel.x, z: travel.z };
+      moth.bonkCooldown = 1;
+      knock(
+        moth,
+        push.x * HAZARD.force,
+        HAZARD.lift,
+        push.z * HAZARD.force,
+        HAZARD.stagger,
+      );
+      events.push({
+        type: 'bonk',
+        moth: moth.id,
+        position: positionOf(moth.body),
+      });
+    }
   }
 
   function useGust(attacker: Moth, aim: Aim) {
@@ -468,6 +574,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
       bulb.velocity.z += push.z;
     }
     events.push({ type: 'gust', origin, direction });
+    startleMouse(origin, GUST.range);
     return true;
   }
 
@@ -484,6 +591,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
       ),
     );
     const target = index === undefined ? undefined : moths[index];
+    startleMouse(origin, BOSH.range + HAZARD.radius);
     if (target)
       knock(
         target,
@@ -520,16 +628,30 @@ export function createWorld({ placement }: WorldOptions = {}) {
     return true;
   }
 
-  function useZapSwitch(attacker: Moth, aim: Aim) {
+  /** The lamp a Zap Switch along `aim` reaches, if one is in range. */
+  function lampInReach(attacker: Moth, aim: Aim) {
+    const origin = positionOf(attacker.body);
     const index = pickLamp(
-      positionOf(attacker.body),
+      origin,
       aim,
       lamps.map(({ bulb }) => positionOf(bulb)),
     );
+    const bulb = index === undefined ? undefined : lamps[index]?.bulb;
+    if (!bulb) return;
+    const distance = Math.hypot(
+      bulb.position.x - origin.x,
+      bulb.position.z - origin.z,
+    );
+    return distance <= ZAP.range ? index : undefined;
+  }
+
+  function useZapSwitch(attacker: Moth, aim: Aim) {
+    const index = lampInReach(attacker, aim);
     const lamp = index === undefined ? undefined : lamps[index];
     if (index === undefined || !lamp) return false;
     // Playground convenience: flipping a zapper turns it back into a lamp.
     const becomesZapper = lamp.zapperTime <= 0;
+    if (match && !becomesZapper) return false;
     lamp.zapperTime = becomesZapper ? ZAP.duration : 0;
     events.push({ type: 'lamp', lamp: index, zapper: becomesZapper });
     if (becomesZapper) zapInside(index);
@@ -547,19 +669,19 @@ export function createWorld({ placement }: WorldOptions = {}) {
     zapTarget(aim: Aim) {
       const attacker = moths[selectedMoth];
       if (!attacker) return;
-      return pickLamp(
-        positionOf(attacker.body),
-        aim,
-        lamps.map(({ bulb }) => positionOf(bulb)),
-      );
+      return lampInReach(attacker, aim);
     },
     step(command: MovementCommand = IDLE) {
       for (const moth of moths) {
         moth.fluttering = false;
         moth.punch = Math.max(0, moth.punch - DT);
+        if (moth.dance) {
+          moth.danceTime += DT;
+          if (moth.danceTime >= DANCE.seconds) moth.dance = 0;
+        }
         if (moth.respawning) {
           moth.respawnTime -= DT;
-          if (moth.respawnTime <= 0) tryRespawn(moth);
+          if (!match && moth.respawnTime <= 0) tryRespawn(moth);
           continue;
         }
         if (moth.zap > 0) {
@@ -629,6 +751,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
       }
       weaponCooldown = Math.max(0, weaponCooldown - DT);
       world.step(DT);
+      stepMouse();
       for (const projectile of [...projectiles]) {
         projectile.age += DT;
         const p = projectile.body.position;
@@ -647,7 +770,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
       }
       lamps.forEach((lamp, index) => {
         if (lamp.zapperTime <= 0) return;
-        lamp.zapperTime = Math.max(0, lamp.zapperTime - DT);
+        if (!match) lamp.zapperTime = Math.max(0, lamp.zapperTime - DT);
         if (lamp.zapperTime === 0) {
           events.push({ type: 'lamp', lamp: index, zapper: false });
           return;
@@ -692,8 +815,46 @@ export function createWorld({ placement }: WorldOptions = {}) {
         launch(weapon, origin, aim, power);
         used = true;
       }
-      if (used) weaponCooldown = PLAYGROUND.cooldown;
+      if (used && !match) weaponCooldown = PLAYGROUND.cooldown;
       return used;
+    },
+    /** Match rules: turn a zapper back into a warm lamp. */
+    restoreLamp(index: number) {
+      const lamp = lamps[index];
+      if (!lamp || lamp.zapperTime <= 0) return false;
+      lamp.zapperTime = 0;
+      events.push({ type: 'lamp', lamp: index, zapper: false });
+      return true;
+    },
+    /** Match rules: drop a moth that sat out back onto the desk. */
+    returnMoth(id: number) {
+      const moth = moths[id];
+      if (!moth || !moth.respawning) return false;
+      return tryRespawn(moth);
+    },
+    /**
+     * The selected moth dances instead of attacking. Picks a routine at
+     * random, never the same one twice running, unless `variant` is given.
+     * Returns the routine number, or 0 when the moth cannot dance.
+     */
+    dance(variant?: number) {
+      const moth = moths[selectedMoth];
+      if (!moth || !inPlay(moth)) return 0;
+      const routines = DANCE.names.length;
+      let chosen = variant ?? 0;
+      if (!Number.isInteger(chosen) || chosen < 1 || chosen > routines)
+        do chosen = 1 + Math.floor(Math.random() * routines);
+        while (chosen === lastDance && routines > 1);
+      lastDance = chosen;
+      moth.dance = chosen;
+      moth.danceTime = 0;
+      events.push({
+        type: 'dance',
+        moth: moth.id,
+        variant: chosen,
+        position: positionOf(moth.body),
+      });
+      return chosen;
     },
     /** Events since the last call, for effects and sound. */
     drainEvents() {
@@ -724,12 +885,23 @@ export function createWorld({ placement }: WorldOptions = {}) {
     snapshot(): WorldView {
       return {
         weaponCooldown: weaponCooldown / Math.max(PLAYGROUND.cooldown, 1e-6),
+        hazards: hazards
+          ? [
+              {
+                ...mousePosition(),
+                heading: Math.atan2(mouseTravel().x, mouseTravel().z),
+                startled: mouse.boost > 0,
+              },
+            ]
+          : [],
         teamZaps: [...teamZaps],
         lamps: lamps.map(({ anchor, bulb, zapperTime }) => ({
           ...positionOf(bulb),
           anchor: positionOf(anchor),
           zapper: zapperTime > 0,
-          zapperLeft: zapperTime / Math.max(ZAP.duration, 1e-6),
+          zapperLeft: match
+            ? Number(zapperTime > 0)
+            : zapperTime / Math.max(ZAP.duration, 1e-6),
         })),
         projectiles: projectiles.map(({ id, kind, body, age }) => ({
           ...positionOf(body),
@@ -753,6 +925,8 @@ export function createWorld({ placement }: WorldOptions = {}) {
           staggered: moth.stagger > 0,
           zapped: moth.zap > 0,
           punching: moth.punch > 0,
+          dance: moth.dance,
+          danceTime: moth.danceTime,
           moving:
             !moth.respawning &&
             Math.hypot(moth.body.velocity.x, moth.body.velocity.z) > 0.15,

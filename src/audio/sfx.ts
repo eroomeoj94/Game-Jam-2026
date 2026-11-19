@@ -1,12 +1,13 @@
-import { AUDIO } from '../config';
+import { AUDIO, BOSH } from '../config';
 import type { Position, WorldEvent, WorldView } from '../game/world';
 
 /** Optional recording: drop a file here to replace the spoken "Bosh!". */
 export const BOSH_RECORDING = 'sounds/bosh.mp3';
 
 /**
- * Sound samples, loaded from `public/sounds/artlist/<name>.aac` when present.
- * They are Artlist sound effects licensed to whoever downloaded them, so they
+ * Sound samples, loaded from `public/sounds/artlist/` when present: `.aac`
+ * for effects and `music.mp3` for the background tune.
+ * They are Artlist sounds licensed to whoever downloaded them, so they
  * are not in the repository; see `public/sounds/README.md`. Without them the
  * game falls back to small synthesised sounds.
  */
@@ -22,9 +23,11 @@ export const SAMPLES = [
   'pop',
   'flutter',
   'ambience',
+  'music',
 ] as const;
 export type SampleName = (typeof SAMPLES)[number];
-const samplePath = (name: SampleName) => `sounds/artlist/${name}.aac`;
+const samplePath = (name: SampleName) =>
+  `sounds/artlist/${name}.${name === 'music' ? 'mp3' : 'aac'}`;
 
 /** Every sample is boosted or cut so its loudest moment peaks here. */
 const TARGET_PEAK = 0.9;
@@ -175,7 +178,11 @@ export function createSfx({
   /** Play a sample once; false when it is not loaded (use a fallback). */
   function play(
     name: SampleName,
-    { volume = 1, rate = 1 }: { volume?: number; rate?: number } = {},
+    {
+      volume = 1,
+      rate = 1,
+      delay = 0,
+    }: { volume?: number; rate?: number; delay?: number } = {},
   ) {
     const ctx = context;
     const buffer = buffers.get(name);
@@ -186,12 +193,12 @@ export function createSfx({
     const gain = ctx.createGain();
     gain.gain.value = volume * (makeup.get(name) ?? 1);
     source.connect(gain).connect(effects);
-    source.start();
+    source.start(ctx.currentTime + delay);
     return true;
   }
 
   /** Fade a looping sample towards `volume`; 0 fades it out and stops it. */
-  function loop(name: SampleName, level: number) {
+  function loop(name: SampleName, level: number, fromStart = false) {
     const ctx = context;
     if (!ctx || !beds) return;
     const volume = level * (makeup.get(name) ?? 1);
@@ -217,7 +224,7 @@ export function createSfx({
     gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.12);
     source.connect(gain).connect(beds);
     // Start somewhere random so repeated loops do not sound identical.
-    source.start(0, Math.random() * buffer.duration);
+    source.start(0, fromStart ? 0 : Math.random() * buffer.duration);
     loops.set(name, { source, gain });
   }
 
@@ -265,7 +272,12 @@ export function createSfx({
   }
 
   function shout() {
+    // A different voice every time: from a growl to a squeak.
+    const pitch = 0.7 + Math.random() * 0.75;
     if (recording) {
+      recording.volume = 1;
+      recording.preservesPitch = false;
+      recording.playbackRate = pitch;
       recording.currentTime = 0;
       void recording.play().catch(() => undefined);
       return;
@@ -273,9 +285,11 @@ export function createSfx({
     if (!speech) return;
     speech.cancel();
     const line = new SpeechSynthesisUtterance('Bosh!');
-    line.rate = 0.95;
-    line.pitch = 0.55;
-    line.volume = Math.min(1, AUDIO.master);
+    line.rate = 0.8 + Math.random() * 0.5;
+    // Speech pitch runs from 0 (lowest) to 2 (highest).
+    line.pitch = Math.max(0.05, Math.min(2, (pitch - 0.7) * 2.4));
+    // As loud as speech goes: this is the headline act.
+    line.volume = 1;
     const voice = speech
       .getVoices()
       .find((candidate) => candidate.lang.startsWith('en'));
@@ -290,9 +304,25 @@ export function createSfx({
     if (muted) return;
     const ctx = audio();
     if (ctx) {
+      const loud = volume * BOSH.loudness;
       if (connected) {
-        if (!play('punch', { volume, rate: vary() })) thump(ctx, 0.9 * volume);
-      } else if (!play('swish', { volume, rate: vary() }))
+        // The wind-up, the smack, a deep boom underneath, and a slapback.
+        play('swish', { volume: loud * 0.6, rate: vary(0.2) });
+        if (!play('punch', { volume: loud, rate: vary(0.3) }))
+          thump(ctx, 0.9 * volume);
+        thump(ctx, Math.min(1, 0.9 * volume));
+        play('bang', { volume: loud * 0.45, rate: 0.5 * vary(0.15) });
+        play('punch', {
+          volume: loud * 0.5,
+          rate: 0.7 * vary(0.2),
+          delay: 0.13,
+        });
+        play('punch', {
+          volume: loud * 0.25,
+          rate: 0.55 * vary(0.2),
+          delay: 0.27,
+        });
+      } else if (!play('swish', { volume: loud * 0.7, rate: vary(0.3) }))
         noise(ctx, 0.22, 900, 0.35 * volume);
     }
     shout();
@@ -327,7 +357,10 @@ export function createSfx({
       const ctx = audio();
       // A gust or punch already covers the knock it causes.
       const covered = events.some(
-        (event) => event.type === 'gust' || event.type === 'bosh',
+        (event) =>
+          event.type === 'gust' ||
+          event.type === 'bosh' ||
+          event.type === 'bonk',
       );
       for (const event of events) {
         const at =
@@ -353,6 +386,13 @@ export function createSfx({
         } else if (event.type === 'zap') {
           if (!play('zap', { volume, rate: vary() }) && ctx)
             noise(ctx, 0.25, 4000, 0.5 * volume);
+        } else if (event.type === 'bonk') {
+          if (!play('punch', { volume, rate: vary(0.2) * 1.5 }) && ctx)
+            thump(ctx, 0.7 * volume);
+        } else if (event.type === 'squeak') {
+          play('pop', { volume: 0.8 * volume, rate: 2.2 * vary(0.15) });
+        } else if (event.type === 'dance') {
+          play('pop', { volume: 0.7 * volume, rate: vary(0.35) });
         } else if (event.type === 'lamp') {
           play('switch', { volume: 0.8 });
           if (event.zapper) play('zap', { volume: 0.6, rate: 0.7 });
@@ -363,6 +403,8 @@ export function createSfx({
     update(view: WorldView, listener?: Position) {
       if (!context) return;
       loop('ambience', AUDIO.ambience);
+      // The tune always begins at its opening bar.
+      loop('music', AUDIO.music, true);
       const zapperVolume = view.lamps.reduce(
         (loudest, lamp) =>
           lamp.zapper

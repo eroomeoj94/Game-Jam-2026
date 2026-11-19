@@ -13,7 +13,15 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { ARENA, CAP, FIRECRACKER, GUST, LAMPS, WEAPONS } from '../config';
+import {
+  ARENA,
+  CAP,
+  DANCE,
+  FIRECRACKER,
+  GUST,
+  LAMPS,
+  WEAPONS,
+} from '../config';
 import type { WeaponId } from '../config';
 import { horizontal, launchVelocity } from '../game/gadgets';
 import type { Aim } from '../game/gadgets';
@@ -223,19 +231,32 @@ export function createWeaponEffects(
           const at = toVector(event.position);
           const hit = event.moth !== undefined;
           if (hit) {
-            flash(at, 0xfff2c4, 45);
-            // A starburst of impact streaks around the fist.
-            for (let i = 0; i < 10; i++) {
-              const angle = (i / 10) * Math.PI * 2;
+            flash(at, 0xfff2c4, 110);
+            // A shockwave ball and a big starburst of streaks round the fist.
+            puff(
+              at.clone(),
+              0xfff0b0,
+              0.35,
+              (effect, t) => {
+                const mesh = effect.object as Mesh;
+                mesh.scale.setScalar(0.3 + t * 3.2);
+                fade(mesh, 0.8, t);
+              },
+              0.8,
+              true,
+            );
+            for (let i = 0; i < 20; i++) {
+              const angle = (i / 20) * Math.PI * 2;
+              const speed = i % 2 ? 11 : 7;
               puff(
                 at.clone(),
-                0xfff4d6,
-                0.28,
+                i % 2 ? 0xfff4d6 : 0xffb347,
+                0.4,
                 (effect, t, delta) => {
                   const mesh = effect.object as Mesh;
-                  mesh.position.x += Math.cos(angle) * 6 * delta;
-                  mesh.position.y += Math.sin(angle) * 6 * delta;
-                  mesh.scale.setScalar(0.12 * (1 - t) + 0.02);
+                  mesh.position.x += Math.cos(angle) * speed * delta;
+                  mesh.position.y += Math.sin(angle) * speed * delta;
+                  mesh.scale.setScalar(0.22 * (1 - t) + 0.03);
                   fade(mesh, 0.95, t);
                 },
                 0.95,
@@ -244,7 +265,7 @@ export function createWeaponEffects(
             }
           }
           popup(
-            hit ? 'BOSH!' : 'bosh?',
+            hit ? 'BOSH!!' : 'bosh?',
             at.clone().setY(at.y + 1.1),
             hit ? '#ffe066' : '#d9d2c3',
             hit ? 'big' : undefined,
@@ -315,6 +336,20 @@ export function createWeaponEffects(
             'ZAPPED! −1',
             at.clone().setY(at.y + 1.2),
             TEAM_COLOURS[event.team] ?? '#ffffff',
+          );
+        } else if (event.type === 'bonk') {
+          const at = toVector(event.position);
+          flash(at, 0xfff0b0, 30);
+          popup('BONK!', at.setY(at.y + 1.2), '#ffd36b');
+        } else if (event.type === 'squeak') {
+          const at = toVector(event.position);
+          popup('SQUEAK!', at.setY(at.y + 1.2), '#f3b6c0');
+        } else if (event.type === 'dance') {
+          const at = toVector(event.position);
+          popup(
+            `${DANCE.names[event.variant - 1] ?? 'Dance'}!`,
+            at.setY(at.y + 1.3),
+            '#ffe2a8',
           );
         } else if (event.type === 'lamp') {
           const lamp = view.lamps[event.lamp];

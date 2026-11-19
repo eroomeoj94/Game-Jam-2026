@@ -3,6 +3,7 @@ import { ARENA, LAMPS } from '../config';
 import {
   fixedPlacement,
   isClearSpot,
+  nearLampPlacement,
   randomPlacement,
   restingLightRadius,
 } from './spawns';
@@ -24,10 +25,13 @@ describe('random spawns', () => {
     expect(isClearSpot(lamp.x + restingLightRadius(), lamp.z)).toBe(false);
     const book = ARENA.terrain[1]!;
     expect(isClearSpot(book.x, book.z)).toBe(false);
-    expect(isClearSpot(ARENA.desk.width / 2 - 1, 64)).toBe(false);
-    const open = { x: 20, z: 62 };
+    const front = ARENA.desk.depth / 2 - 5;
+    expect(isClearSpot(ARENA.desk.width / 2 - 1, front)).toBe(false);
+    const open = { x: 20, z: front };
     expect(isClearSpot(open.x, open.z)).toBe(true);
-    expect(isClearSpot(open.x, open.z, [{ x: 21, y: 0.5, z: 62 }])).toBe(false);
+    expect(isClearSpot(open.x, open.z, [{ x: 21, y: 0.5, z: front }])).toBe(
+      false,
+    );
   });
 
   it('places every moth on a clear, spread-out spot', () => {
@@ -91,5 +95,25 @@ describe('random spawns', () => {
       z: ARENA.spawns[0]!.z,
     });
     expect(fixedPlacement(99, [])).toBeUndefined();
+  });
+
+  it('starts every moth a short walk from a lamp, spread across the desk', () => {
+    const place = nearLampPlacement(seeded(5));
+    const placed: { x: number; y: number; z: number }[] = [];
+    const lamps = LAMPS.positions.slice(0, LAMPS.count);
+    const used = new Set<number>();
+    for (let id = 0; id < ARENA.spawns.length; id++) {
+      const spot = place(id, placed)!;
+      expect(isClearSpot(spot.x, spot.z, placed)).toBe(true);
+      const distances = lamps.map((lamp) =>
+        Math.hypot(lamp.x - spot.x, lamp.z - spot.z),
+      );
+      const nearest = Math.min(...distances);
+      expect(nearest).toBeGreaterThan(restingLightRadius());
+      expect(nearest).toBeLessThan(restingLightRadius() + 7);
+      used.add(distances.indexOf(nearest));
+      placed.push(spot);
+    }
+    expect(used.size).toBeGreaterThanOrEqual(5);
   });
 });

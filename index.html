@@ -13,17 +13,35 @@
   <body>
     <main class="diorama">
       <div id="game"></div>
-      <header>
+      <header id="intro">
         <p class="eyebrow"><span></span> A light in the dark</p>
         <h1>Moth<br />Fight Club<span class="period">.</span></h1>
         <p class="subtitle">Tiny wings. Big grudges.</p>
+        <p class="intro-rules">
+          Two teams of moths, seven lamps. On your turn each of your moths moves
+          and takes one action. Hold more moths than your rival in a lamp's
+          light to score it. Flip a lamp into a bug zapper and anyone in its
+          light costs their team a point. First to ten wins.
+        </p>
+        <button id="start" type="button" disabled>Start</button>
       </header>
+      <p id="paused" class="banner paused" role="status" hidden>
+        Paused · click the game to carry on
+      </p>
       <aside class="edition">
         THE BEDROOM BOUT<span>01 / MINIATURE WORLD</span>
       </aside>
+      <p id="banner" class="banner" role="status" hidden></p>
       <div class="bottom-panel">
         <div class="caption">
-          <span class="tag">Weapon playground</span>
+          <span class="tag" id="mode">Match</span>
+          <p id="score" class="score" role="status"></p>
+          <div
+            class="lamp-bar"
+            id="lamps"
+            role="group"
+            aria-label="Who holds each lamp"
+          ></div>
           <div
             class="moth-select"
             id="moths"
@@ -37,6 +55,11 @@
             role="group"
             aria-label="Weapons"
           ></div>
+          <div class="flight-meter" id="move-meter">
+            <label for="move">Move</label
+            ><progress id="move" max="1" value="1"></progress
+            ><span id="move-value"></span>
+          </div>
           <div class="flight-meter">
             <label for="charge">Power</label
             ><progress id="charge" max="1" value="1"></progress
@@ -47,28 +70,49 @@
             ><progress id="flutter" max="1" value="1"></progress
             ><span id="flutter-value">100%</span>
           </div>
-          <p class="hint">
-            WASD / arrows: move · Space: hop / hold flutter · 1–8: select moth
-          </p>
-          <p class="hint">
-            PS5: left stick: move · Cross: hop / flutter · L1 / R1: select
-          </p>
-          <p class="hint">
-            Right stick / drag: camera · Scroll: zoom · V / Triangle: board view
-            · R3: re-centre
-          </p>
-          <p class="hint">
-            F: hold to aim and charge, release to fire · Q / E: weapon · M: mute
-          </p>
-          <p class="hint">
-            PS5: R2 or Square: aim, release to fire · D-pad ← / →: weapon
-          </p>
           <p class="hint" id="zaps" role="status">Zapped · none yet</p>
-          <p class="hint" id="controller-status" role="status">
-            Controller: connect, then press a button
-          </p>
+          <div id="help" hidden>
+            <p class="hint">
+              WASD / arrows: move · Space: hop / hold flutter · 1–8: select moth
+            </p>
+            <p class="hint">
+              PS5: left stick: move · Cross: hop / flutter · L1 / R1: select
+            </p>
+            <p class="hint">
+              Right stick / drag: camera · Scroll: zoom · V / Triangle: board
+              view · R3: re-centre
+            </p>
+            <p class="hint">
+              F: hold to aim and charge, release to fire · Q / E: weapon · P:
+              dance · M: mute
+            </p>
+            <p class="hint">
+              PS5: R2 or Square: aim, release to fire · D-pad ← / →: weapon ·
+              Circle: dance and end go
+            </p>
+            <p class="hint">
+              On your turn every moth in your team gets one go: a move and one
+              action, in any order. Then the other team plays. Hold more moths
+              than your rival in a warm lamp's light to score it; a moth caught
+              in a bug zapper costs its team a point.
+            </p>
+            <p class="hint" id="controller-status" role="status">
+              Controller: connect, then press a button
+            </p>
+          </div>
         </div>
         <div class="actions">
+          <button
+            id="help-toggle"
+            type="button"
+            class="secondary"
+            aria-expanded="false"
+            aria-controls="help"
+            disabled
+          >
+            Controls (H)
+          </button>
+          <button id="pass" type="button" disabled>Dance &amp; end go</button>
           <button id="nudge" type="button" disabled>
             Nudge the lamp <span aria-hidden="true">↗</span>
           </button>
@@ -100,7 +144,7 @@
       </div>
       <footer>
         <span>Felt, fury &amp; questionable decisions.</span
-        ><span>Weapon playground · Turns and scoring coming next</span>
+        ><span>First to ten · Add ?playground for free play</span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

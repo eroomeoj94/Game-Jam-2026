@@ -11,6 +11,7 @@ import {
   GUST,
   LAMPS,
   LIGHTING,
+  MATCH,
   MAX_FUR_LAYERS,
   MAX_LAMPS,
   MOVEMENT,
@@ -20,7 +21,7 @@ import {
 } from '../config';
 
 // Bump the version when defaults change shape, so stale saves are ignored.
-const STORAGE_KEY = 'moth-fight-club:tuning:v5';
+const STORAGE_KEY = 'moth-fight-club:tuning:v10';
 const SETTINGS = {
   MOVEMENT,
   CAMERA,
@@ -36,6 +37,7 @@ const SETTINGS = {
   AIM,
   PLAYGROUND,
   AUDIO,
+  MATCH,
 };
 type Settings = typeof SETTINGS;
 const DEFAULTS: Settings = structuredClone(SETTINGS);
@@ -86,6 +88,8 @@ export function createTuningPanel(actions: {
   nudgeLamps: () => void;
 }) {
   const gui = new GUI({ title: 'Tuning' });
+  // Collapsed until wanted, so it never covers the game's own buttons.
+  gui.close();
   gui.domElement.classList.add('tuning');
   const changed = () => save();
   const rebuild = () => {
@@ -152,6 +156,18 @@ export function createTuningPanel(actions: {
   lighting.onFinishChange(changed);
   movement.onFinishChange(changed);
 
+  // Match rules apply from the next turn; a new match resets the score.
+  const rules = gui.addFolder('Match rules').close();
+  rules.add(MATCH, 'targetScore', 1, 30, 1).name('Points to win');
+  rules
+    .add(MATCH, 'moveSeconds', 0, 15, 0.5)
+    .name('Move time (s, 0 = no limit)');
+  rules.add(MATCH, 'resolveSeconds', 0, 6, 0.1).name('Shortest resolve (s)');
+  rules.add(MATCH, 'zapSwitches', 0, 6, 1).name('Zap Switches each');
+  rules.add(MATCH, 'zapperTurns', 1, 6, 1).name('Zapper lasts (turns)');
+  rules.add(MATCH, 'restRounds', 0, 3, 1).name('Rounds sat out');
+  rules.onFinishChange(changed);
+
   const weapons = gui.addFolder('Weapons');
   weapons.add(PLAYGROUND, 'cooldown', 0, 3, 0.05).name('Cooldown (s)');
   weapons.add(AIM, 'chargeSeconds', 0.2, 3, 0.05).name('Charge time (s)');
@@ -198,7 +214,8 @@ export function createTuningPanel(actions: {
   const sound = gui.addFolder('Sound').close();
   sound.add(AUDIO, 'master', 0, 1.5, 0.01).name('Master volume');
   sound.add(AUDIO, 'effects', 0, 1.5, 0.01).name('Effects volume');
-  sound.add(AUDIO, 'ambience', 0, 1, 0.01).name('Night ambience');
+  sound.add(AUDIO, 'music', 0, 1, 0.01).name('Music');
+  sound.add(AUDIO, 'ambience', 0, 1, 0.01).name('Night crickets');
   sound.add(AUDIO, 'falloff', 5, 150, 1).name('Distance falloff');
   sound.onFinishChange(changed);
 
