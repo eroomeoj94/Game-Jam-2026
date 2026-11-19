@@ -170,6 +170,29 @@ describe('sampled sound effects', () => {
     ]);
   });
 
+  it('gives a giant hand a whoosh overhead, then a slap and a boom', async () => {
+    const { sfx, started } = await loadedSfx();
+    sfx.playEvents([{ type: 'loom', position: here }], here);
+    expect(started.map(({ name }) => name)).toEqual(['whoosh']);
+    started.length = 0;
+    // Far across the desk it is still plainly heard.
+    const far = { x: 500, y: 0, z: 0 };
+    sfx.playEvents(
+      [
+        { type: 'hit', moth: 1, position: far },
+        { type: 'smack', position: far, moths: 1 },
+      ],
+      here,
+    );
+    const names = started.map(({ name }) => name);
+    expect(names).toContain('bang');
+    expect(names).toContain('synth');
+    // The slap itself, and it covers the knock it causes.
+    expect(names[0]).toBe('slap');
+    expect(started[0]!.volume).toBeGreaterThan(1);
+    expect(names.filter((name) => name === 'punch')).toHaveLength(1);
+  });
+
   it('makes distant events quieter and stays silent when muted', async () => {
     const { sfx, started } = await loadedSfx();
     sfx.playEvents([{ type: 'explode', position: here }], here);

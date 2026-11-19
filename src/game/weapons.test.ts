@@ -4,6 +4,7 @@ import {
   DANCE,
   FIRECRACKER,
   HAZARD,
+  PEOPLE,
   LAMPS,
   PLAYGROUND,
   ZAP,
@@ -292,70 +293,156 @@ describe('Dance', () => {
   });
 });
 
-describe('wind-up mouse', () => {
-  const mouseOf = (world: ReturnType<typeof createWorld>) =>
-    world.snapshot().hazards[0]!;
+describe('giant hands', () => {
+  const warnTicks = Math.ceil(HAZARD.warnSeconds * 60);
+  const types = (world: ReturnType<typeof createWorld>) =>
+    world.drainEvents().map((event) => event.type);
 
-  it('runs round its track only while the world is stepping', () => {
+  it('are off unless asked for', () => {
     const world = setup();
-    const start = mouseOf(world);
-    expect(
-      Math.hypot(start.x / ARENA.track.rx, start.z / ARENA.track.rz),
-    ).toBeCloseTo(1);
-    expect(mouseOf(world)).toEqual(start);
-    advance(world, 60);
-    const later = mouseOf(world);
-    expect(Math.hypot(later.x - start.x, later.z - start.z)).toBeGreaterThan(
-      HAZARD.speed * 0.8,
+    advance(world, 60 * 20);
+    expect(world.snapshot().hazards).toEqual([]);
+    expect(types(world)).not.toContain('loom');
+  });
+
+  it('warn with a shadow, then fling the moths underneath outwards', () => {
+    const world = setup();
+    world.placeMoth(0, { x: 2, y: 0.5, z: FRONT });
+    world.placeMoth(1, { x: HAZARD.radius + 3, y: 0.5, z: FRONT });
+    advance(world, 30);
+    const before = world.snapshot().moths;
+    world.drainEvents();
+    world.smack({ x: 0, z: FRONT });
+    expect(types(world)).toEqual(['loom']);
+    expect(world.snapshot().hazards[0]).toMatchObject({
+      x: 0,
+      z: FRONT,
+      phase: 'warning',
+      progress: 0,
+    });
+    // Nothing happens until the warning runs out.
+    advance(world, warnTicks - 2);
+    expect(types(world)).not.toContain('smack');
+    expect(world.snapshot().moths[0]!.x).toBeCloseTo(before[0]!.x, 1);
+    advance(world, 3);
+    const events = world.drainEvents();
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'smack', moths: 1 }),
     );
-    expect(
-      Math.hypot(later.x / ARENA.track.rx, later.z / ARENA.track.rz),
-    ).toBeCloseTo(1);
+    expect(world.snapshot().hazards[0]!.phase).toBe('down');
+    advance(world, 30);
+    const after = world.snapshot().moths;
+    // Moth 0 was under the palm, to its right, so it flies further right.
+    expect(after[0]!.x - before[0]!.x).toBeGreaterThan(2);
+    expect(after[0]!.staggered).toBe(true);
+    // Moth 1 stood outside the ring.
+    expect(after[1]!.x).toBeCloseTo(before[1]!.x, 1);
   });
 
-  it('boots a moth standing in its way, but not one perched up high', () => {
+  it('can be dodged during the warning', () => {
     const world = setup();
-    const ahead = () => {
-      const mouse = mouseOf(world);
-      return {
-        x: mouse.x + Math.sin(mouse.heading) * 2.5,
-        z: mouse.z + Math.cos(mouse.heading) * 2.5,
-      };
-    };
-    world.placeMoth(1, { ...ahead(), y: 0.5 });
-    const before = world.snapshot().moths[1]!;
+    world.placeMoth(0, { x: 0, y: 0.5, z: FRONT });
+    advance(world, 30);
+    world.smack({ x: 0, z: FRONT });
+    advance(world, 10);
+    world.placeMoth(0, { x: HAZARD.radius + 3, y: 0.5, z: FRONT });
     world.drainEvents();
-    advance(world, 45);
-    const hit = world.snapshot().moths[1]!;
-    expect(world.drainEvents().map((event) => event.type)).toContain('bonk');
-    expect(Math.hypot(hit.x - before.x, hit.z - before.z)).toBeGreaterThan(2);
-    // High above the track, the mouse passes underneath.
-    world.placeMoth(0, { ...ahead(), y: 6 });
-    world.drainEvents();
-    advance(world, 20);
-    expect(
-      world
-        .drainEvents()
-        .some((event) => event.type === 'bonk' && event.moth === 0),
-    ).toBe(false);
+    advance(world, warnTicks);
+    expect(world.drainEvents()).toContainEqual(
+      expect.objectContaining({ type: 'smack', moths: 0 }),
+    );
   });
 
-  it('turns round when a punch lands beside it', () => {
+  it('lift away again, and jolt the lamps nearby', () => {
+    const world = setup();
+    const lamp = world.snapshot().lamps[0]!;
+    world.smack({ x: lamp.anchor.x + 3, z: lamp.anchor.z });
+    advance(world, warnTicks + 12);
+    const swung = world.snapshot().lamps[0]!;
+    expect(Math.abs(swung.x - lamp.x)).toBeGreaterThan(0.1);
+    advance(
+      world,
+      Math.ceil((HAZARD.holdSeconds + HAZARD.liftSeconds) * 60) + 2,
+    );
+    expect(world.snapshot().hazards).toEqual([]);
+  });
+
+  it('belong to giants who pace round the desk without ever stepping on it', () => {
+    const world = createWorld({ hazards: true });
+    worlds.push(world);
+    const start = world.snapshot().people;
+    expect(start).toHaveLength(PEOPLE.count);
+    // Nobody moves while the world is frozen.
+    expect(world.snapshot().people).toEqual(start);
+    let moved = 0;
+    for (let tick = 0; tick < 60 * 90; tick++) {
+      world.step();
+      const { people, hazards } = world.snapshot();
+      people.forEach((person, index) => {
+        const offDesk =
+          Math.abs(person.x) > ARENA.desk.width / 2 + PEOPLE.offset - 0.01 ||
+          person.z > ARENA.desk.depth / 2 + PEOPLE.offset - 0.01;
+        expect(offDesk).toBe(true);
+        expect(person.z).toBeGreaterThan(-ARENA.desk.depth / 2);
+        expect(person.smacking).toBe(hazards[0]?.person === index);
+      });
+      moved = Math.max(
+        moved,
+        Math.hypot(people[0]!.x - start[0]!.x, people[0]!.z - start[0]!.z),
+      );
+    }
+    expect(moved).toBeGreaterThan(10);
+  });
+
+  it('are swung by the nearest giant, who stops and faces the spot', () => {
     const world = setup();
     advance(world, 30);
-    const mouse = mouseOf(world);
-    world.placeMoth(0, { x: mouse.x * 0.94, y: 0.5, z: mouse.z * 0.94 });
-    world.drainEvents();
-    expect(world.useWeapon('bosh', east)).toBe(true);
-    expect(world.drainEvents().map((event) => event.type)).toContain('squeak');
-    const turned = mouseOf(world);
-    expect(turned.startled).toBe(true);
-    expect(Math.cos(turned.heading - mouse.heading)).toBeLessThan(-0.9);
+    const before = world.snapshot().people;
+    const spot = { x: before[0]!.x + 14, z: before[0]!.z };
+    world.smack(spot);
+    const hand = world.snapshot().hazards[0]!;
+    expect(hand.person).toBe(0);
+    advance(world, 30);
+    const during = world.snapshot().people;
+    expect(during[0]).toMatchObject({
+      x: before[0]!.x,
+      z: before[0]!.z,
+      smacking: true,
+    });
+    // Facing +X, towards the spot; the others carry on walking.
+    expect(during[0]!.heading).toBeCloseTo(Math.PI / 2);
+    expect(hand.heading).toBeCloseTo(Math.PI / 2);
+    expect(during[1]!.smacking).toBe(false);
+    expect(
+      Math.hypot(during[1]!.x - before[1]!.x, during[1]!.z - before[1]!.z),
+    ).toBeGreaterThan(1);
   });
 
-  it('can be switched off', () => {
-    const world = createWorld({ hazards: false });
+  it('come down at random while the world runs, never off the desk', () => {
+    let seed = 7;
+    const random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    const world = createWorld({ hazards: true, random });
     worlds.push(world);
+    // Frozen worlds never raise a hand.
     expect(world.snapshot().hazards).toEqual([]);
+    let smacks = 0;
+    for (let tick = 0; tick < 60 * 60; tick++) {
+      world.step();
+      for (const event of world.drainEvents()) {
+        if (event.type !== 'smack') continue;
+        smacks++;
+        expect(Math.abs(event.position.x)).toBeLessThan(ARENA.desk.width / 2);
+        expect(Math.abs(event.position.z)).toBeLessThan(ARENA.desk.depth / 2);
+      }
+    }
+    const longest =
+      HAZARD.maxGap +
+      HAZARD.warnSeconds +
+      HAZARD.holdSeconds +
+      HAZARD.liftSeconds;
+    expect(smacks).toBeGreaterThanOrEqual(Math.floor(60 / longest));
   });
 });

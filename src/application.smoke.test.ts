@@ -34,7 +34,7 @@ let nextFrameId: number;
 
 function mount(mode: 'match' | 'playground' = 'playground') {
   // Fixed spawn slots keep these tests repeatable.
-  const cleanup = startApplication({ randomSpawns: false, mode });
+  const cleanup = startApplication({ randomSpawns: false, mode, hands: false });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
   if (!scene) throw new Error('Application did not create a scene.');

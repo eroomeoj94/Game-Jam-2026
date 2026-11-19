@@ -29,6 +29,8 @@ export type ApplicationOptions = {
    * every moth and weapon, for tuning. Defaults to the page's ?playground flag.
    */
   mode?: 'match' | 'playground';
+  /** Giant hands smack the desk at random (on by default). */
+  hands?: boolean;
 };
 
 const teamLabel = (team: number) =>
@@ -40,12 +42,14 @@ export function startApplication({
   mode = new URLSearchParams(location.search).has('playground')
     ? 'playground'
     : 'match',
+  hands = true,
 }: ApplicationOptions = {}) {
   const playing = mode === 'match';
   const newWorld = () =>
     createWorld({
       placement: randomSpawns ? nearLampPlacement() : undefined,
       match: playing,
+      hazards: hands,
     });
   const newMatch = () =>
     playing ? createMatch(ARENA.spawns.map(({ team }) => team)) : undefined;
@@ -652,6 +656,11 @@ export function startApplication({
     rebuild: onReset,
     recentreCamera: () => scene.resetCamera(),
     nudgeLamps: () => world.nudgeLamp(),
+    smack: () => {
+      const view = world.snapshot();
+      const moth = view.moths[view.selectedMoth];
+      if (moth) world.smack({ x: moth.x, z: moth.z });
+    },
   });
   const onPass = () => passTurn();
   const onStart = () => {

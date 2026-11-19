@@ -9,19 +9,21 @@ import {
   FIRECRACKER,
   FUR,
   GUST,
+  HAZARD,
   LAMPS,
   LIGHTING,
   MATCH,
   MAX_FUR_LAYERS,
   MAX_LAMPS,
   MOVEMENT,
+  PEOPLE,
   PLAYGROUND,
   TILT_SHIFT,
   ZAP,
 } from '../config';
 
 // Bump the version when defaults change shape, so stale saves are ignored.
-const STORAGE_KEY = 'moth-fight-club:tuning:v10';
+const STORAGE_KEY = 'moth-fight-club:tuning:v13';
 const SETTINGS = {
   MOVEMENT,
   CAMERA,
@@ -38,6 +40,8 @@ const SETTINGS = {
   PLAYGROUND,
   AUDIO,
   MATCH,
+  HAZARD,
+  PEOPLE,
 };
 type Settings = typeof SETTINGS;
 const DEFAULTS: Settings = structuredClone(SETTINGS);
@@ -86,6 +90,8 @@ export function createTuningPanel(actions: {
   rebuild: () => void;
   recentreCamera: () => void;
   nudgeLamps: () => void;
+  /** Bring a giant hand down on the active moth. */
+  smack: () => void;
 }) {
   const gui = new GUI({ title: 'Tuning' });
   // Collapsed until wanted, so it never covers the game's own buttons.
@@ -168,6 +174,20 @@ export function createTuningPanel(actions: {
   rules.add(MATCH, 'restRounds', 0, 3, 1).name('Rounds sat out');
   rules.onFinishChange(changed);
 
+  const hands = gui.addFolder('Giant hands').close();
+  hands.add(HAZARD, 'minGap', 0, 20, 0.5).name('Shortest wait (s)');
+  hands.add(HAZARD, 'maxGap', 0, 30, 0.5).name('Longest wait (s)');
+  hands.add(HAZARD, 'warnSeconds', 0.3, 4, 0.1).name('Warning (s)');
+  hands.add(HAZARD, 'lampBias', 0, 1, 0.05).name('Aims at lamps');
+  hands.add(HAZARD, 'force', 0, 30, 0.5).name('Knockback');
+  hands.add(HAZARD, 'lift', 0, 15, 0.1).name('Lift');
+  hands.add(HAZARD, 'lampForce', 0, 10, 0.1).name('Lamp jolt');
+  hands.add(HAZARD, 'shake', 0, 2, 0.01).name('Screen shake');
+  hands.add(HAZARD, 'loudness', 0, 6, 0.1).name('Loudness');
+  hands.add(PEOPLE, 'speed', 0, 15, 0.5).name('Walking speed');
+  hands.add(PEOPLE, 'turnsPerSecond', 0, 0.5, 0.01).name('Turn-backs per s');
+  hands.onFinishChange(changed);
+
   const weapons = gui.addFolder('Weapons');
   weapons.add(PLAYGROUND, 'cooldown', 0, 3, 0.05).name('Cooldown (s)');
   weapons.add(AIM, 'chargeSeconds', 0.2, 3, 0.05).name('Charge time (s)');
@@ -188,6 +208,7 @@ export function createTuningPanel(actions: {
   bosh.add(BOSH, 'lampForce', 0, 20, 0.1).name('Lamp punch');
   bosh.add(BOSH, 'stagger', 0, 3, 0.05).name('Stagger (s)');
   bosh.add(BOSH, 'shake', 0, 1, 0.01).name('Screen shake');
+  bosh.add(BOSH, 'loudness', 0, 8, 0.1).name('Loudness');
   const zap = weapons.addFolder('Zap Switch').close();
   zap.add(ZAP, 'duration', 1, 30, 0.5).name('Zapper time (s)');
   zap.add(ZAP, 'launch', 0, 20, 0.1).name('Launch sideways');
@@ -239,6 +260,7 @@ export function createTuningPanel(actions: {
 
   const buttons = {
     nudge: actions.nudgeLamps,
+    smack: actions.smack,
     copy() {
       const text = JSON.stringify(SETTINGS, null, 2);
       navigator.clipboard?.writeText(text).catch(() => console.log(text));
@@ -256,6 +278,7 @@ export function createTuningPanel(actions: {
     },
   };
   gui.add(buttons, 'nudge').name('Nudge the lamps');
+  gui.add(buttons, 'smack').name('Smack the active moth');
   gui.add(buttons, 'copy').name('Copy settings as JSON');
   gui.add(buttons, 'reset').name('Reset to defaults');
   return {

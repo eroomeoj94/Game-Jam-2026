@@ -15,6 +15,7 @@ music) and save it in
 | File             | Used for                                            | Artlist clip                                                                                                                                    |
 | ---------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `punch.aac`      | Bosh connecting; knock-backs from projectiles       | [Anime Action – Cartoonish Punch](https://artlist.io/sfx/track/anime-action---cartoonish-punch/99488)                                           |
+| `slap.aac`       | A giant hand hitting the desk                       | [Fight – Punching Wood](https://artlist.io/sfx/track/fight---punching-wood/24787)                                                               |
 | `swish.aac`      | Bosh missing                                        | [Total Transitions – Swipe Swish, Quick Dodge, Kung Fu](https://artlist.io/sfx/track/total-transitions---swipe-swish-quick-dodge-kung-fu/60804) |
 | `whoosh.aac`     | Wing Gust; firecracker throw                        | [Air Motion – Short Airy Whoosh](https://artlist.io/sfx/track/air-motion---short-airy-whoosh/117173)                                            |
 | `zap.aac`        | A moth getting zapped; a lamp turning into a zapper | [Electrified – Spark Zap](https://artlist.io/sfx/track/electrified---spark-zap/106234)                                                          |

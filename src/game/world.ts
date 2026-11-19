@@ -17,6 +17,7 @@ import {
   FIRECRACKER,
   GUST,
   HAZARD,
+  PEOPLE,
   LAMPS,
   MOVEMENT,
   PHYSICS_STEP_MS,
@@ -95,22 +96,42 @@ export type WorldEvent =
       position: Position;
     }
   | { type: 'dance'; moth: number; variant: number; position: Position }
-  /** The wind-up mouse ran into a moth. */
-  | { type: 'bonk'; moth: number; position: Position }
-  /** The wind-up mouse was startled and turned round. */
-  | { type: 'squeak'; position: Position }
+  /** A giant hand's shadow has appeared over the desk. */
+  | { type: 'loom'; position: Position }
+  /** A giant hand hit the desk, flinging `moths` moths. */
+  | { type: 'smack'; position: Position; moths: number }
   | { type: 'explode'; position: Position }
   | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position };
-export type HazardView = Position & {
-  /** Direction of travel, as a heading like a moth's. */
+/** A giant pacing round the desk; (x, z) is where they stand. */
+export type PersonView = {
+  x: number;
+  z: number;
+  /** Which way they face, as a heading like a moth's. */
   heading: number;
-  /** True for a moment after being startled. */
-  startled: boolean;
+  /** Distance walked so far, for the stride. */
+  walked: number;
+  /** True while they have stopped to smack the desk. */
+  smacking: boolean;
+};
+/** A giant hand; its position is where the palm lands. */
+export type HazardView = Position & {
+  /** Which way the fingers point, as a heading like a moth's. */
+  heading: number;
+  /** Index of the person whose hand it is. */
+  person: number;
+  /** Their right hand (1) or left (-1). */
+  side: 1 | -1;
+  /** Looming overhead, flat on the desk, or lifting away. */
+  phase: 'warning' | 'down' | 'lifting';
+  /** 0 to 1 through the current phase. */
+  progress: number;
 };
 export type WorldView = {
   lamps: LampView[];
-  /** Moving toys on the desk that knock moths about. */
+  /** Giant hands about to hit, or resting on, the desk. */
   hazards: HazardView[];
+  /** The giants walking round the desk, whose hands those are. */
+  people: PersonView[];
   projectiles: ProjectileView[];
   /** 0 when a weapon is ready, rising to 1 just after one is used. */
   weaponCooldown: number;
@@ -129,8 +150,13 @@ export type WorldOptions = {
    * moth's fixed slot in the arena, which keeps tests predictable.
    */
   placement?: Placement;
-  /** Run the wind-up mouse round its track (on by default). */
+  /**
+   * Giant hands smack the desk at random while the world runs. Off by
+   * default, which keeps tests predictable; the game turns it on.
+   */
   hazards?: boolean;
+  /** Source of randomness for the hands, from 0 to 1. */
+  random?: () => number;
   /**
    * Match rules: no weapon cooldown, zappers last until `restoreLamp`, and
    * fallen or zapped moths stay off the desk until `returnMoth`.
@@ -141,7 +167,8 @@ export type WorldOptions = {
 export function createWorld({
   placement,
   match = false,
-  hazards = true,
+  hazards = false,
+  random = Math.random,
 }: WorldOptions = {}) {
   const world = new World({ gravity: new Vec3(0, -9.82, 0) });
   world.defaultContactMaterial.friction = 0.6;
@@ -230,8 +257,6 @@ export function createWorld({
       zap: 0,
       /** Seconds left of the punch lunge pose. */
       punch: 0,
-      /** Seconds before the wind-up mouse can hit this moth again. */
-      bonkCooldown: 0,
       /** Dance routine in progress, from 1; 0 when not dancing. */
       dance: 0,
       danceTime: 0,
@@ -241,23 +266,49 @@ export function createWorld({
   const mothByBody = new Map(moths.map((moth) => [moth.body, moth]));
   const teamZaps = [0, 0];
   let lastDance = 0;
-  // The wind-up mouse: an angle round its oval track and a direction.
-  const mouse = { angle: Math.PI * 0.5, direction: 1, boost: 0 };
-  const track = ARENA.track;
-  function mousePosition(): Position {
+  // The giant hand in play, if any, and the wait before the next one.
+  type Hand = Position & {
+    heading: number;
+    person: number;
+    side: 1 | -1;
+    time: number;
+  };
+  // Giants pace a U-shaped path round the desk's three open sides (the
+  // fourth is against the wall): `at` is the distance along it.
+  const lane = {
+    x: ARENA.desk.width / 2 + PEOPLE.offset,
+    back: -ARENA.desk.depth / 2 + PEOPLE.backGap,
+    front: ARENA.desk.depth / 2 + PEOPLE.offset,
+  };
+  const laneSide = lane.front - lane.back;
+  const laneLength = laneSide * 2 + lane.x * 2;
+  /** The point `at` along the path and the direction the path runs there. */
+  function lanePoint(at: number) {
+    if (at < laneSide) return { x: -lane.x, z: lane.back + at, dx: 0, dz: 1 };
+    if (at < laneSide + lane.x * 2)
+      return { x: -lane.x + (at - laneSide), z: lane.front, dx: 1, dz: 0 };
     return {
-      x: Math.cos(mouse.angle) * track.rx,
-      y: HAZARD.radius * 0.7,
-      z: Math.sin(mouse.angle) * track.rz,
+      x: lane.x,
+      z: lane.front - (at - laneSide - lane.x * 2),
+      dx: 0,
+      dz: -1,
     };
   }
-  /** Unit direction of travel along the track. */
-  function mouseTravel() {
-    const x = -Math.sin(mouse.angle) * track.rx * mouse.direction;
-    const z = Math.cos(mouse.angle) * track.rz * mouse.direction;
-    const length = Math.hypot(x, z) || 1;
-    return { x: x / length, z: z / length, length };
-  }
+  const people = Array.from({ length: PEOPLE.count }, (_, index) => {
+    const at = (laneLength * (index + 0.5)) / PEOPLE.count;
+    const direction = index % 2 ? -1 : 1;
+    const { dx, dz } = lanePoint(at);
+    return {
+      at,
+      direction,
+      heading: Math.atan2(dx * direction, dz * direction),
+      walked: index * 3,
+    };
+  });
+  let hand: Hand | undefined;
+  const handGap = () =>
+    HAZARD.minGap + random() * Math.max(0, HAZARD.maxGap - HAZARD.minGap);
+  let nextHand = handGap();
   let weaponCooldown = 0;
   let selectedMoth = 0;
   let events: WorldEvent[] = [];
@@ -499,56 +550,178 @@ export function createWorld({
       bulb.velocity.z += push.z;
     }
     events.push({ type: 'explode', position: centre });
-    startleMouse(centre, FIRECRACKER.blastRadius);
   }
 
-  /** A blow landing near the wind-up mouse sends it back the way it came. */
-  function startleMouse(origin: Position, range: number) {
-    if (!hazards) return;
-    const at = mousePosition();
-    if (Math.hypot(at.x - origin.x, at.z - origin.z) > range) return;
-    mouse.direction *= -1;
-    mouse.boost = HAZARD.startleBoost;
-    events.push({ type: 'squeak', position: at });
+  /** Somewhere on the desk for a hand to land: often where moths gather. */
+  function handSpot() {
+    const { width, depth } = ARENA.desk;
+    const spots = LAMPS.positions.slice(0, LAMPS.count);
+    const lamp = spots[Math.floor(random() * spots.length)];
+    if (lamp && random() < HAZARD.lampBias) {
+      const angle = random() * Math.PI * 2;
+      const distance = random() * HAZARD.radius * 1.5;
+      return {
+        x: lamp.x + Math.cos(angle) * distance,
+        z: lamp.z + Math.sin(angle) * distance,
+      };
+    }
+    return {
+      x: (random() * 2 - 1) * (width / 2 - HAZARD.radius),
+      z: (random() * 2 - 1) * (depth / 2 - HAZARD.radius),
+    };
   }
 
-  function stepMouse() {
-    if (!hazards) return;
-    mouse.boost = Math.max(0, mouse.boost - DT * 0.8);
-    const travel = mouseTravel();
-    mouse.angle +=
-      (mouse.direction * HAZARD.speed * (1 + mouse.boost) * DT) / travel.length;
-    const at = mousePosition();
+  /** Start a hand's shadow looming over (x, z). */
+  function raiseHand({ x, z }: { x: number; z: number }) {
+    // Whoever is standing nearest does it.
+    let person = 0;
+    let nearest = Infinity;
+    people.forEach(({ at }, index) => {
+      const spot = lanePoint(at);
+      const gap = Math.hypot(spot.x - x, spot.z - z);
+      if (gap < nearest) {
+        nearest = gap;
+        person = index;
+      }
+    });
+    const from = lanePoint(people[person]?.at ?? 0);
+    // The palm comes to rest on the tallest thing beneath it.
+    let y = 0;
+    for (const piece of ARENA.terrain) {
+      const reach =
+        (piece.shape === 'box'
+          ? Math.max(piece.width, piece.depth) / 2
+          : piece.radius) +
+        HAZARD.radius * 0.6;
+      if (piece.kind !== 'desk' && Math.hypot(piece.x - x, piece.z - z) < reach)
+        y = Math.max(y, piece.y + piece.height / 2);
+    }
+    hand = {
+      x,
+      y,
+      z,
+      // Fingers point away from the person reaching in.
+      heading: Math.atan2(x - from.x, z - from.z),
+      person,
+      side: random() < 0.5 ? 1 : -1,
+      time: 0,
+    };
+    events.push({ type: 'loom', position: { x, y, z } });
+  }
+
+  /** The hand lands: every moth under it is flung outwards, lamps swing. */
+  function landHand(at: Hand) {
+    let hits = 0;
     for (const moth of moths) {
-      moth.bonkCooldown = Math.max(0, moth.bonkCooldown - DT);
-      if (!inPlay(moth) || moth.bonkCooldown > 0) continue;
-      const p = moth.body.position;
-      const dx = p.x - at.x;
-      const dz = p.z - at.z;
+      if (!inPlay(moth)) continue;
+      const dx = moth.body.position.x - at.x;
+      const dz = moth.body.position.z - at.z;
       const gap = Math.hypot(dx, dz);
-      if (gap > HAZARD.radius + ARENA.mothRadius || p.y > HAZARD.reach)
-        continue;
-      // Booted along the mouse's path and a little off to the side.
-      const away = gap > 1e-3 ? { x: dx / gap, z: dz / gap } : { x: 0, z: 0 };
-      const push = horizontal({
-        x: travel.x + away.x * 0.6,
-        y: 0,
-        z: travel.z + away.z * 0.6,
-      }) ?? { x: travel.x, z: travel.z };
-      moth.bonkCooldown = 1;
+      if (gap > HAZARD.radius + ARENA.mothRadius) continue;
+      // Dead centre has no "outwards", so it goes the way the moth faces.
+      const out =
+        gap > 1e-3
+          ? { x: dx / gap, z: dz / gap }
+          : { x: Math.sin(moth.heading), z: Math.cos(moth.heading) };
       knock(
         moth,
-        push.x * HAZARD.force,
+        out.x * HAZARD.force,
         HAZARD.lift,
-        push.z * HAZARD.force,
+        out.z * HAZARD.force,
         HAZARD.stagger,
       );
-      events.push({
-        type: 'bonk',
-        moth: moth.id,
-        position: positionOf(moth.body),
-      });
+      hits++;
     }
+    for (const { bulb } of lamps) {
+      const dx = bulb.position.x - at.x;
+      const dz = bulb.position.z - at.z;
+      const gap = Math.hypot(dx, dz);
+      if (gap > HAZARD.lampRadius) continue;
+      const push = HAZARD.lampForce * (1 - gap / HAZARD.lampRadius);
+      const angle = gap > 1e-3 ? Math.atan2(dz, dx) : at.heading;
+      bulb.wakeUp();
+      bulb.velocity.x += Math.cos(angle) * push;
+      bulb.velocity.z += Math.sin(angle) * push;
+    }
+    events.push({
+      type: 'smack',
+      position: { x: at.x, y: at.y, z: at.z },
+      moths: hits,
+    });
+  }
+
+  /** Everyone keeps pacing, except whoever has stopped to smack. */
+  function stepPeople() {
+    // Too close: both turn away rather than walk through each other.
+    people.forEach((person, index) => {
+      const next = people[index + 1];
+      if (!next || next.at - person.at >= PEOPLE.spacing) return;
+      person.direction = -1;
+      next.direction = 1;
+    });
+    people.forEach((person, index) => {
+      if (hand?.person === index) {
+        person.heading = hand.heading;
+        return;
+      }
+      // Now and then someone turns back for no reason at all.
+      if (random() < PEOPLE.turnsPerSecond * DT) person.direction *= -1;
+      const moved = person.at + person.direction * PEOPLE.speed * DT;
+      if (moved <= 0 || moved >= laneLength) person.direction *= -1;
+      person.at = Math.min(laneLength, Math.max(0, moved));
+      person.walked += PEOPLE.speed * DT;
+      const { dx, dz } = lanePoint(person.at);
+      person.heading = Math.atan2(dx * person.direction, dz * person.direction);
+    });
+  }
+
+  function stepHands() {
+    if (!hand) {
+      if (!hazards) return;
+      nextHand -= DT;
+      if (nextHand <= 0) raiseHand(handSpot());
+      return;
+    }
+    const before = hand.time;
+    hand.time += DT;
+    if (before < HAZARD.warnSeconds && hand.time >= HAZARD.warnSeconds)
+      landHand(hand);
+    if (
+      hand.time >=
+      HAZARD.warnSeconds + HAZARD.holdSeconds + HAZARD.liftSeconds
+    ) {
+      hand = undefined;
+      nextHand = handGap();
+    }
+  }
+
+  function handView(): HazardView[] {
+    if (!hand) return [];
+    const { time, ...rest } = hand;
+    const sinceLanding = time - HAZARD.warnSeconds;
+    if (sinceLanding < 0)
+      return [
+        { ...rest, phase: 'warning', progress: time / HAZARD.warnSeconds },
+      ];
+    if (sinceLanding < HAZARD.holdSeconds)
+      return [
+        {
+          ...rest,
+          phase: 'down',
+          progress: sinceLanding / Math.max(HAZARD.holdSeconds, 1e-6),
+        },
+      ];
+    return [
+      {
+        ...rest,
+        phase: 'lifting',
+        progress: Math.min(
+          1,
+          (sinceLanding - HAZARD.holdSeconds) /
+            Math.max(HAZARD.liftSeconds, 1e-6),
+        ),
+      },
+    ];
   }
 
   function useGust(attacker: Moth, aim: Aim) {
@@ -574,7 +747,6 @@ export function createWorld({
       bulb.velocity.z += push.z;
     }
     events.push({ type: 'gust', origin, direction });
-    startleMouse(origin, GUST.range);
     return true;
   }
 
@@ -591,7 +763,6 @@ export function createWorld({
       ),
     );
     const target = index === undefined ? undefined : moths[index];
-    startleMouse(origin, BOSH.range + HAZARD.radius);
     if (target)
       knock(
         target,
@@ -751,7 +922,8 @@ export function createWorld({
       }
       weaponCooldown = Math.max(0, weaponCooldown - DT);
       world.step(DT);
-      stepMouse();
+      stepPeople();
+      stepHands();
       for (const projectile of [...projectiles]) {
         projectile.age += DT;
         const p = projectile.body.position;
@@ -874,6 +1046,13 @@ export function createWorld({
       moth.body.aabbNeedsUpdate = true;
       moth.body.wakeUp();
     },
+    /**
+     * Bring a giant hand down at (x, z) after the usual warning, replacing
+     * any hand already in play. Works even when random hands are off.
+     */
+    smack(at: { x: number; z: number }) {
+      raiseHand(at);
+    },
     /** Push every lamp, each in a different direction. */
     nudgeLamp() {
       lamps.forEach(({ bulb }, index) => {
@@ -885,15 +1064,11 @@ export function createWorld({
     snapshot(): WorldView {
       return {
         weaponCooldown: weaponCooldown / Math.max(PLAYGROUND.cooldown, 1e-6),
-        hazards: hazards
-          ? [
-              {
-                ...mousePosition(),
-                heading: Math.atan2(mouseTravel().x, mouseTravel().z),
-                startled: mouse.boost > 0,
-              },
-            ]
-          : [],
+        hazards: handView(),
+        people: people.map(({ at, heading, walked }, index) => {
+          const { x, z } = lanePoint(at);
+          return { x, z, heading, walked, smacking: hand?.person === index };
+        }),
         teamZaps: [...teamZaps],
         lamps: lamps.map(({ anchor, bulb, zapperTime }) => ({
           ...positionOf(bulb),

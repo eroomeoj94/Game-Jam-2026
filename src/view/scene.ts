@@ -34,6 +34,8 @@ import {
   LAMPS,
   LIGHTING,
   BOSH,
+  HAZARD,
+  ROOM,
   MAX_LAMPS,
   MOTH_LOOK,
   TEAM_COLOURS,
@@ -54,7 +56,8 @@ import type { MothView, WorldView } from '../game/world';
 export type CameraMode = 'follow' | 'board';
 import { createMaterials } from './materials';
 import { createMoth } from './moth';
-import { createMouse } from './mouse';
+import { createWarning } from './hand';
+import { createPeople } from './people';
 
 export function createScene(host: HTMLElement) {
   const renderer = new WebGLRenderer({
@@ -246,7 +249,7 @@ export function createScene(host: HTMLElement) {
   scene.add(moon, moon.target);
 
   const deskDepth = ARENA.desk.depth;
-  const floorY = -40;
+  const floorY = ROOM.floorY;
   const wallZ = -deskDepth / 2 - 1.5;
   const wallMaterial = new MeshStandardMaterial({
     color: 0x38484c,
@@ -658,8 +661,9 @@ export function createScene(host: HTMLElement) {
     createMoth(materials, color, team, index * 1.7),
   );
   moths.forEach((moth) => scene.add(moth.root));
-  const mouse = createMouse(materials);
-  scene.add(mouse.root, mouse.track);
+  const warning = createWarning();
+  const people = createPeople(materials);
+  scene.add(warning.root, people.root);
   let disposed = false;
   function resize() {
     const width = Math.max(host.clientWidth, 1);
@@ -746,6 +750,7 @@ export function createScene(host: HTMLElement) {
       for (const event of events)
         if (event.type === 'bosh' && event.moth !== undefined)
           shake = Math.max(shake, BOSH.shake);
+        else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
     /** Switch between the shoulder camera and the whole-board view. */
     toggleView(): CameraMode {
@@ -900,7 +905,14 @@ export function createScene(host: HTMLElement) {
           position.z,
         );
       });
-      mouse.animate(seconds, view.hazards[0]);
+      warning.animate(seconds, view.hazards[0]);
+      people.animate(
+        seconds,
+        frameDelta,
+        view,
+        camera.position,
+        controls.target,
+      );
       // The active moth's ring pulses.
       selection.scale.setScalar(1 + Math.sin(seconds * 5) * 0.08);
       const active = view.moths[view.selectedMoth];

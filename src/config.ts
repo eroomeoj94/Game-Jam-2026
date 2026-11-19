@@ -106,27 +106,6 @@ const LAMP_SPOTS = [
   { x: 0, z: 45 },
 ].map(scaled);
 
-/**
- * The wind-up mouse's circuit: an oval through the light of every outer
- * lamp, so nowhere good to stand is entirely safe.
- */
-const TRACK = { rx: 80 * BOARD_SCALE, rz: 36.3 * BOARD_SCALE } as const;
-/** How far (x, z) is from the track's centre line, roughly. */
-export function trackGap(x: number, z: number) {
-  const radial = Math.hypot(x, z);
-  const scaled = Math.hypot(x / TRACK.rx, z / TRACK.rz);
-  return scaled < 1e-6
-    ? Math.min(TRACK.rx, TRACK.rz)
-    : Math.abs(radial - radial / scaled);
-}
-/** Props are kept off the track so the mouse has a clear run. */
-const offTrack = (piece: TerrainPiece) =>
-  trackGap(piece.x, piece.z) >
-  (piece.shape === 'box'
-    ? Math.hypot(piece.width, piece.depth) / 2
-    : piece.radius) +
-    1.1;
-
 type Cluster = (x: number, z: number) => TerrainPiece[];
 /** A ring of low perches inside a lamp's light. */
 const ring: Cluster = (x, z) => [
@@ -269,9 +248,8 @@ export const ARENA = {
       ...LAMP_SPOTS.flatMap((spot, index) => CLUSTERS[index]!(spot.x, spot.z)),
       // Keep the clutter about as dense whatever the desk size.
       ...scatter(Math.round(60 * BOARD_SCALE ** 2 * 1.6), 20261127),
-    ].filter(offTrack),
+    ],
   ] satisfies TerrainPiece[] as TerrainPiece[],
-  track: TRACK,
   /**
    * Moth 0 and moth 1 lead each team, so key 1 is Dusty and key 2 is
    * Mothhew; the rest alternate teams.
@@ -415,7 +393,7 @@ export const BOSH = {
   /** Real-time freeze-frame when a punch lands, in seconds. */
   hitstop: 0.14,
   /** Loudness of the punch and its boom, over the normal effect level. */
-  loudness: 2.2,
+  loudness: 5,
 };
 
 /** The two teams, told apart by an icon and a name as well as colour. */
@@ -455,23 +433,59 @@ export const MATCH = {
 };
 
 /**
- * The wind-up mouse: a toy that trundles round its track whenever the world
- * is running and boots any moth standing in its way.
+ * Giant hands: every so often, while the world is running, a huge human hand
+ * slams the desk. Its shadow gives fair warning; any moth still under it
+ * when it lands is flung outwards.
  */
 export const HAZARD = {
-  /** Travel speed along the track. */
-  speed: 6,
-  /** How close its centre must come to a moth's to hit it. */
-  radius: 0.75,
-  /** A moth standing higher than this (on a book, say) is safe. */
-  reach: 1.2,
-  /** Horizontal and upward speed given to a moth it hits. */
-  force: 13,
-  lift: 7.5,
+  /** Seconds of running time from one hand leaving to the next shadow. */
+  minGap: 2.5,
+  maxGap: 6,
+  /** Seconds the shadow looms before the hand lands. */
+  warnSeconds: 1.6,
+  /** Seconds the hand rests on the desk, then takes to lift away. */
+  holdSeconds: 0.4,
+  liftSeconds: 0.7,
+  /** Moths within this distance of the palm's centre are hit. */
+  radius: 4,
+  /** Chance a hand aims at a lamp's light instead of anywhere on the desk. */
+  lampBias: 0.6,
+  /** Outward and upward speed given to a moth it hits. */
+  force: 12,
+  lift: 8,
   /** Seconds the hit moth tumbles without braking. */
   stagger: 1,
-  /** Extra speed, as a fraction, just after it is startled into reversing. */
-  startleBoost: 1.2,
+  /** Lamps within this distance swing from the jolt, up to this speed. */
+  lampRadius: 14,
+  lampForce: 2.4,
+  /** Screen shake when a hand lands, in world units. */
+  shake: 0.8,
+  /** Loudness of the slap and its boom, over the normal effect level. */
+  loudness: 2.4,
+};
+
+/** The room around the desk. */
+export const ROOM = {
+  /** Height of the floor; the desk top is at 0. */
+  floorY: -40,
+};
+
+/**
+ * The giants whose hands those are. They pace round the three open sides of
+ * the desk whenever the world is running, and the nearest one does each smack.
+ */
+export const PEOPLE = {
+  count: 3,
+  /** Walking speed along the path round the desk. */
+  speed: 5,
+  /** How far from the desk's edge they walk. */
+  offset: 11,
+  /** How far short of the back wall the side paths stop. */
+  backGap: 8,
+  /** Closest two of them come before both turn away. */
+  spacing: 26,
+  /** How often, on average, one turns back on a whim. */
+  turnsPerSecond: 0.06,
 };
 
 /** The end-of-turn dance: a moth shows off instead of attacking. */

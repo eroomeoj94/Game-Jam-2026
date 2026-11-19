@@ -1,4 +1,4 @@
-import { ARENA, LAMPS, trackGap } from '../config';
+import { ARENA, LAMPS } from '../config';
 import type { Position } from './world';
 
 /** Chooses where moth `id` appears, given where the other moths are. */
@@ -11,7 +11,6 @@ const EDGE_MARGIN = 4;
 const MOTH_SPACING = 3;
 const PROP_CLEARANCE = 0.4;
 const LIGHT_MARGIN = 1.5;
-const TRACK_CLEARANCE = 1.8;
 
 /** Radius of a lamp's light on the desk while the lamp hangs at rest. */
 export function restingLightRadius() {
@@ -35,8 +34,6 @@ export function isClearSpot(
     Math.abs(z) > depth / 2 - EDGE_MARGIN
   )
     return false;
-  // Nobody is dropped straight into the wind-up mouse's path.
-  if (trackGap(x, z) < TRACK_CLEARANCE) return false;
   const reach = ARENA.mothRadius + PROP_CLEARANCE;
   for (const piece of ARENA.terrain) {
     if (piece.kind === 'desk') continue;

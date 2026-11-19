@@ -12,6 +12,7 @@ import {
   Scene,
   SphereGeometry,
   Vector3,
+  NormalBlending,
 } from 'three';
 import {
   ARENA,
@@ -19,6 +20,7 @@ import {
   DANCE,
   FIRECRACKER,
   GUST,
+  HAZARD,
   LAMPS,
   WEAPONS,
 } from '../config';
@@ -153,7 +155,7 @@ export function createWeaponEffects(
       transparent: true,
       opacity,
       depthWrite: false,
-      blending: additive ? AdditiveBlending : undefined,
+      blending: additive ? AdditiveBlending : NormalBlending,
     });
     const mesh = new Mesh(puffGeometry, material);
     mesh.position.copy(position);
@@ -337,13 +339,39 @@ export function createWeaponEffects(
             at.clone().setY(at.y + 1.2),
             TEAM_COLOURS[event.team] ?? '#ffffff',
           );
-        } else if (event.type === 'bonk') {
+        } else if (event.type === 'smack') {
           const at = toVector(event.position);
-          flash(at, 0xfff0b0, 30);
-          popup('BONK!', at.setY(at.y + 1.2), '#ffd36b');
-        } else if (event.type === 'squeak') {
-          const at = toVector(event.position);
-          popup('SQUEAK!', at.setY(at.y + 1.2), '#f3b6c0');
+          // Dust squeezed out from under the palm.
+          for (let i = 0; i < 12; i++) {
+            const angle = (i / 12) * Math.PI * 2;
+            puff(
+              at
+                .clone()
+                .add(
+                  new Vector3(
+                    Math.cos(angle) * HAZARD.radius * 0.8,
+                    0.3,
+                    Math.sin(angle) * HAZARD.radius * 0.8,
+                  ),
+                ),
+              0xd8cbb4,
+              0.7,
+              (effect, t, delta) => {
+                const mesh = effect.object as Mesh;
+                mesh.position.x += Math.cos(angle) * 5 * (1 - t) * delta;
+                mesh.position.z += Math.sin(angle) * 5 * (1 - t) * delta;
+                mesh.position.y += 0.8 * delta;
+                mesh.scale.setScalar(0.5 + t * 1.4);
+                fade(mesh, 0.5, t);
+              },
+              0.5,
+            );
+          }
+          popup(
+            event.moths ? 'SPLAT!' : 'SMACK!',
+            at.setY(at.y + 3),
+            '#ffd36b',
+          );
         } else if (event.type === 'dance') {
           const at = toVector(event.position);
           popup(

@@ -1,4 +1,4 @@
-import { AUDIO, BOSH } from '../config';
+import { AUDIO, BOSH, HAZARD } from '../config';
 import type { Position, WorldEvent, WorldView } from '../game/world';
 
 /** Optional recording: drop a file here to replace the spoken "Bosh!". */
@@ -13,6 +13,7 @@ export const BOSH_RECORDING = 'sounds/bosh.mp3';
  */
 export const SAMPLES = [
   'punch',
+  'slap',
   'whoosh',
   'swish',
   'zap',
@@ -113,6 +114,7 @@ export function createSfx({
   let context: AudioContext | undefined;
   let effects: GainNode | undefined;
   let beds: GainNode | undefined;
+  let duck: GainNode | undefined;
   let muted = false;
   let loading = false;
   let unsupported = false;
@@ -139,8 +141,20 @@ export function createSfx({
         // Two mix buses: effects, and the looping beds underneath them.
         effects = context.createGain();
         beds = context.createGain();
-        effects.connect(context.destination);
-        beds.connect(context.destination);
+        // A limiter lets the big hits be pushed well past full volume and
+        // come out loud and thick instead of crackling.
+        const limiter = context.createDynamicsCompressor?.();
+        if (limiter) {
+          limiter.threshold.value = -14;
+          limiter.knee.value = 6;
+          limiter.ratio.value = 20;
+          limiter.attack.value = 0.002;
+          limiter.release.value = 0.14;
+          effects.connect(limiter).connect(context.destination);
+        } else effects.connect(context.destination);
+        // The music and room tone dip out of the way of those hits.
+        duck = context.createGain();
+        beds.connect(duck).connect(context.destination);
         applyVolumes();
       }
     }
@@ -300,12 +314,38 @@ export function createSfx({
   /** Small random pitch changes stop repeated sounds feeling mechanical. */
   const vary = (spread = 0.08) => 1 + (Math.random() * 2 - 1) * spread;
 
+  /** Drop the music to `depth` of its level, then let it swell back. */
+  function dip(depth: number, hold: number) {
+    if (!context || !duck) return;
+    const now = context.currentTime;
+    duck.gain.setTargetAtTime(depth, now, 0.01);
+    duck.gain.setTargetAtTime(1, now + hold, 0.3);
+  }
+
+  /** A giant hand hitting the desk: a flat slap, a crack and a deep boom. */
+  function slam(volume: number) {
+    const ctx = audio();
+    if (!ctx) return;
+    // Heard clearly from anywhere on the desk: it shakes the whole table.
+    const loud = Math.max(volume, 0.6) * HAZARD.loudness;
+    dip(0.35, 0.3);
+    if (!play('slap', { volume: loud, rate: vary(0.06) }))
+      play('punch', { volume: loud, rate: 0.55 * vary(0.08) });
+    noise(ctx, 0.11, 5200, Math.min(1, 0.7 * loud));
+    thump(ctx, Math.min(1, loud));
+    play('bang', { volume: 0.7 * loud, rate: 0.36 * vary(0.08) });
+    // The desk and everything on it rattles a moment later.
+    play('punch', { volume: 0.3 * loud, rate: 0.4, delay: 0.09 });
+    play('pop', { volume: 0.25 * loud, rate: 0.6 * vary(0.2), delay: 0.16 });
+  }
+
   function bosh(connected: boolean, volume = 1) {
     if (muted) return;
     const ctx = audio();
     if (ctx) {
       const loud = volume * BOSH.loudness;
       if (connected) {
+        dip(0.12, 0.55);
         // The wind-up, the smack, a deep boom underneath, and a slapback.
         play('swish', { volume: loud * 0.6, rate: vary(0.2) });
         if (!play('punch', { volume: loud, rate: vary(0.3) }))
@@ -360,7 +400,7 @@ export function createSfx({
         (event) =>
           event.type === 'gust' ||
           event.type === 'bosh' ||
-          event.type === 'bonk',
+          event.type === 'smack',
       );
       for (const event of events) {
         const at =
@@ -386,11 +426,11 @@ export function createSfx({
         } else if (event.type === 'zap') {
           if (!play('zap', { volume, rate: vary() }) && ctx)
             noise(ctx, 0.25, 4000, 0.5 * volume);
-        } else if (event.type === 'bonk') {
-          if (!play('punch', { volume, rate: vary(0.2) * 1.5 }) && ctx)
-            thump(ctx, 0.7 * volume);
-        } else if (event.type === 'squeak') {
-          play('pop', { volume: 0.8 * volume, rate: 2.2 * vary(0.15) });
+        } else if (event.type === 'loom') {
+          // A hand swinging in overhead: a slow, low whoosh.
+          play('whoosh', { volume: 0.7 * volume, rate: 0.45 * vary() });
+        } else if (event.type === 'smack') {
+          slam(volume);
         } else if (event.type === 'dance') {
           play('pop', { volume: 0.7 * volume, rate: vary(0.35) });
         } else if (event.type === 'lamp') {
