@@ -79,9 +79,14 @@ function round(
     height,
     color,
   };
-} // Each team starts at its own end of the desk, beside a low book perch.
-const BASE_A = { x: -110, z: 0 } as const;
-const BASE_B = { x: 110, z: 0 } as const;
+}
+
+/**
+ * Fixed start slots at each end of the desk, beside a low book perch. The game
+ * drops moths in at random; tests and the respawn fallback use these slots.
+ */
+const START_A = { x: -110, z: 0 } as const;
+const START_B = { x: 110, z: 0 } as const;
 
 /** Where the lamps hang; each one gets a cluster of perches beneath it. */
 const LAMP_SPOTS = [
@@ -131,18 +136,10 @@ const CLUSTERS: Cluster[] = [
   tower,
 ];
 
-/** Each team's corner: a pencil-case wall behind its four starting slots. */
-function base(x: number, side: 1 | -1): TerrainPiece[] {
-  return [
-    block('box', x + side * 4, 0, 1.6, 0.8, 14, side < 0 ? 0x3f5d87 : 0xa04f43),
-    round('tin', x + side * 1, 9, 1.1, 0.5, 0x7d8e6a),
-  ];
-}
-
 /**
  * Seeded scatter between the lamps, so routes have cover and detours. The
  * same seed always gives the same desk. Pieces keep clear of lamp clusters,
- * team bases and a strip along the front edge kept free for testing.
+ * the fixed start slots and a strip along the front edge kept free for testing.
  */
 function scatter(count: number, seed: number): TerrainPiece[] {
   let state = seed;
@@ -168,7 +165,7 @@ function scatter(count: number, seed: number): TerrainPiece[] {
     const z = (random() * 2 - 1) * (DESK.depth / 2 - 12);
     const clear =
       LAMP_SPOTS.every((spot) => Math.hypot(spot.x - x, spot.z - z) > 13) &&
-      [BASE_A, BASE_B].every(
+      [START_A, START_B].every(
         (spot) => Math.hypot(spot.x - x, spot.z - z) > 16,
       ) &&
       placed.every((spot) => Math.hypot(spot.x - x, spot.z - z) > 6);
@@ -202,17 +199,17 @@ function scatter(count: number, seed: number): TerrainPiece[] {
 /** Four moths per team, with names and slightly different wing colours. */
 const TEAMS = [
   {
-    base: BASE_A,
+    start: START_A,
     names: ['Dusty', 'Big Flap', 'Lampwick', 'Fuzzby'],
     colours: [0xc89743, 0xd4a24f, 0xb8853a, 0xcf9a5c],
   },
   {
-    base: BASE_B,
+    start: START_B,
     names: ['Mothhew', 'Wingston', 'Nibbles', 'Tatters'],
     colours: [0x599e98, 0x4f948e, 0x66aaa2, 0x5a8f9e],
   },
 ] as const;
-/** Starting slots around each base, clear of the first moth's book perch. */
+/** Fixed slots around each start point, clear of the first moth's book perch. */
 const SLOTS = [
   { x: 0, z: 0 },
   { x: 0, z: 5 },
@@ -237,10 +234,8 @@ export const ARENA = {
       depth: DESK.depth,
       color: 0x79523b,
     },
-    books(BASE_A.x + 0.9, BASE_A.z - 2.1, 2.5, 2, 2, 0x995845),
-    books(BASE_B.x - 0.9, BASE_B.z - 2.25, 2.2, 2.4, 3, 0x526e6d),
-    ...base(BASE_A.x, -1),
-    ...base(BASE_B.x, 1),
+    books(START_A.x + 0.9, START_A.z - 2.1, 2.5, 2, 2, 0x995845),
+    books(START_B.x - 0.9, START_B.z - 2.25, 2.2, 2.4, 3, 0x526e6d),
     // A wide notebook behind the centre lamp makes a raised stage.
     block('pad', 0, -10, 7, 0.3, 5, 0x4a6b5a),
     ...LAMP_SPOTS.flatMap((spot, index) => CLUSTERS[index]!(spot.x, spot.z)),
@@ -252,14 +247,14 @@ export const ARENA = {
    */
   spawns: [0, 1, 2, 3].flatMap((slot) =>
     TEAMS.map((team, teamIndex) => {
-      // Team B's base faces the other way, so mirror its slots.
+      // Team B starts at the other end, so mirror its slots.
       const side = teamIndex === 0 ? 1 : -1;
       return {
         name: team.names[slot]!,
         team: teamIndex,
-        x: team.base.x + side * SLOTS[slot]!.x,
+        x: team.start.x + side * SLOTS[slot]!.x,
         y: 0.5,
-        z: team.base.z + SLOTS[slot]!.z,
+        z: team.start.z + SLOTS[slot]!.z,
         color: team.colours[slot]!,
       };
     }),
@@ -401,7 +396,7 @@ export const ZAP = {
   launch: 7,
   /** Upward launch speed. */
   lift: 9,
-  /** Seconds of comic tumbling before the moth puffs back to base. */
+  /** Seconds of comic tumbling before the moth puffs back in somewhere new. */
   flightTime: 1.3,
   /** Real-time freeze-frame on a zap, in seconds. */
   hitstop: 0.18,

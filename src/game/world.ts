@@ -564,7 +564,7 @@ export function createWorld({ placement }: WorldOptions = {}) {
         }
         if (moth.zap > 0) {
           moth.zap -= DT;
-          // The comic flight is over: puff back to base.
+          // The comic flight is over: puff back in at a new spot.
           if (moth.zap <= 0) removeFromPlay(moth, 0.25);
           continue;
         }

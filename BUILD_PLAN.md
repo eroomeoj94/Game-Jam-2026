@@ -19,7 +19,7 @@ Status: weapon playground implemented on a 250 × 134 desk with seven lamps and 
 - [x] **Weapon playground (17 November):** free play with a short cooldown. Hold to aim along the camera (and charge), release to fire; Q/E or D-pad to change weapon. Aim previews, projectile models, effects, `world.useWeapon`, and 27 weapon tests.
   - [x] Wing Gust: cone push on moths, swings lamps overhead.
   - [x] Bosh: big close-range punch on the nearest moth, with thump, spoken "Bosh!" (or `public/sounds/bosh.mp3`), pop-up and screen shake; mute with M.
-  - [x] Zap Switch: flips the targeted lamp into a bug zapper; zapped moths cost their team a point, char, tumble and return to base.
+  - [x] Zap Switch: flips the targeted lamp into a bug zapper; zapped moths cost their team a point, char, tumble and drop back in at a random spot.
   - [x] Bottle-Cap Flick and Firecracker: charged projectiles; ricochet knockback and fused radial blast.
   - [ ] Physical playtest of feel and tuning; limit to one action per turn once turns exist.
 - [ ] Movement allowance per turn, handover, scoring, victory, and full match restart.
@@ -30,7 +30,7 @@ Status: weapon playground implemented on a 250 × 134 desk with seven lamps and 
   - [ ] Lamp states: warm lamp and bug zapper, with distinct glow, halo and sound.
   - [ ] Zap Switch weapon: inverts a lamp for one round, two uses per team per match; zaps everyone already in its light.
   - [ ] Zapping: any moth centre inside a zapper's light is zapped; team loses one point; moth sits out the next round.
-  - [ ] Zap launch comedy: freeze-frame flash, charred fur and smoke, tumbling flight, cartoon landing, puff back to base, "ZAPPED! −1" pop-up.
+  - [ ] Zap launch comedy: freeze-frame flash, charred fur and smoke, tumbling flight, cartoon landing, puff back in at a random spot, "ZAPPED! −1" pop-up.
   - [ ] Weapon selection UI and controls (keyboard and PS5), aim along the camera, charge where relevant.
   - [ ] Score HUD showing each lamp's state and who holds it, with text/icons as well as colour.
   - [ ] Rule tests: majority, ties, zapper scoring nothing, zap penalty, resting moths, round order, victory.
