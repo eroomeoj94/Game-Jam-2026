@@ -512,9 +512,19 @@ header::before {
 #intro:not([hidden]) ~ .bottom-panel {
   visibility: hidden;
 }
-#start {
+.start-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+#start,
+#start-solo {
   padding: 14px 34px;
   font-size: 18px;
+}
+.intro-rules.small {
+  margin: 12px 0 0;
+  font-size: 13px;
 }
 .banner.paused {
   top: 44%;

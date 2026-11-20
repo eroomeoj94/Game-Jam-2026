@@ -17,6 +17,8 @@ import type { LampControl, MatchView } from './game/match';
 import { createWorld } from './game/world';
 import { nearLampPlacement, restingLightRadius } from './game/spawns';
 import type { WorldEvent, WorldView } from './game/world';
+import { createBot } from './input/bot';
+import type { Bot, BotOrder } from './input/bot';
 import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
@@ -33,7 +35,12 @@ export type ApplicationOptions = {
   mode?: 'match' | 'playground';
   /** Giant hands smack the desk at random (on by default). */
   hands?: boolean;
+  /** The computer plays Teal from the start, as the '1 player' button does. */
+  solo?: boolean;
 };
+
+/** The team the computer plays in a one-player match: Teal, who goes second. */
+const BOT_TEAM = 1;
 
 const teamLabel = (team: number) =>
   `${TEAM_LABELS[team]?.icon ?? '?'} ${TEAM_LABELS[team]?.name ?? `Team ${team + 1}`}`;
@@ -45,6 +52,7 @@ export function startApplication({
     ? 'playground'
     : 'match',
   hands = true,
+  solo = false,
 }: ApplicationOptions = {}) {
   const playing = mode === 'match';
   const newWorld = () =>
@@ -83,6 +91,7 @@ export function startApplication({
   const banner = document.querySelector<HTMLElement>('#banner');
   const intro = document.querySelector<HTMLElement>('#intro');
   const start = document.querySelector<HTMLButtonElement>('#start');
+  const startSolo = document.querySelector<HTMLButtonElement>('#start-solo');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -122,6 +131,7 @@ export function startApplication({
   const sfx = createSfx();
   let world = newWorld();
   let match = newMatch();
+  let bot: Bot | undefined = playing && solo ? createBot(BOT_TEAM) : undefined;
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
     selectMoth,
@@ -171,6 +181,31 @@ export function startApplication({
   let wasRespawning = false;
   let pointerStart: { x: number; y: number; id: number } | undefined;
 
+  /** True while the computer, not a person, is playing the current go. */
+  function botTurn() {
+    const turn = bot && match?.view();
+    return (
+      !!turn &&
+      turn.team === bot?.team &&
+      ['plan', 'move', 'settle', 'aim'].includes(turn.phase)
+    );
+  }
+  /** Carry out the computer's order; returns how its moth should move. */
+  function obey(order: BotOrder) {
+    if (!match) return NO_MOVEMENT;
+    if (order.type === 'start') match.startMove();
+    else if (order.type === 'walk') return order;
+    else if (order.type === 'aim') {
+      match.beginAim();
+      scene.setAim(order.shot ? { ...order.shot, power: 1 } : undefined);
+    } else if (order.type === 'fire') {
+      scene.setAim(undefined);
+      if (world.useWeapon(order.shot.weapon, order.shot.aim))
+        match.fired(order.shot.weapon);
+      else if (match.pass()) world.dance();
+    } else if (order.type === 'dance' && match.pass()) world.dance();
+    return NO_MOVEMENT;
+  }
   function focusCanvas() {
     host?.querySelector('canvas')?.focus({ preventScroll: true });
   }
@@ -232,14 +267,14 @@ export function startApplication({
   }
   /** End the turn without attacking: the moth dances instead. */
   function passTurn() {
-    if (!started) return;
+    if (!started || botTurn()) return;
     if (match && !match.pass()) return;
     world.dance();
     cancelAim();
     focusCanvas();
   }
   function selectMoth(id: number) {
-    if (!started) return;
+    if (!started || botTurn()) return;
     if (match && !match.select(id)) return;
     if (!world.selectMoth(id)) return;
     clearInput();
@@ -346,6 +381,7 @@ export function startApplication({
   }
   function turnMessage(state: MatchView, mothName: string) {
     const team = teamLabel(state.team);
+    if (botTurn()) return `${team} · ${mothName} · the computer is playing…`;
     const zapOut =
       WEAPONS[weaponIndex]?.id === 'zap' && state.zapSwitches[state.team] === 0;
     switch (state.phase) {
@@ -451,7 +487,8 @@ export function startApplication({
         ? `${(state.moveLeft * MATCH.moveSeconds).toFixed(1)}s`
         : 'Spent',
     );
-    pass.disabled = !['plan', 'move', 'settle', 'aim'].includes(state.phase);
+    pass.disabled =
+      botTurn() || !['plan', 'move', 'settle', 'aim'].includes(state.phase);
     const message = bannerMessage(state);
     setText(banner, message);
     banner.hidden = message === '';
@@ -498,7 +535,8 @@ export function startApplication({
     selectors.forEach((button, id) => {
       button.setAttribute('aria-pressed', String(id === view.selectedMoth));
       button.disabled = turn
-        ? turn.phase !== 'plan' ||
+        ? botTurn() ||
+          turn.phase !== 'plan' ||
           ARENA.spawns[id]?.team !== turn.team ||
           turn.resting.includes(id) ||
           turn.acted.includes(id)
@@ -608,7 +646,8 @@ export function startApplication({
       if (pad.resetView) scene.resetCamera();
       scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
       if (pad.weaponStep) selectWeapon(weaponIndex + pad.weaponStep);
-      updateWeapon(keyboard.fireHeld() || pad.fire, elapsed / 1000);
+      if (!botTurn())
+        updateWeapon(keyboard.fireHeld() || pad.fire, elapsed / 1000);
       seconds += elapsed / 1000;
       // A zap freezes the action for a beat before the moth flies off.
       if (hitstop > 0) hitstop = Math.max(0, hitstop - elapsed / 1000);
@@ -629,12 +668,18 @@ export function startApplication({
           world.step(command);
           continue;
         }
+        // On its turn the computer gives the orders and the player's are ignored.
+        const order =
+          bot && botTurn()
+            ? bot.tick(world.snapshot(), match.view())
+            : undefined;
+        const steer = order ? obey(order) : command;
         // The first movement input locks in the moth and starts its allowance.
-        if (movement.x || movement.z || jump) match.startMove();
+        if (!order && (movement.x || movement.z || jump)) match.startMove();
         const turn = match.view();
         // The world is frozen while a player plans, aims or reads the score.
         if (turn.stepping)
-          world.step(turn.phase === 'move' ? command : NO_MOVEMENT);
+          world.step(turn.phase === 'move' ? steer : NO_MOVEMENT);
         else if (turn.phase === 'won') celebrate(turn.winner);
         const stepped = world.drainEvents();
         events.push(...stepped);
@@ -674,6 +719,7 @@ export function startApplication({
     world.destroy();
     world = newWorld();
     match = newMatch();
+    bot?.reset();
     settleWorld();
     resetClock();
     seconds = 0;
@@ -722,6 +768,10 @@ export function startApplication({
     },
   });
   const onPass = () => passTurn();
+  const onStartSolo = () => {
+    bot = playing ? createBot(BOT_TEAM) : undefined;
+    onStart();
+  };
   const onStart = () => {
     started = true;
     intro.hidden = true;
@@ -748,6 +798,8 @@ export function startApplication({
       toggleHelp();
   };
   start.addEventListener('click', onStart);
+  startSolo?.addEventListener('click', onStartSolo);
+  if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
   window.addEventListener('keydown', onHelpKey);
   pass.addEventListener('click', onPass);
@@ -789,6 +841,7 @@ export function startApplication({
     gamepad.clear();
     pass.removeEventListener('click', onPass);
     start.removeEventListener('click', onStart);
+    startSolo?.removeEventListener('click', onStartSolo);
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();

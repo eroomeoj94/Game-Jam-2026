@@ -33,7 +33,11 @@ Read this first when picking the project up in a new session.
 
 **Open questions for playtesting.** Teal always plays last, so Teal gets the final say on who is under the hand and where a noise drags it; watch whether that is too strong. Dancing does not count as noise (it would punish every pass). With no move limit a player can wait for a lamp to swing or for a hand to clear a lamp; bring back `MATCH.moveSeconds` if that is abused. Bosh now launches moths far enough to leave the small desk often. First to ten may be too short or too long now that every moth moves each turn.
 
-**Not built.** Solo opponent, hosting. The demo is Friday 27 November.
+**One player (20 November).** The start screen offers "1 player" and "2 players". In a one-player match the computer plays Teal (`src/input/bot.ts`): each go it walks a moth to the nearest warm lamp it is not already winning, avoids a lamp with a hand over it, then gusts or Boshes a rival in reach, or dances. It does not use the Zap Switch, bottle cap or firecracker. Two computers finish a whole match in a test; nobody has played against it yet.
+
+**Hosting (20 November).** `.github/workflows/pages.yml` builds and publishes to GitHub Pages on every push to `main`, once Pages is set to "GitHub Actions" in the repository settings. Not yet pushed or switched on. The Artlist sound files are not in the repository, so that build plays the synthesised fallback sounds and has no music.
+
+The demo is Friday 27 November.
 
 ## Progress at 16 November
 
@@ -69,7 +73,7 @@ Read this first when picking the project up in a new session.
   - [x] Giant hands (19 November): the wind-up mouse below is gone; huge felt hands on sleeved arms slam the desk at random instead (`HAZARD` in `config.ts`, 'Giant hands' in the tuning panel).
   - [x] Smaller desk and a moving hazard (19 November, mouse since replaced): desk reduced to 90 × 48 (`BOARD_SCALE` 0.36). A wind-up mouse runs an oval track through the light of every outer lamp whenever the world is running, and boots any moth standing on the desk in its path (moths perched on props are safe). A gust, Bosh or firecracker landing beside it startles it into reversing at speed.
   - [ ] Playtest: move time, match length, first-to-ten, the two-in-a-row turn at each round change, and whether one moth per turn is enough.
-  - [ ] Not built yet: scoring chime, win celebration, and a solo opponent.
+  - [x] Scoring chime, win celebration and a solo opponent (20 November).
 - [x] **Larger teams and desk (17 November):** four moths per team (keys 1–8), desk enlarged to 250 × 134 (20× the area) with seven lamps, clusters of perches under each, seeded scatter between them, and faster walking. Only the three lamps nearest the camera cast shadows. Every moth in the team has a go each turn (19 November).
 - [ ] **Performance check:** about 1,000 meshes plus three shadow passes on the large desk; merge static scenery if the M1 check is slow.
 - [x] **Moths visible in board view (17 November):** team-coloured numbered pins above each moth in the board view; the active moth's pin is larger, a zapped moth's turns violet, and clicking a pin selects that moth.

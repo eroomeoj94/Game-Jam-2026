@@ -395,7 +395,9 @@ describe('giant hands', () => {
   });
 
   it('are swung by the nearest giant, who stops and faces the spot', () => {
-    const world = setup();
+    // A fixed roll, so nobody turns back on a whim mid-test.
+    const world = createWorld({ random: () => 0.5 });
+    worlds.push(world);
     advance(world, 30);
     const before = world.snapshot().people;
     const spot = { x: before[0]!.x + 14, z: before[0]!.z };

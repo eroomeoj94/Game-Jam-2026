@@ -558,6 +558,48 @@ describe('match smoke tests', () => {
     expect(text('#banner')).toContain("Mustard's turn");
   });
 
+  it('lets the computer play Teal unaided in a one-player match', () => {
+    const cleanup = startApplication({
+      randomSpawns: false,
+      mode: 'match',
+      hands: false,
+    });
+    cleanups.push(cleanup);
+    click('start-solo');
+    let now = 0;
+    frame(now);
+    // Mustard dances with each moth in turn to hand over.
+    for (let tick = 0; tick < 3000; tick++) {
+      if (text('#status').includes('computer')) break;
+      if (text('#status').includes('pick a moth')) {
+        key('KeyP');
+        key('KeyP', 'keyup');
+      }
+      frame((now += 20));
+    }
+    expect(text('#status')).toContain('Teal');
+    expect(text('#status')).toContain('the computer is playing');
+    // The player cannot act for the computer.
+    key('KeyP');
+    key('KeyP', 'keyup');
+    frame((now += 20));
+    expect(text('#status')).toContain('the computer is playing');
+    expect(document.querySelector<HTMLButtonElement>('#pass')?.disabled).toBe(
+      true,
+    );
+    for (let tick = 0; tick < 8000; tick++) {
+      if (
+        text('#score').includes('Round 2') &&
+        text('#status').includes('pick a moth')
+      )
+        break;
+      frame((now += 20));
+    }
+    expect(text('#score')).toContain('Round 2');
+    expect(text('#status')).toContain('Mustard');
+    expect(text('#status')).toContain('pick a moth');
+  }, 60_000);
+
   it('hangs a hand where a firecracker went off and drops it before scoring', () => {
     const { scene, render } = mount('match', true);
     frames(0, 10);
