@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ARENA, LAMPS, MATCH } from '../config';
-import { createMatch, lampControl } from './match';
+import { createMatch, crowdedSpot, lampControl } from './match';
 import type { LampControl, Match, TurnFacts } from './match';
 import { createWorld } from './world';
 
@@ -44,8 +44,15 @@ function passRound(match: Match, lamps: LampControl[] = []) {
 }
 
 const defaultMoveSeconds = MATCH.moveSeconds;
+const defaultScoring = MATCH.scoring;
+// Most of these rules predate incoming scoring and are written against the
+// simpler round scoring; the incoming rules have their own block below.
+beforeEach(() => {
+  MATCH.scoring = 'round';
+});
 afterEach(() => {
   MATCH.moveSeconds = defaultMoveSeconds;
+  MATCH.scoring = defaultScoring;
 });
 
 describe('unlimited movement', () => {
@@ -400,5 +407,155 @@ describe('lamp control from the world', () => {
     expect(after.lamps[0]!.zapper).toBe(false);
     expect(after.moths[1]!.respawning).toBe(false);
     expect(ARENA.spawns[1]!.team).toBe(1);
+  });
+});
+
+describe('the round smack', () => {
+  const types = (match: Match) => match.drainEvents().map(({ type }) => type);
+
+  it('asks for a threat at the start of every round, and only then', () => {
+    const match = createMatch(TEAMS);
+    expect(types(match)).toContain('threat');
+    passTurn(match);
+    expect(types(match)).not.toContain('threat');
+    passTurn(match);
+    match.nextRound();
+    expect(match.drainEvents()).toContainEqual({ type: 'threat', round: 2 });
+  });
+
+  it('lets a hanging hand fall after the last go, and scores once it has', () => {
+    const match = createMatch(TEAMS);
+    const hanging = { ...facts([lamp(0)]), hand: true };
+    // The hand does not fall while goes remain.
+    do {
+      expect(match.pass()).toBe(true);
+      match.tick(MATCH.resolveSeconds, hanging);
+    } while (match.view().phase === 'plan');
+    expect(match.view()).toMatchObject({
+      phase: 'smack',
+      stepping: true,
+      scores: [0, 0],
+    });
+    expect(types(match)).toContain('strike');
+    // Still waiting while the hand is in play or moths are tumbling.
+    match.tick(MATCH.resolveSeconds, hanging);
+    match.tick(1, { ...facts([lamp(0)]), busy: true });
+    expect(match.view().phase).toBe('smack');
+    expect(match.pass()).toBe(false);
+    // The round is scored on where the moths ended up after the smack.
+    match.tick(0.1, facts([lamp(1)]));
+    expect(match.view()).toMatchObject({ phase: 'scored', scores: [0, 1] });
+    expect(types(match)).not.toContain('strike');
+  });
+
+  it('gives up waiting on a hand that never lands', () => {
+    const match = createMatch(TEAMS);
+    const hanging = { ...facts(), hand: true };
+    do {
+      match.pass();
+      match.tick(MATCH.resolveSeconds, hanging);
+    } while (match.view().phase === 'plan');
+    match.tick(MATCH.maxSmackSeconds, hanging);
+    expect(match.view().phase).toBe('scored');
+  });
+
+  it('aims at the middle of the crowd under the busiest warm lamp', () => {
+    const world = createWorld();
+    const [first, second] = LAMPS.positions;
+    world.placeMoth(0, { x: first!.x - 1, y: 0.5, z: first!.z });
+    world.placeMoth(1, { x: first!.x + 2, y: 0.5, z: first!.z });
+    world.placeMoth(2, { x: second!.x, y: 0.5, z: second!.z });
+    expect(crowdedSpot(world.snapshot(), LAMPS.haloRadius)).toMatchObject({
+      lamp: 0,
+      x: first!.x + 0.5,
+      z: first!.z,
+    });
+    // Nobody in any light: nothing to swat.
+    for (const id of [0, 1, 2])
+      world.placeMoth(id, { x: ARENA.desk.width / 2 - 5, y: 0.5, z: id * 3 });
+    expect(crowdedSpot(world.snapshot(), LAMPS.haloRadius)).toBeUndefined();
+    world.destroy();
+  });
+});
+
+describe('incoming scoring', () => {
+  beforeEach(() => {
+    MATCH.scoring = 'incoming';
+  });
+  /** Pass a whole team turn, then step past the score banner. */
+  function turn(match: Match, lamps: LampControl[]) {
+    passTurn(match, lamps);
+    const scored = match.view();
+    if (scored.phase === 'scored') match.nextRound();
+    return scored;
+  }
+
+  it('is the default rule', () => {
+    expect(defaultScoring).toBe('incoming');
+  });
+
+  it('banks only the lamps the incoming team still holds after its rival played', () => {
+    const match = createMatch(TEAMS);
+    match.drainEvents();
+    // Mustard has played: Teal, about to play, banks its one lamp.
+    const first = turn(match, [lamp(0), lamp(1), lamp(0)]);
+    expect(first).toMatchObject({ phase: 'scored', round: 1, scores: [0, 1] });
+    expect(match.drainEvents()).toContainEqual({
+      type: 'banked',
+      awards: [undefined, 1, undefined],
+    });
+    expect(match.view()).toMatchObject({ phase: 'plan', team: 1, round: 1 });
+    // Teal has played: Mustard banks its two lamps, and the round ends.
+    const second = turn(match, [lamp(0), lamp(1), lamp(0)]);
+    expect(second).toMatchObject({ round: 1, scores: [2, 1], gained: [2, 1] });
+    expect(match.view()).toMatchObject({
+      phase: 'plan',
+      team: 0,
+      round: 2,
+      gained: [0, 0],
+    });
+  });
+
+  it('scores nothing for zappers, ties or the other team’s lamps', () => {
+    const match = createMatch(TEAMS);
+    const tied: LampControl = { ...lamp(), contested: true };
+    turn(match, [lamp(0), lamp(1, true), tied]);
+    expect(match.view().scores).toEqual([0, 0]);
+    expect(match.drainEvents().map(({ type }) => type)).not.toContain('banked');
+  });
+
+  it('decides the match only once both teams have banked equally often', () => {
+    const match = createMatch(TEAMS);
+    MATCH.targetScore = 2;
+    try {
+      const lamps = [lamp(0), lamp(0), lamp(1)];
+      turn(match, lamps);
+      // Mustard reaches the target at the end of round 1, having banked once
+      // more than Teal: play goes on.
+      expect(turn(match, lamps)).toMatchObject({
+        phase: 'scored',
+        scores: [2, 1],
+      });
+      expect(match.view()).toMatchObject({ phase: 'plan', team: 0, round: 2 });
+      // Teal banks again and draws level on points as well: no winner yet.
+      expect(turn(match, lamps)).toMatchObject({
+        phase: 'scored',
+        scores: [2, 2],
+      });
+      // Mustard pulls ahead at the end of round 2, but must wait once more.
+      expect(turn(match, lamps)).toMatchObject({
+        phase: 'scored',
+        scores: [4, 2],
+      });
+      // Teal's lamp is gone when it banks next: Mustard wins.
+      passTurn(match, [lamp(0), lamp(0), lamp()]);
+      expect(match.view()).toMatchObject({
+        phase: 'won',
+        winner: 0,
+        scores: [4, 2],
+      });
+    } finally {
+      MATCH.targetScore = 10;
+    }
   });
 });

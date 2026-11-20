@@ -420,6 +420,13 @@ export const MATCH = {
   resolveSeconds: 0.8,
   /** Hard cap on a resolution that never comes to rest. */
   maxResolveSeconds: 6,
+  /**
+   * Each round a giant hand hangs over the most crowded lamp and comes down
+   * after both teams have played, just before the round is scored.
+   */
+  roundSmack: true,
+  /** Hard cap on waiting for that hand to land and the moths to settle. */
+  maxSmackSeconds: 8,
   /** Zap Switches each team may use in a match. */
   zapSwitches: 2,
   /** Turns a zapper stays live after the turn it was flipped in. */
@@ -428,8 +435,16 @@ export const MATCH = {
   zapPenalty: 1,
   /** Full rounds a zapped or fallen moth sits out before dropping back in. */
   restRounds: 1,
+  /**
+   * When lamps pay out. 'incoming': a team banks the lamps it still holds
+   * at the end of its rival's turn, so a lamp only pays if it survives a
+   * reply. 'round': every lamp scores for its holder once both teams have
+   * played. Bot playtests (20 November): with 'round' the team playing second
+   * won 15 of 20 matches between identical bots; with 'incoming' it was even.
+   */
+  scoring: 'incoming' as 'round' | 'incoming',
   /** Seconds the end-of-round result is shown before the next round. */
-  bannerSeconds: 3,
+  bannerSeconds: 2.5,
 };
 
 /**

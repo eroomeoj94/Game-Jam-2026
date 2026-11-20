@@ -202,6 +202,12 @@ export function createWeaponEffects(
     window.setTimeout(() => element.remove(), 1500);
   }
 
+  /** A lamp just paid out: a glow and a "+1" in the team's colour. */
+  function showScore(position: Vector3, team: number) {
+    flash(position, team === 0 ? 0xffcf73 : 0x7fe3d8, 60);
+    popup('+1', position, TEAM_COLOURS[team] ?? '#ffffff', 'big');
+  }
+
   // Smoke trails follow moths while they are flying from a zap.
   let smokeTimer = 0;
 
@@ -209,6 +215,7 @@ export function createWeaponEffects(
     setAim(next: AimPreview | undefined) {
       preview = next;
     },
+    showScore,
     play(events: WorldEvent[], view: WorldView) {
       for (const event of events) {
         if (event.type === 'gust') {
@@ -339,6 +346,9 @@ export function createWeaponEffects(
             at.clone().setY(at.y + 1.2),
             TEAM_COLOURS[event.team] ?? '#ffffff',
           );
+        } else if (event.type === 'heard') {
+          const at = toVector(event.position);
+          popup('OI!', at.setY(at.y + 4), '#ff8a6b');
         } else if (event.type === 'smack') {
           const at = toVector(event.position);
           // Dust squeezed out from under the palm.

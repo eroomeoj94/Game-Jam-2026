@@ -418,6 +418,66 @@ describe('giant hands', () => {
     ).toBeGreaterThan(1);
   });
 
+  it('hang overhead for as long as they are held, then strike', () => {
+    const world = setup();
+    world.placeMoth(0, { x: 1, y: 0.5, z: FRONT });
+    world.threaten({ x: 0, z: FRONT });
+    advance(world, 60 * 10);
+    expect(world.snapshot().hazards[0]).toMatchObject({
+      phase: 'warning',
+      progress: 0,
+      held: true,
+    });
+    expect(
+      world.snapshot().people[world.snapshot().hazards[0]!.person],
+    ).toMatchObject({
+      smacking: true,
+    });
+    world.drainEvents();
+    expect(world.strike()).toBe(true);
+    expect(world.strike()).toBe(false);
+    advance(world, warnTicks + 1);
+    expect(world.drainEvents()).toContainEqual(
+      expect.objectContaining({ type: 'smack', moths: 1 }),
+    );
+  });
+
+  it('are drawn to a landed punch, but not once they are swinging', () => {
+    const held = createWorld({ attention: 'hold' });
+    worlds.push(held);
+    held.placeMoth(0, { x: 0, y: 0.5, z: FRONT });
+    held.placeMoth(1, { x: 1.2, y: 0.5, z: FRONT });
+    held.threaten({ x: -20, z: 0 });
+    advance(held, 30);
+    held.drainEvents();
+    // A miss is quiet.
+    expect(held.useWeapon('bosh', { x: -1, y: 0, z: 0 })).toBe(true);
+    expect(held.snapshot().hazards[0]!.x).toBe(-20);
+    cooldown(held);
+    expect(held.useWeapon('bosh', east)).toBe(true);
+    expect(held.drainEvents().map((event) => event.type)).toContain('heard');
+    const moved = held.snapshot().hazards[0]!;
+    expect(moved.held).toBe(true);
+    expect(Math.hypot(moved.x - 1.2, moved.z - FRONT)).toBeLessThan(0.5);
+    // Once it is falling, nothing distracts it.
+    held.strike();
+    held.placeMoth(2, { x: 20, y: 0.5, z: FRONT });
+    held.placeMoth(3, { x: 21.2, y: 0.5, z: FRONT });
+    held.selectMoth(2);
+    cooldown(held);
+    held.useWeapon('bosh', east);
+    expect(held.snapshot().hazards[0]!.x).toBeCloseTo(moved.x);
+
+    // In free play a noise brings a hand straight down.
+    const loose = createWorld({ attention: 'strike' });
+    worlds.push(loose);
+    loose.placeMoth(0, { x: 0, y: 0.5, z: FRONT });
+    loose.placeMoth(1, { x: 1.2, y: 0.5, z: FRONT });
+    advance(loose, 30);
+    loose.useWeapon('bosh', east);
+    expect(loose.snapshot().hazards[0]).toMatchObject({ held: false });
+  });
+
   it('come down at random while the world runs, never off the desk', () => {
     let seed = 7;
     const random = () => {

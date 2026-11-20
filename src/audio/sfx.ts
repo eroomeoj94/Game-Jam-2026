@@ -285,6 +285,33 @@ export function createSfx({
     source.start(now);
   }
 
+  /** A soft bell-like note, `delay` seconds from now. */
+  function tone(
+    ctx: AudioContext,
+    pitch: number,
+    delay: number,
+    seconds: number,
+    volume: number,
+  ) {
+    if (!effects) return;
+    const start = ctx.currentTime + delay;
+    for (const [multiple, level] of [
+      [1, 1],
+      [2, 0.35],
+    ] as const) {
+      const voice = ctx.createOscillator();
+      const gain = ctx.createGain();
+      voice.type = multiple === 1 ? 'triangle' : 'sine';
+      voice.frequency.setValueAtTime(pitch * multiple, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume * level, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + seconds);
+      voice.connect(gain).connect(effects);
+      voice.start(start);
+      voice.stop(start + seconds + 0.05);
+    }
+  }
+
   function shout() {
     // A different voice every time: from a growl to a squeak.
     const pitch = 0.7 + Math.random() * 0.75;
@@ -388,6 +415,27 @@ export function createSfx({
       muted = value;
       if (muted) speech?.cancel();
       applyVolumes();
+    },
+    /** Points banked: one bright rising note per point, up to five. */
+    chime(points: number) {
+      if (muted || points <= 0) return;
+      const ctx = audio();
+      if (!ctx) return;
+      const scale = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+      for (let note = 0; note < Math.min(points, scale.length); note++)
+        tone(ctx, scale[note]!, note * 0.09, 0.35, 0.28);
+    },
+    /** The match is won: a short rising fanfare with a held last chord. */
+    fanfare() {
+      if (muted) return;
+      const ctx = audio();
+      if (!ctx) return;
+      dip(0.25, 1.6);
+      [392, 523.25, 659.25, 783.99].forEach((pitch, note) =>
+        tone(ctx, pitch, note * 0.14, 0.3, 0.3),
+      );
+      for (const pitch of [523.25, 659.25, 783.99, 1046.5])
+        tone(ctx, pitch, 0.6, 1.4, 0.22);
     },
     /** The Bosh punch: a punch when it connects, a swish when it misses. */
     bosh,

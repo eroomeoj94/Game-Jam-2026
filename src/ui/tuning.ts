@@ -23,7 +23,7 @@ import {
 } from '../config';
 
 // Bump the version when defaults change shape, so stale saves are ignored.
-const STORAGE_KEY = 'moth-fight-club:tuning:v13';
+const STORAGE_KEY = 'moth-fight-club:tuning:v15';
 const SETTINGS = {
   MOVEMENT,
   CAMERA,
@@ -172,6 +172,13 @@ export function createTuningPanel(actions: {
   rules.add(MATCH, 'zapSwitches', 0, 6, 1).name('Zap Switches each');
   rules.add(MATCH, 'zapperTurns', 1, 6, 1).name('Zapper lasts (turns)');
   rules.add(MATCH, 'restRounds', 0, 3, 1).name('Rounds sat out');
+  rules.add(MATCH, 'roundSmack').name('Hand swats busiest lamp');
+  rules
+    .add(MATCH, 'scoring', {
+      'After rival’s turn': 'incoming',
+      'End of round': 'round',
+    })
+    .name('Lamps score');
   rules.onFinishChange(changed);
 
   const hands = gui.addFolder('Giant hands').close();

@@ -138,7 +138,8 @@ export function createWarning() {
       if (!state) return;
       root.position.set(state.x, 0, state.z);
       const { phase, progress } = state;
-      const warn = phase === 'warning' ? progress : 0;
+      // A hand held overhead for a whole round shows a steady, clear mark.
+      const warn = phase !== 'warning' ? 0 : state.held ? 0.5 : progress;
       const fade = phase === 'lifting' ? 1 - progress : 1;
       shadow.scale.setScalar(phase === 'warning' ? 1.5 - 0.5 * warn : 1);
       shadow.material.opacity =
@@ -146,7 +147,9 @@ export function createWarning() {
       // The ring blinks faster as the hand gets close.
       ring.material.opacity =
         phase === 'warning'
-          ? (0.55 + 0.45 * Math.sin(seconds * (6 + 22 * warn))) * 0.85
+          ? (0.55 +
+              0.45 * Math.sin(seconds * (state.held ? 3 : 6 + 22 * warn))) *
+            0.85
           : 0;
     },
   };

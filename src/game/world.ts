@@ -98,6 +98,8 @@ export type WorldEvent =
   | { type: 'dance'; moth: number; variant: number; position: Position }
   /** A giant hand's shadow has appeared over the desk. */
   | { type: 'loom'; position: Position }
+  /** A loud noise drew the giants' attention to a new spot. */
+  | { type: 'heard'; position: Position }
   /** A giant hand hit the desk, flinging `moths` moths. */
   | { type: 'smack'; position: Position; moths: number }
   | { type: 'explode'; position: Position }
@@ -123,6 +125,8 @@ export type HazardView = Position & {
   side: 1 | -1;
   /** Looming overhead, flat on the desk, or lifting away. */
   phase: 'warning' | 'down' | 'lifting';
+  /** True while it hangs overhead, waiting for `strike`. */
+  held: boolean;
   /** 0 to 1 through the current phase. */
   progress: number;
 };
@@ -155,6 +159,12 @@ export type WorldOptions = {
    * default, which keeps tests predictable; the game turns it on.
    */
   hazards?: boolean;
+  /**
+   * Loud noises (a firecracker going off, a punch landing) draw a hand to
+   * the spot: 'hold' leaves it hanging there until `strike`, 'strike' brings
+   * it straight down. A hand already swinging is not distracted.
+   */
+  attention?: 'hold' | 'strike';
   /** Source of randomness for the hands, from 0 to 1. */
   random?: () => number;
   /**
@@ -168,6 +178,7 @@ export function createWorld({
   placement,
   match = false,
   hazards = false,
+  attention,
   random = Math.random,
 }: WorldOptions = {}) {
   const world = new World({ gravity: new Vec3(0, -9.82, 0) });
@@ -272,6 +283,7 @@ export function createWorld({
     person: number;
     side: 1 | -1;
     time: number;
+    held: boolean;
   };
   // Giants pace a U-shaped path round the desk's three open sides (the
   // fourth is against the wall): `at` is the distance along it.
@@ -550,6 +562,7 @@ export function createWorld({
       bulb.velocity.z += push.z;
     }
     events.push({ type: 'explode', position: centre });
+    makeNoise(centre);
   }
 
   /** Somewhere on the desk for a hand to land: often where moths gather. */
@@ -572,7 +585,7 @@ export function createWorld({
   }
 
   /** Start a hand's shadow looming over (x, z). */
-  function raiseHand({ x, z }: { x: number; z: number }) {
+  function raiseHand({ x, z }: { x: number; z: number }, held = false) {
     // Whoever is standing nearest does it.
     let person = 0;
     let nearest = Infinity;
@@ -605,8 +618,16 @@ export function createWorld({
       person,
       side: random() < 0.5 ? 1 : -1,
       time: 0,
+      held,
     };
     events.push({ type: 'loom', position: { x, y, z } });
+  }
+
+  /** Something loud happened at `at`: the giants look that way. */
+  function makeNoise(at: Position) {
+    if (!attention || (hand && !hand.held)) return;
+    events.push({ type: 'heard', position: at });
+    raiseHand(at, attention === 'hold');
   }
 
   /** The hand lands: every moth under it is flung outwards, lamps swing. */
@@ -682,6 +703,8 @@ export function createWorld({
       if (nextHand <= 0) raiseHand(handSpot());
       return;
     }
+    // A held hand hangs overhead until it is told to strike.
+    if (hand.held) return;
     const before = hand.time;
     hand.time += DT;
     if (before < HAZARD.warnSeconds && hand.time >= HAZARD.warnSeconds)
@@ -796,6 +819,8 @@ export function createWorld({
             z: origin.z + direction.z * BOSH.range * 0.6,
           },
     });
+    // Only a punch that lands is loud enough to be heard.
+    if (target) makeNoise(positionOf(target.body));
     return true;
   }
 
@@ -1052,6 +1077,19 @@ export function createWorld({
      */
     smack(at: { x: number; z: number }) {
       raiseHand(at);
+    },
+    /**
+     * Hang a giant hand over (x, z), replacing any hand already in play. It
+     * stays there, however long the world runs, until `strike`.
+     */
+    threaten(at: { x: number; z: number }) {
+      raiseHand(at, true);
+    },
+    /** Let a held hand fall after the usual warning. False if none is held. */
+    strike() {
+      if (!hand?.held) return false;
+      hand.held = false;
+      return true;
     },
     /** Push every lamp, each in a different direction. */
     nudgeLamp() {

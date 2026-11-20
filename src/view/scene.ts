@@ -752,6 +752,17 @@ export function createScene(host: HTMLElement) {
           shake = Math.max(shake, BOSH.shake);
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
+    /** Mark each lamp that just scored with the team it scored for. */
+    showScores(awards: readonly (number | undefined)[], view: WorldView) {
+      awards.forEach((team, index) => {
+        const lamp = view.lamps[index];
+        if (team === undefined || !lamp) return;
+        weaponEffects.showScore(
+          new Vector3(lamp.x, lamp.y + 1.5, lamp.z),
+          team,
+        );
+      });
+    },
     /** Switch between the shoulder camera and the whole-board view. */
     toggleView(): CameraMode {
       cameraMode = cameraMode === 'follow' ? 'board' : 'follow';

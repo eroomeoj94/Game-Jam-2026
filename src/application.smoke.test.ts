@@ -19,6 +19,7 @@ vi.mock('./view/scene', () => ({
       aimDirection: vi.fn(() => ({ x: 1, y: 0.4, z: 0 })),
       setAim: vi.fn(),
       playEvents: vi.fn(),
+      showScores: vi.fn(),
       listenerPosition: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
       movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
       orbitCamera: vi.fn(),
@@ -32,9 +33,9 @@ let pendingFrames: Map<number, FrameRequestCallback>;
 let cleanups: Array<() => void>;
 let nextFrameId: number;
 
-function mount(mode: 'match' | 'playground' = 'playground') {
+function mount(mode: 'match' | 'playground' = 'playground', hands = false) {
   // Fixed spawn slots keep these tests repeatable.
-  const cleanup = startApplication({ randomSpawns: false, mode, hands: false });
+  const cleanup = startApplication({ randomSpawns: false, mode, hands });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
   if (!scene) throw new Error('Application did not create a scene.');
@@ -70,6 +71,9 @@ beforeEach(() => {
   cleanups = [];
   nextFrameId = 0;
   setHidden(false);
+  // These walk-throughs were written for round scoring, which has one score
+  // banner per round; incoming scoring is covered in the match rule tests.
+  MATCH.scoring = 'round';
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     pendingFrames.set(++nextFrameId, callback);
     return nextFrameId;
@@ -79,7 +83,9 @@ beforeEach(() => {
   );
 });
 
+const defaultScoring = MATCH.scoring;
 afterEach(() => {
+  MATCH.scoring = defaultScoring;
   cleanups.forEach((cleanup) => cleanup());
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -551,6 +557,58 @@ describe('match smoke tests', () => {
     expect(text('#score')).toContain('Round 2');
     expect(text('#banner')).toContain("Mustard's turn");
   });
+
+  it('hangs a hand where a firecracker went off and drops it before scoring', () => {
+    const { scene, render } = mount('match', true);
+    frames(0, 10);
+    // Nobody starts in a lamp's light, so the round opens with no hand.
+    expect(render.mock.lastCall![0].hazards).toEqual([]);
+    for (let step = 0; step < 4; step++) {
+      key('KeyE');
+      key('KeyE', 'keyup');
+    }
+    key('KeyF');
+    frames(200, 3);
+    key('KeyF', 'keyup');
+    frames(300, 200);
+    const played = () =>
+      vi
+        .mocked(scene.playEvents)
+        .mock.calls.flatMap((call: unknown[]) =>
+          (call[0] as { type: string }[]).map(({ type }) => type),
+        );
+    expect(played()).toEqual(expect.arrayContaining(['explode', 'heard']));
+    // The bang drew a hand, and it waits there while the round plays on.
+    expect(render.mock.lastCall![0].hazards[0]).toMatchObject({ held: true });
+    expect(text('#status')).not.toContain('hand');
+    let now = 5000;
+    let sawHand = false;
+    for (let go = 0; go < 12 && !text('#banner').includes('Round 1'); go++) {
+      key('KeyP');
+      key('KeyP', 'keyup');
+      for (let tick = 0; tick < 300; tick++) {
+        frame((now += 20));
+        sawHand ||= text('#status').includes('here comes the hand');
+        // The go is over once the next moth is up or the round is scored.
+        if (
+          tick > 5 &&
+          (text('#status').includes('pick a moth') ||
+            text('#banner').includes('Round 1'))
+        )
+          break;
+      }
+      if (!sawHand)
+        expect(render.mock.lastCall![0].hazards[0]).toMatchObject({
+          held: true,
+        });
+    }
+    // It fell once everyone had played, and only then was the round scored.
+    expect(sawHand).toBe(true);
+    expect(played()).toContain('smack');
+    expect(text('#banner')).toContain('Round 1');
+    expect(render.mock.lastCall![0].hazards).toEqual([]);
+    // A whole round of real physics: allow for a slow machine.
+  }, 20_000);
 
   it('spends a timed movement allowance, then waits for an action or a pass', () => {
     MATCH.moveSeconds = 6;

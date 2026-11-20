@@ -45,6 +45,39 @@ export function lampControl(
   });
 }
 
+/**
+ * Where the giants will swat next: the middle of the crowd under the warm
+ * lamp with the most moths in its light. Ties go to `random`; undefined when
+ * every light is empty.
+ */
+export function crowdedSpot(
+  view: WorldView,
+  haloRadius: number,
+  random: () => number = Math.random,
+) {
+  let most = 0;
+  let spots: { lamp: number; x: number; z: number }[] = [];
+  view.lamps.forEach((lamp, index) => {
+    if (lamp.zapper) return;
+    const inside = view.moths.filter(
+      (moth) =>
+        !moth.respawning &&
+        !moth.zapped &&
+        Math.hypot(moth.x - lamp.x, moth.y - lamp.y, moth.z - lamp.z) <=
+          haloRadius,
+    );
+    if (!inside.length || inside.length < most) return;
+    if (inside.length > most) spots = [];
+    most = inside.length;
+    spots.push({
+      lamp: index,
+      x: inside.reduce((sum, moth) => sum + moth.x, 0) / inside.length,
+      z: inside.reduce((sum, moth) => sum + moth.z, 0) / inside.length,
+    });
+  });
+  return spots[Math.floor(random() * spots.length)];
+}
+
 export type Phase =
   /** World paused: pick a moth, then move or aim. */
   | 'plan'
@@ -56,6 +89,8 @@ export type Phase =
   | 'aim'
   /** World running: the action plays out. */
   | 'resolve'
+  /** World running: the giant hand comes down before the round is scored. */
+  | 'smack'
   /** World paused: the round's points are shown. */
   | 'scored'
   | 'won';
@@ -64,6 +99,12 @@ export type MatchEvent =
   /** Moths that sat out are due back on the desk. */
   | { type: 'return'; moths: number[] }
   | { type: 'turn'; team: number; round: number; moth: number | undefined }
+  /** A new round: hang a hand over the most crowded lamp. */
+  | { type: 'threat'; round: number }
+  /** The round's goes are over: let the hanging hand fall. */
+  | { type: 'strike' }
+  /** Points were just handed out: the team awarded each lamp, if any. */
+  | { type: 'banked'; awards: (number | undefined)[] }
   /** A zapper's time is up: turn it back into a warm lamp. */
   | { type: 'lamp-restored'; lamp: number }
   | {
@@ -82,6 +123,8 @@ export type TurnFacts = {
   /** Projectiles are still live or a zapped moth is still flying. */
   busy: boolean;
   lamps: LampControl[];
+  /** A giant hand is hanging over the desk or coming down on it. */
+  hand?: boolean;
 };
 
 export type MatchView = {
@@ -105,11 +148,13 @@ export type MatchView = {
   goesLeft: number;
   /** The last round's lamp awards, shown while `phase` is 'scored' or 'won'. */
   awards: (number | undefined)[];
+  /** Points each team has banked so far this round. */
+  gained: number[];
   winner: number | undefined;
 };
 
 const CAN_ACT: readonly Phase[] = ['plan', 'move', 'settle', 'aim'];
-const STEPPING: readonly Phase[] = ['move', 'settle', 'resolve'];
+const STEPPING: readonly Phase[] = ['move', 'settle', 'resolve', 'smack'];
 
 /**
  * The rules of a match, with no physics: phases, turn order, scoring, zapper
@@ -143,6 +188,7 @@ export function createMatch(teams: readonly number[]) {
   let moveLeft = MATCH.moveSeconds as number;
   let timer = 0;
   let awards: (number | undefined)[] = [];
+  let gained = scores.map(() => 0);
   let winner: number | undefined;
 
   /**
@@ -160,6 +206,7 @@ export function createMatch(teams: readonly number[]) {
   function beginTurn() {
     team = teamFor(round, turn);
     acted.clear();
+    if (turn === 0) events.push({ type: 'threat', round });
     const returning = teams.flatMap((mothTeam, id) =>
       mothTeam === team && (out.get(id) ?? Infinity) <= round ? [id] : [],
     );
@@ -183,19 +230,47 @@ export function createMatch(teams: readonly number[]) {
     timer = 0;
   }
 
-  function endTurn(lamps: readonly LampControl[]) {
+  /** Hand out a point for each awarded lamp. */
+  function bank(given: (number | undefined)[]) {
+    awards = given;
+    for (const holder of given) {
+      if (holder === undefined) continue;
+      scores[holder] = scores[holder]! + 1;
+      gained[holder] = gained[holder]! + 1;
+    }
+    if (given.some((holder) => holder !== undefined))
+      events.push({ type: 'banked', awards: given });
+  }
+
+  function endTurn({ lamps, hand }: TurnFacts) {
     if (active !== undefined) acted.add(active);
     // The rest of the team still has its goes to take.
-    if (waiting().length) {
+    if (phase !== 'smack' && waiting().length) {
       beginGo();
       return;
     }
     const roundOver = turn === teamCount - 1;
-    if (roundOver) {
-      awards = lamps.map((lamp) => (lamp.zapper ? undefined : lamp.holder));
-      for (const holder of awards)
-        if (holder !== undefined) scores[holder] = scores[holder]! + 1;
+    // Everyone has had a go: the hanging hand falls before anything scores.
+    if (roundOver && hand && phase !== 'smack') {
+      phase = 'smack';
+      timer = 0;
+      events.push({ type: 'strike' });
+      return;
     }
+    const incoming = MATCH.scoring === 'incoming';
+    if (incoming) {
+      // The team about to play banks the lamps it still holds: its moths
+      // have just stood through the whole of its rival's turn.
+      const scorer = roundOver
+        ? teamFor(round + 1, 0)
+        : teamFor(round, turn + 1);
+      bank(
+        lamps.map((lamp) =>
+          !lamp.zapper && lamp.holder === scorer ? scorer : undefined,
+        ),
+      );
+    } else if (roundOver)
+      bank(lamps.map((lamp) => (lamp.zapper ? undefined : lamp.holder)));
     // Scoring comes first, so a zapper never scores in the round it ends.
     for (const [lamp, left] of [...zappers]) {
       if (left > 1) zappers.set(lamp, left - 1);
@@ -204,7 +279,7 @@ export function createMatch(teams: readonly number[]) {
         events.push({ type: 'lamp-restored', lamp });
       }
     }
-    if (!roundOver) {
+    if (!incoming && !roundOver) {
       turn += 1;
       beginTurn();
       return;
@@ -213,17 +288,26 @@ export function createMatch(teams: readonly number[]) {
     const best = Math.max(...scores);
     const leaders = scores.filter((score) => score === best).length;
     timer = 0;
-    if (best >= MATCH.targetScore && leaders === 1) {
+    // With incoming scoring the opening team banks at the end of each round
+    // and the rest during it, so the match can only be decided once the last
+    // team has banked too: then everyone has scored equally often.
+    const level = incoming ? turn === teamCount - 2 : true;
+    if (level && best >= MATCH.targetScore && leaders === 1) {
       winner = scores.indexOf(best);
       phase = 'won';
       events.push({ type: 'won', team: winner });
     } else phase = 'scored';
   }
 
+  /** Carry on after the score banner: the next turn, or the next round. */
   function nextRound() {
     if (phase !== 'scored') return false;
-    round += 1;
-    turn = 0;
+    if (turn < teamCount - 1) turn += 1;
+    else {
+      round += 1;
+      turn = 0;
+      gained = scores.map(() => 0);
+    }
     beginTurn();
     return true;
   }
@@ -315,7 +399,14 @@ export function createMatch(teams: readonly number[]) {
           (timer >= MATCH.resolveSeconds && !facts.busy) ||
           timer >= MATCH.maxResolveSeconds
         )
-          endTurn(facts.lamps);
+          endTurn(facts);
+      } else if (phase === 'smack') {
+        timer += dt;
+        if (
+          (timer >= MATCH.resolveSeconds && !facts.hand && !facts.busy) ||
+          timer >= MATCH.maxSmackSeconds
+        )
+          endTurn(facts);
       } else if (phase === 'scored') {
         timer += dt;
         if (timer >= MATCH.bannerSeconds) nextRound();
@@ -342,6 +433,7 @@ export function createMatch(teams: readonly number[]) {
         acted: [...acted],
         goesLeft: waiting().length,
         awards: [...awards],
+        gained: [...gained],
         winner,
       };
     },

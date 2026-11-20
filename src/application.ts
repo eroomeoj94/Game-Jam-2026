@@ -2,6 +2,8 @@ import {
   AIM,
   ARENA,
   BOSH,
+  DANCE,
+  HAZARD,
   LAMPS,
   MATCH,
   MAX_FRAME_MS,
@@ -10,10 +12,10 @@ import {
   WEAPONS,
   ZAP,
 } from './config';
-import { createMatch, lampControl } from './game/match';
+import { createMatch, crowdedSpot, lampControl } from './game/match';
 import type { LampControl, MatchView } from './game/match';
 import { createWorld } from './game/world';
-import { nearLampPlacement } from './game/spawns';
+import { nearLampPlacement, restingLightRadius } from './game/spawns';
 import type { WorldEvent, WorldView } from './game/world';
 import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
@@ -49,7 +51,9 @@ export function startApplication({
     createWorld({
       placement: randomSpawns ? nearLampPlacement() : undefined,
       match: playing,
-      hazards: hands,
+      // A match times its own smacks; free play gets them at random.
+      hazards: hands && !playing,
+      attention: hands ? (playing ? 'hold' : 'strike') : undefined,
     });
   const newMatch = () =>
     playing ? createMatch(ARENA.spawns.map(({ team }) => team)) : undefined;
@@ -162,6 +166,8 @@ export function startApplication({
   let unfocused = false;
   // Nothing responds until Start is pressed on the title screen.
   let started = false;
+  /** Seconds until the winning team's next round of dancing. */
+  let partyTimer = 0;
   let wasRespawning = false;
   let pointerStart: { x: number; y: number; id: number } | undefined;
 
@@ -258,6 +264,18 @@ export function startApplication({
         : 'Sound: press any key';
     if (mute.textContent !== label) mute.textContent = label;
   }
+  /** After a win the world runs on and the winners dance until New match. */
+  function celebrate(winner: number | undefined) {
+    world.step(NO_MOVEMENT);
+    partyTimer -= PHYSICS_STEP_MS / 1000;
+    if (partyTimer > 0) return;
+    partyTimer = DANCE.seconds + 0.3;
+    const before = world.snapshot();
+    for (const moth of before.moths)
+      if (moth.team === winner && !moth.respawning && world.selectMoth(moth.id))
+        world.dance();
+    world.selectMoth(before.selectedMoth);
+  }
   /** Tell the match what the world just did. */
   function reportToMatch(view: WorldView, events: readonly WorldEvent[]) {
     if (!match) return;
@@ -273,7 +291,21 @@ export function startApplication({
       if (event.type === 'return')
         event.moths.forEach((id) => world.returnMoth(id));
       else if (event.type === 'lamp-restored') world.restoreLamp(event.lamp);
-      else if (event.type === 'turn') {
+      else if (event.type === 'strike') world.strike();
+      else if (event.type === 'banked') {
+        scene.showScores(event.awards, world.snapshot());
+        sfx.chime(event.awards.filter((team) => team !== undefined).length);
+      } else if (event.type === 'won') {
+        sfx.fanfare();
+        partyTimer = 0;
+      } else if (event.type === 'threat') {
+        const view = world.snapshot();
+        const spot =
+          hands && MATCH.roundSmack && !view.hazards.length
+            ? crowdedSpot(view, LAMPS.haloRadius)
+            : undefined;
+        if (spot) world.threaten(spot);
+      } else if (event.type === 'turn') {
         if (event.moth !== undefined) world.selectMoth(event.moth);
         // Keys still held by the last player must not move the next moth.
         clearInput();
@@ -301,6 +333,7 @@ export function startApplication({
               !moth.grounded),
         ),
       lamps: lampControl(view, LAMPS.haloRadius),
+      hand: view.hazards.length > 0,
     });
     applyMatchEvents();
   }
@@ -330,8 +363,12 @@ export function startApplication({
         return state.active === undefined
           ? `${team} · nobody on the desk · turn passes`
           : `${team} · ${mothName} · resolving…`;
+      case 'smack':
+        return `Round ${state.round} · here comes the hand…`;
       case 'scored':
-        return `Round ${state.round} scored · next round coming up`;
+        return MATCH.scoring === 'incoming'
+          ? `${teamLabel((state.team + 1) % TEAM_LABELS.length)} banks the lamps it held · ${teamLabel(state.team)} has played`
+          : `Round ${state.round} scored · next round coming up`;
       case 'won':
         return `${teamLabel(state.winner ?? 0)} wins · press New match`;
     }
@@ -346,6 +383,15 @@ export function startApplication({
       return `${teamLabel(state.team)}'s turn · ${
         state.goesLeft === 1 ? 'last moth' : `${state.goesLeft} moths to go`
       }`;
+    if (state.phase === 'scored' && MATCH.scoring === 'incoming') {
+      const banker = (state.team + 1) % TEAM_LABELS.length;
+      const lamps = state.awards.filter((holder) => holder === banker).length;
+      return `${teamLabel(banker)} ${
+        lamps
+          ? `banks ${lamps} lamp${lamps === 1 ? '' : 's'} · +${lamps}`
+          : 'held no lamps'
+      }`;
+    }
     if (state.phase === 'scored')
       return `Round ${state.round} · ${tally(state.awards)}`;
     if (state.phase === 'won')
@@ -376,12 +422,24 @@ export function startApplication({
     while (lampBar.children.length > lamps.length) lampBar.lastChild?.remove();
     while (lampBar.children.length < lamps.length)
       lampBar.appendChild(document.createElement('span'));
+    // The lamp a giant hand is hanging over, if it is over one at all.
+    const hand = view.hazards[0];
+    let threatened = -1;
+    let nearest = HAZARD.radius + restingLightRadius();
+    view.lamps.forEach((lamp, index) => {
+      if (!hand) return;
+      const gap = Math.hypot(lamp.anchor.x - hand.x, lamp.anchor.z - hand.z);
+      if (gap >= nearest) return;
+      nearest = gap;
+      threatened = index;
+    });
     lamps.forEach((lamp, index) => {
       const chip = lampBar.children[index] as HTMLElement;
       const { state: chipState, mark, text } = lampChip(lamp);
-      setText(chip, `${index + 1} ${mark}`);
+      const swat = index === threatened;
+      setText(chip, `${index + 1} ${mark}${swat ? ' ✋' : ''}`);
       if (chip.dataset.state !== chipState) chip.dataset.state = chipState;
-      const title = `Lamp ${index + 1}: ${text}`;
+      const title = `Lamp ${index + 1}: ${text}${swat ? ', hand overhead' : ''}`;
       if (chip.title !== title) chip.title = title;
     });
     // With no move limit there is nothing to meter.
@@ -577,6 +635,7 @@ export function startApplication({
         // The world is frozen while a player plans, aims or reads the score.
         if (turn.stepping)
           world.step(turn.phase === 'move' ? command : NO_MOVEMENT);
+        else if (turn.phase === 'won') celebrate(turn.winner);
         const stepped = world.drainEvents();
         events.push(...stepped);
         const tickView = world.snapshot();

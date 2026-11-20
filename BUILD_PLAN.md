@@ -13,9 +13,11 @@ Read this first when picking the project up in a new session.
 **How a match works now.**
 
 - Mustard plays, then Teal, every round. On a team's turn each of its moths on the desk has one go, in any order: move for as long as you like, then one action (hold F to aim, release to fire) or a dance (P), which ends that go.
-- At the end of each round every warm lamp gives a point to the team with more moths in its light. First to ten with the lead wins.
+- Scoring (changed 20 November): when a team finishes its turn, the other team banks a point for every warm lamp where it still has more moths in the light. A lamp only pays if it survives the rival's reply. First to ten with the lead wins, checked when both teams have banked equally often (after Teal banks). The old rule, every lamp scoring at the end of the round, is still there as `MATCH.scoring = 'round'` and in the tuning panel.
+- Bot playtests (20 November, scripted bots on the real rules and physics): under the old rule the team playing second won 15 of 20 matches between identical bots; under the new rule identical bots split 11–9 and 12–18, and a bot that avoids the hand beat one that ignores it from either seat. Matches last about five rounds.
+- Each banked lamp shows a +1 and chimes; a win plays a fanfare and the winners dance until New match.
 - Zap Switch (two per team) flips a lamp within 10 units into a bug zapper for the rest of that turn and the next one; each zapped moth costs its team a point and sits out the next round.
-- Three giant people pace round the desk's three open sides whenever the world is running, and the nearest one stops, leans over and smacks the desk at random. Anyone between the camera and the desk turns see-through. A shadow and a blinking ring warn for 1.6 seconds; any moth still inside the ring when the hand lands is flung outwards, and nearby lamps swing. Hands favour the lamps' light. (This replaced the wind-up mouse on 19 November.)
+- Three giant people pace round the desk's three open sides whenever the world is running. In a match, at the start of each round the nearest one hangs a hand over the busiest lamp (the middle of the crowd under the warm lamp with the most moths); it comes down after both teams have played, just before scoring. A firecracker going off or a Bosh that lands draws the hanging hand to that spot instead, or summons one if none is hanging. Free play (`?playground`) keeps random smacks. Anyone between the camera and the desk turns see-through. A shadow and a blinking ring warn for 1.6 seconds; any moth still inside the ring when the hand lands is flung outwards, and nearby lamps swing. Hands favour the lamps' light. (This replaced the wind-up mouse on 19 November.)
 - The desk is 90 × 48 with seven lamps and four moths per team.
 
 **Where things live.** Rules: `src/game/match.ts`. Physics, weapons, dance and the giant hands: `src/game/world.ts` (models: `src/view/people.ts`, `src/view/hand.ts`; numbers: `HAZARD` and `PEOPLE`). Wiring, HUD and input: `src/application.ts`. Every tunable number: `src/config.ts` (`MATCH`, `BOARD_SCALE`, `HAZARD`, `BOSH`, `ZAP`, `DANCE`, `MOTH_LOOK`, `AUDIO`). Sounds and their Artlist sources: `public/sounds/README.md` (the audio files themselves are git-ignored).
@@ -29,9 +31,9 @@ Read this first when picking the project up in a new session.
 - the five dance routines;
 - the louder, layered Bosh (check for distortion) and the background music level.
 
-**Open questions for playtesting.** With no move limit a player can wait for a lamp to swing or for a hand to clear a lamp; bring back `MATCH.moveSeconds` if that is abused. Bosh now launches moths far enough to leave the small desk often. First to ten may be too short or too long now that every moth moves each turn.
+**Open questions for playtesting.** Teal always plays last, so Teal gets the final say on who is under the hand and where a noise drags it; watch whether that is too strong. Dancing does not count as noise (it would punish every pass). With no move limit a player can wait for a lamp to swing or for a hand to clear a lamp; bring back `MATCH.moveSeconds` if that is abused. Bosh now launches moths far enough to leave the small desk often. First to ten may be too short or too long now that every moth moves each turn.
 
-**Not built.** Scoring chime, win celebration, solo opponent, hosting. The demo is Friday 27 November.
+**Not built.** Solo opponent, hosting. The demo is Friday 27 November.
 
 ## Progress at 16 November
 

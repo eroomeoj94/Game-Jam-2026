@@ -193,6 +193,19 @@ describe('sampled sound effects', () => {
     expect(names.filter((name) => name === 'punch')).toHaveLength(1);
   });
 
+  it('chimes for points and plays a fanfare without needing any samples', async () => {
+    const { sfx } = await loadedSfx();
+    expect(() => {
+      sfx.chime(0);
+      sfx.chime(3);
+      sfx.chime(9);
+      sfx.fanfare();
+      sfx.setMuted(true);
+      sfx.chime(2);
+      sfx.fanfare();
+    }).not.toThrow();
+  });
+
   it('makes distant events quieter and stays silent when muted', async () => {
     const { sfx, started } = await loadedSfx();
     sfx.playEvents([{ type: 'explode', position: here }], here);
