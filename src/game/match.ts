@@ -395,11 +395,9 @@ export function createMatch(
     const best = Math.max(...scores);
     const leaders = scores.filter((score) => score === best).length;
     timer = 0;
-    // With incoming scoring the opening team banks at the end of each round
-    // and the rest during it, so the match can only be decided once the last
-    // team has banked too: then everyone has scored equally often.
-    const level = incoming ? turn === teamCount - 2 : true;
-    if (level && best >= MATCH.targetScore && leaders === 1) {
+    // The match ends the moment a bank puts one team on the target, alone in
+    // front: nobody plays on with a winning score on the board.
+    if (best >= MATCH.targetScore && leaders === 1) {
       winner = scores.indexOf(best);
       phase = 'won';
       events.push({ type: 'won', team: winner });

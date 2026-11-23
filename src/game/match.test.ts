@@ -531,35 +531,34 @@ describe('incoming scoring', () => {
     expect(match.drainEvents().map(({ type }) => type)).not.toContain('banked');
   });
 
-  it('decides the match only once both teams have banked equally often', () => {
+  it('ends the match the moment a bank puts one team alone on the target', () => {
     const match = createMatch(TEAMS);
     MATCH.targetScore = 2;
     try {
       const lamps = [lamp(0), lamp(0), lamp(1)];
       turn(match, lamps);
-      // Mustard reaches the target at the end of round 1, having banked once
-      // more than Teal: play goes on.
+      // Mustard banks two at the end of round 1: that is the match, with no
+      // further turn to play.
       expect(turn(match, lamps)).toMatchObject({
-        phase: 'scored',
-        scores: [2, 1],
-      });
-      expect(match.view()).toMatchObject({ phase: 'plan', team: 0, round: 2 });
-      // Teal banks again and draws level on points as well: no winner yet.
-      expect(turn(match, lamps)).toMatchObject({
-        phase: 'scored',
-        scores: [2, 2],
-      });
-      // Mustard pulls ahead at the end of round 2, but must wait once more.
-      expect(turn(match, lamps)).toMatchObject({
-        phase: 'scored',
-        scores: [4, 2],
-      });
-      // Teal's lamp is gone when it banks next: Mustard wins.
-      passTurn(match, [lamp(0), lamp(0), lamp()]);
-      expect(match.view()).toMatchObject({
         phase: 'won',
         winner: 0,
-        scores: [4, 2],
+        scores: [2, 1],
+      });
+      expect(match.nextRound()).toBe(false);
+    } finally {
+      MATCH.targetScore = 10;
+    }
+  });
+
+  it('lets the team that banks mid-round win there and then', () => {
+    const match = createMatch(TEAMS);
+    MATCH.targetScore = 1;
+    try {
+      // Teal banks after Mustard's first turn and is alone on the target.
+      expect(turn(match, [lamp(0), lamp(1)])).toMatchObject({
+        phase: 'won',
+        winner: 1,
+        scores: [0, 1],
       });
     } finally {
       MATCH.targetScore = 10;

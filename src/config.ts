@@ -434,7 +434,7 @@ export const TEAM_LABELS = [
 
 /** Match rules: rounds, turns, scoring and zappers. All values are tunable. */
 export const MATCH = {
-  /** First team to reach this, ahead of the other at the end of a round. */
+  /** The first team to bank this many points wins on the spot. */
   targetScore: 10,
   /**
    * Seconds a moth may move in a turn, counted from its first movement.
