@@ -275,7 +275,7 @@ export function startApplication({
       const moth = world.snapshot().selectedMoth;
       if (match.canUse(weapon) && world.useWeapon(weapon, aim)) {
         match.fired(weapon, lamp);
-        pendingQuip = { moth, cue: weapon };
+        if (weapon !== 'bosh') pendingQuip = { moth, cue: weapon };
       } else if (match.pass()) {
         world.dance();
         pendingQuip = { moth, cue: 'dance' };
@@ -345,7 +345,9 @@ export function startApplication({
     // A shot that cannot be taken (no lamp in line, say) leaves the turn open.
     if (world.useWeapon(weapon.id, aim, weapon.charge ? power : 1)) {
       match?.fired(weapon.id, lamp);
-      pendingQuip = { moth: view.selectedMoth, cue: weapon.id };
+      // A Bosh belongs to the announcer: the moth keeps quiet.
+      if (weapon.id !== 'bosh')
+        pendingQuip = { moth: view.selectedMoth, cue: weapon.id };
     }
     cancelAim();
   }
