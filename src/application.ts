@@ -463,6 +463,15 @@ export function startApplication({
       else if (event.type === 'lamp-dark') {
         world.setLampDark(event.lamp, event.dark);
         if (event.dark) sfx.say('burn', { priority: 2 });
+        const lamp = world.snapshot().lamps[event.lamp];
+        if (lamp)
+          scene.showNote?.(
+            event.dark
+              ? `Burnt out · no points here for ${MATCH.burnRounds === 1 ? 'a round' : `${MATCH.burnRounds} rounds`}`
+              : 'Relit · worth points again',
+            { x: lamp.anchor.x, y: lamp.base, z: lamp.anchor.z },
+            -1,
+          );
       } else if (event.type === 'won') {
         sfx.fanfare();
         sfx.say(

@@ -184,6 +184,8 @@ export function createWeaponEffects(
   const toVector = ({ x, y, z }: { x: number; y: number; z: number }) =>
     new Vector3(x, y, z);
 
+  let pinnedNotes = 0;
+
   function popup(
     text: string,
     position: Vector3,
@@ -218,7 +220,22 @@ export function createWeaponEffects(
     showScore,
     /** A short note floating up from a spot on the desk, in a team's colour. */
     showNote(text: string, position: Vector3, team: number) {
-      popup(text, position, TEAM_COLOURS[team] ?? '#ffffff');
+      // A note is news the player must not miss: if its spot is off screen
+      // or behind the camera, pin it to the nearest edge instead.
+      const point = position.clone().project(camera);
+      const behind = point.z > 1;
+      const pinned = behind || Math.abs(point.x) > 0.5 || point.y < -0.5;
+      const x = Math.max(-0.5, Math.min(0.5, behind ? -point.x : point.x));
+      // Notes pinned at the same moment stack rather than overprint.
+      const row = pinned ? pinnedNotes++ : 0;
+      if (pinned) window.setTimeout(() => pinnedNotes--, 1500);
+      const y =
+        Math.max(-0.5, Math.min(0.6, behind ? -0.5 : point.y)) + row * 0.12;
+      popup(
+        text,
+        new Vector3(x, y, Math.min(point.z, 0.99)).unproject(camera),
+        TEAM_COLOURS[team] ?? '#ffffff',
+      );
     },
     play(events: WorldEvent[], view: WorldView) {
       for (const event of events) {

@@ -621,6 +621,7 @@ export function createScene(host: HTMLElement) {
   const bulbGeometry = new SphereGeometry(ARENA.lampRadius, 24, 16);
   const socketGeometry = new CylinderGeometry(0.11, 0.13, 0.24, 16);
   const haloGeometry = new RingGeometry(0.985, 1, 96);
+  const crossBar = new BoxGeometry(1.5, 0.02, 0.16);
   // A fixed pool of lamps; the world decides how many are hanging.
   const cageGeometry = new CylinderGeometry(0.42, 0.42, 0.75, 10, 4, true);
   // Only the lamps nearest the camera's focus cast shadows: the shadowed
@@ -653,6 +654,20 @@ export function createScene(host: HTMLElement) {
     const ring = haloMaterial.clone();
     const halo = new Mesh(haloGeometry, ring);
     halo.rotation.x = -Math.PI / 2;
+    // A big red cross on the desk marks a burnt-out lamp's patch as dead.
+    const crossInk = new MeshBasicMaterial({
+      color: 0xe2503a,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+    });
+    const cross = new Group();
+    for (const turn of [Math.PI / 4, -Math.PI / 4]) {
+      const bar = new Mesh(crossBar, crossInk);
+      bar.rotation.y = turn;
+      cross.add(bar);
+    }
+    cross.visible = false;
     // Each lamp casts its own shadows from a smaller map to stay inexpensive.
     const light = new SpotLight(
       0xffc987,
@@ -668,8 +683,19 @@ export function createScene(host: HTMLElement) {
     light.shadow.normalBias = 0.035;
     light.shadow.camera.near = 0.3;
     light.shadow.camera.far = 45;
-    scene.add(group, cord, halo, light, light.target);
-    return { group, cord, cordGeometry, halo, light, glow, cage, ring };
+    scene.add(group, cord, halo, cross, light, light.target);
+    return {
+      group,
+      cord,
+      cordGeometry,
+      halo,
+      cross,
+      crossInk,
+      light,
+      glow,
+      cage,
+      ring,
+    };
   });
   const weaponEffects = createWeaponEffects(scene, camera, host);
   // Board-view pins: at full-desk zoom a moth is a speck, so each gets a
@@ -814,8 +840,16 @@ export function createScene(host: HTMLElement) {
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
     /** Float a short note above a spot on the desk, in a team's colour. */
-    showNote(text: string, at: { x: number; z: number }, team: number) {
-      weaponEffects.showNote(text, new Vector3(at.x, 2.5, at.z), team);
+    showNote(
+      text: string,
+      at: { x: number; y?: number; z: number },
+      team: number,
+    ) {
+      weaponEffects.showNote(
+        text,
+        new Vector3(at.x, (at.y ?? 0) + 2.5, at.z),
+        team,
+      );
     },
     /** Mark each lamp that just scored with the team it scored for. */
     showScores(
@@ -924,11 +958,21 @@ export function createScene(host: HTMLElement) {
       });
       lampVisuals.forEach((visual, index) => {
         const lamp = view.lamps[index];
-        const { group, cord, cordGeometry, halo, glow, cage, ring } = visual;
+        const {
+          group,
+          cord,
+          cordGeometry,
+          halo,
+          cross,
+          crossInk,
+          glow,
+          cage,
+          ring,
+        } = visual;
         const light = lightFor.get(index) ?? visual.light;
         group.visible = cord.visible = !!lamp;
         if (!lamp) {
-          halo.visible = false;
+          halo.visible = cross.visible = false;
           return;
         }
         const { anchor } = lamp;
@@ -955,16 +999,25 @@ export function createScene(host: HTMLElement) {
         const power = lamp.dark ? 0.06 : lamp.hot && !lamp.zapper ? pulse : 1;
         light.intensity = LIGHTING.lampIntensity * flicker * power;
         glow.emissive.setHex(lamp.zapper ? 0x8a5cff : 0xffb34b);
-        glow.color.setHex(lamp.zapper ? 0xe6dcff : 0xffefd0);
-        glow.emissiveIntensity = 3 * flicker * (lamp.dark ? 0.08 : power);
+        // A burnt-out bulb is smoked glass, not just a dim one.
+        glow.color.setHex(
+          lamp.dark ? 0x2b2624 : lamp.zapper ? 0xe6dcff : 0xffefd0,
+        );
+        glow.emissiveIntensity = 3 * flicker * (lamp.dark ? 0.01 : power);
         cage.visible = lamp.zapper;
         ring.color.setHex(
-          lamp.zapper ? 0xb48cff : lamp.hot && !lamp.dark ? 0xff9d2e : 0xedc778,
+          lamp.zapper
+            ? 0xb48cff
+            : lamp.dark
+              ? 0xe2503a
+              : lamp.hot
+                ? 0xff9d2e
+                : 0xedc778,
         );
         ring.opacity = lamp.zapper
           ? 0.85
           : lamp.dark
-            ? 0.12
+            ? 0.7
             : lamp.hot
               ? 0.55 + 0.3 * Math.sin(seconds * 5)
               : 0.48;
@@ -977,6 +1030,10 @@ export function createScene(host: HTMLElement) {
         halo.visible = haloAtFloor > 0;
         halo.scale.setScalar(haloAtFloor);
         halo.position.set(lamp.x, lamp.base + 0.012, lamp.z);
+        cross.visible = lamp.dark && !lamp.zapper;
+        cross.scale.setScalar(Math.max(1, haloAtFloor));
+        cross.position.set(lamp.x, lamp.base + 0.03, lamp.z);
+        crossInk.opacity = 0.65 + 0.2 * Math.sin(seconds * 3);
       });
       const frameDelta =
         lastSeconds === undefined ? 0 : Math.max(0, seconds - lastSeconds);
