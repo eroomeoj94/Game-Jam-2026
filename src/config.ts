@@ -602,6 +602,8 @@ export const AUDIO = {
   music: 0.3,
   /** The announcer's voice lines, when the clips are present. */
   voice: 1.3,
+  /** The moths' own lines after a move or an attack. */
+  mothVoice: 1.15,
   /** Night room tone with crickets, kept faint under the music. */
   ambience: 0.1,
   /** Distance at which a sound is at half volume. */

@@ -23,6 +23,7 @@ import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
 import { createSfx } from './audio/sfx';
+import type { MothCue } from './audio/sfx';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
 export type ApplicationOptions = {
@@ -174,6 +175,11 @@ export function startApplication({
   const matchPointCalled = new Set<number>();
   /** Moths on their way off the desk because they were zapped. */
   const zappedOut = new Set<number>();
+  /**
+   * The acting moth's line, held until the frame's sounds have played so the
+   * announcer gets the first word.
+   */
+  let pendingQuip: { moth: number; cue: MothCue } | undefined;
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
     selectMoth,
@@ -242,6 +248,8 @@ export function startApplication({
     if (order.type === 'start') match.startMove();
     else if (order.type === 'walk') return order;
     else if (order.type === 'aim') {
+      if (match.view().phase === 'move' && started)
+        sfx.quip(world.snapshot().selectedMoth, 'move');
       match.beginAim();
       scene.setAim(
         order.shot
@@ -259,10 +267,18 @@ export function startApplication({
       scene.setAim(undefined);
       const { weapon, aim } = order.shot;
       const lamp = weapon === 'zap' ? world.zapTarget(aim) : undefined;
-      if (match.canUse(weapon) && world.useWeapon(weapon, aim))
+      const moth = world.snapshot().selectedMoth;
+      if (match.canUse(weapon) && world.useWeapon(weapon, aim)) {
         match.fired(weapon, lamp);
-      else if (match.pass()) world.dance();
-    } else if (order.type === 'dance' && match.pass()) world.dance();
+        pendingQuip = { moth, cue: weapon };
+      } else if (match.pass()) {
+        world.dance();
+        pendingQuip = { moth, cue: 'dance' };
+      }
+    } else if (order.type === 'dance' && match.pass()) {
+      world.dance();
+      pendingQuip = { moth: world.snapshot().selectedMoth, cue: 'dance' };
+    }
     return NO_MOVEMENT;
   }
   function focusCanvas() {
@@ -301,7 +317,9 @@ export function startApplication({
     }
     if (fireHeld && !aiming && view.weaponCooldown === 0) {
       // In a match, starting to aim ends movement and freezes the world.
+      const moved = match?.view().phase === 'move';
       if (match && !match.beginAim()) return;
+      if (moved) sfx.quip(view.selectedMoth, 'move');
       aiming = true;
       power = 0;
     }
@@ -320,8 +338,10 @@ export function startApplication({
     }
     const lamp = weapon.id === 'zap' ? world.zapTarget(aim) : undefined;
     // A shot that cannot be taken (no lamp in line, say) leaves the turn open.
-    if (world.useWeapon(weapon.id, aim, weapon.charge ? power : 1))
+    if (world.useWeapon(weapon.id, aim, weapon.charge ? power : 1)) {
       match?.fired(weapon.id, lamp);
+      pendingQuip = { moth: view.selectedMoth, cue: weapon.id };
+    }
     cancelAim();
   }
   /** End the turn without attacking: the moth dances instead. */
@@ -329,6 +349,7 @@ export function startApplication({
     if (!started || botTurn()) return;
     if (match && !match.pass()) return;
     world.dance();
+    pendingQuip = { moth: world.snapshot().selectedMoth, cue: 'dance' };
     cancelAim();
     focusCanvas();
   }
@@ -911,7 +932,9 @@ export function startApplication({
       if (started) {
         sfx.playEvents(events, listener);
         sfx.update(view, listener);
+        if (pendingQuip) sfx.quip(pendingQuip.moth, pendingQuip.cue);
       }
+      pendingQuip = undefined;
       scene.playEvents(events, view);
       updateHUD(view);
       scene.render(view, seconds);

@@ -45,6 +45,8 @@ Read this first when picking the project up in a new session.
 
 **Announcer (23 November).** Thirty-three Artlist voice lines play on the big moments: the start, rounds, turns, Bosh, zaps, the hand, hot and burnt-out lamps, banking, match point, falls and the win (`VOICE_LINES` and `say` in `src/audio/sfx.ts`; clips in the git-ignored `public/sounds/artlist/voice/`). One line at a time, bigger moments cut in, the music dips underneath. Nobody has listened to them in the game yet.
 
+**Moth voices (23 November).** Every move and every action ends with a line from the moth that made it: seven pools (one per weapon, plus dancing and finishing a move), four voices shared out by moth number, 56 clips in `public/sounds/artlist/voice/moth/`. A moth waits for the announcer to finish, so a Bosh goes "Bosh!" then the moth's line. Nobody has listened to them in play yet.
+
 **Menu and tips (23 November).** Esc opens a pause menu with the controls; first-match tips run for two rounds.
 
 The demo is Friday 27 November.

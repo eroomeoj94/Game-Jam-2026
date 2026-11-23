@@ -41,6 +41,15 @@ the moment each one plays are listed in `VOICE_LINES` in `src/audio/sfx.ts`.
 Without the clips the game has no announcer and falls back to the browser's
 spoken "Bosh!".
 
+## Moth voice lines (not in the repository)
+
+`artlist/voice/moth/` holds 56 clips: what a moth says after a move or an
+action. Four Artlist voices (Chipper, Pep, Boss and Tattle; files `a-`, `b-`,
+`c-` and `d-`) each have two lines for every cue: `gust`, `bosh`, `zap`, `cap`,
+`firecracker`, `dance` and `move`. A moth's number picks its voice. They were
+generated on 23 November 2026 and are saved in the Artlist project "Moth Fight
+Club", folder "Moth voices". See `MOTH_CUES` in `src/audio/sfx.ts`.
+
 ## Optional recording
 
 - `bosh.mp3` — the shout when a moth throws a Bosh. Without it, the browser's

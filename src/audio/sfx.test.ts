@@ -330,3 +330,57 @@ describe('the announcer', () => {
     sfx.destroy();
   });
 });
+
+describe('moth voices', () => {
+  async function talkers() {
+    const { context, started } = fakeAudio();
+    const sfx = createSfx({
+      createContext: () => context,
+      speech: undefined,
+      findRecording: async () => undefined,
+      loadSample: async () => undefined,
+      loadVoice: async (_ctx, file) =>
+        ({ name: `voice:${file}`, duration: 1 }) as unknown as AudioBuffer,
+      random: () => 0,
+    });
+    sfx.unlock();
+    await Promise.resolve();
+    await Promise.resolve();
+    const spoken = () =>
+      started
+        .map(({ name }) => name)
+        .filter((name) => name.startsWith('voice:'))
+        .map((name) => name.slice(6));
+    return { sfx, context, spoken };
+  }
+
+  it('gives each weapon its own lines, in the acting moth’s voice', async () => {
+    const { sfx, context, spoken } = await talkers();
+    const clock = context as unknown as { currentTime: number };
+    sfx.quip(0, 'gust');
+    clock.currentTime = 5;
+    sfx.quip(1, 'firecracker');
+    clock.currentTime = 10;
+    // Moth 5 shares moth 1's voice; moth 0 gets a different take next time.
+    sfx.quip(5, 'zap');
+    clock.currentTime = 15;
+    sfx.quip(0, 'gust');
+    expect(spoken()).toEqual([
+      'moth/a-gust-1',
+      'moth/b-firecracker-1',
+      'moth/b-zap-1',
+      'moth/a-gust-2',
+    ]);
+    sfx.destroy();
+  });
+
+  it('waits for the announcer to finish instead of talking over him', async () => {
+    const { sfx, spoken } = await talkers();
+    expect(sfx.say('bosh', { priority: 2 })).toBe(true);
+    expect(sfx.quip(2, 'bosh')).toBe(true);
+    // A third voice on top of a queue is too much: it is dropped.
+    expect(sfx.say('turn0')).toBe(false);
+    expect(spoken()).toEqual(['bosh-1', 'moth/c-bosh-1']);
+    sfx.destroy();
+  });
+});

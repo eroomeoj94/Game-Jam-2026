@@ -62,6 +62,26 @@ export const VOICE_LINES = {
   winEnd: ['win-end'],
 } as const;
 export type VoiceCue = keyof typeof VOICE_LINES;
+/**
+ * The moths talk too: a line after every move and every action, with its own
+ * pool for each weapon. Four voices, shared out by moth number, two takes of
+ * each cue per voice; the clips sit in `voice/moth/`.
+ */
+export const MOTH_VOICES = ['a', 'b', 'c', 'd'] as const;
+export const MOTH_CUES = [
+  'gust',
+  'bosh',
+  'zap',
+  'cap',
+  'firecracker',
+  'dance',
+  'move',
+] as const;
+export type MothCue = (typeof MOTH_CUES)[number];
+const mothTakes = (moth: number, cue: MothCue) => {
+  const voice = MOTH_VOICES[moth % MOTH_VOICES.length]!;
+  return [1, 2].map((take) => `moth/${voice}-${cue}-${take}`);
+};
 const voicePath = (file: string) => `sounds/artlist/voice/${file}.mp3`;
 
 /** Every sample is boosted or cut so its loudest moment peaks here. */
@@ -168,10 +188,13 @@ export function createSfx({
 }: Dependencies = {}) {
   const voices = new Map<string, AudioBuffer>();
   const voiceMakeup = new Map<string, number>();
-  const lastTake = new Map<VoiceCue, string>();
-  /** The line being spoken, so a bigger moment can cut in over it. */
+  const lastTake = new Map<string, string>();
+  /**
+   * The line being spoken and any queued behind it, so a bigger moment can
+   * cut in over them.
+   */
   let speaking:
-    | { source: AudioBufferSourceNode; until: number; priority: number }
+    | { sources: AudioBufferSourceNode[]; until: number; priority: number }
     | undefined;
   /** A line asked for before its clip had loaded, tried again on arrival. */
   let waiting: { cue: VoiceCue; priority: number; expires: number } | undefined;
@@ -251,7 +274,10 @@ export function createSfx({
         makeup.set(name, normalisingGain(buffer));
         buffers.set(name, buffer);
       });
-    for (const file of Object.values(VOICE_LINES).flat())
+    const mothFiles = MOTH_VOICES.flatMap((_, moth) =>
+      MOTH_CUES.flatMap((cue) => mothTakes(moth, cue)),
+    );
+    for (const file of [...Object.values(VOICE_LINES).flat(), ...mothFiles])
       void loadVoice(ctx, file).then((buffer) => {
         if (!buffer) return;
         voiceMakeup.set(file, normalisingGain(buffer));
@@ -264,49 +290,86 @@ export function createSfx({
   }
 
   /**
-   * Have the announcer speak a line. One line at a time: a new one is
-   * dropped unless it outranks the one in progress, which it then cuts off.
-   * `chance` makes the commoner cues occasional. Returns whether it spoke.
+   * Speak one of `files`. One voice at a time: a line that does not outrank
+   * the one in progress waits its turn if it matters (priority 2 or more)
+   * and the wait is short, and is dropped otherwise; one that outranks it
+   * cuts it off. Returns whether it spoke or is about to.
    */
-  function say(
-    cue: VoiceCue,
+  function speak(
+    files: readonly string[],
+    key: string,
+    volume: number,
     { priority = 1, chance = 1 }: { priority?: number; chance?: number } = {},
   ) {
     const ctx = context;
-    if (!ctx || !effects || muted) return false;
-    const takes = VOICE_LINES[cue].filter((file) => voices.has(file));
-    if (!takes.length) {
-      // Still loading: keep the most important line for a few seconds.
-      if (loading && voices.size === 0 && priority >= (waiting?.priority ?? 0))
-        waiting = { cue, priority, expires: ctx.currentTime + 4 };
-      return false;
-    }
+    if (!ctx || !effects || muted) return undefined;
+    const takes = files.filter((file) => voices.has(file));
+    if (!takes.length) return false;
     const now = ctx.currentTime;
-    if (speaking && now < speaking.until && priority <= speaking.priority)
-      return false;
-    if (random() >= chance) return false;
-    const fresh = takes.filter((file) => file !== lastTake.get(cue));
+    const busy = !!speaking && now < speaking.until;
+    const outranks = !busy || priority > speaking!.priority;
+    const wait = busy && !outranks ? speaking!.until - now : 0;
+    if (!outranks && (priority < 2 || wait > 2)) return undefined;
+    if (random() >= chance) return undefined;
+    const fresh = takes.filter((file) => file !== lastTake.get(key));
     const pool = fresh.length ? fresh : takes;
     const file = pool[Math.floor(random() * pool.length)]!;
     const buffer = voices.get(file)!;
-    if (speaking && now < speaking.until) {
-      try {
-        speaking.source.stop();
-      } catch {
-        // Already finished.
+    if (busy && outranks)
+      for (const source of speaking!.sources) {
+        try {
+          source.stop();
+        } catch {
+          // Already finished.
+        }
       }
-    }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const gain = ctx.createGain();
-    gain.gain.value = AUDIO.voice * (voiceMakeup.get(file) ?? 1);
+    gain.gain.value = volume * (voiceMakeup.get(file) ?? 1);
     source.connect(gain).connect(effects);
-    source.start(now);
-    lastTake.set(cue, file);
-    speaking = { source, until: now + buffer.duration + 0.2, priority };
-    // The music steps back while the announcer talks.
-    dip(0.4, buffer.duration);
+    source.start(now + wait);
+    lastTake.set(key, file);
+    speaking = {
+      sources: wait ? [...speaking!.sources, source] : [source],
+      until: now + wait + buffer.duration + 0.2,
+      priority: wait ? speaking!.priority : priority,
+    };
+    // The music steps back while anyone is talking.
+    dip(0.4, wait + buffer.duration);
     return true;
+  }
+
+  /** Have the announcer speak a line. `chance` makes common cues occasional. */
+  function say(
+    cue: VoiceCue,
+    options: { priority?: number; chance?: number } = {},
+  ) {
+    const spoke = speak(VOICE_LINES[cue], cue, AUDIO.voice, options);
+    // Still loading: keep the most important line for a few seconds.
+    if (
+      spoke === false &&
+      context &&
+      loading &&
+      voices.size === 0 &&
+      (options.priority ?? 1) >= (waiting?.priority ?? 0)
+    )
+      waiting = {
+        cue,
+        priority: options.priority ?? 1,
+        expires: context.currentTime + 4,
+      };
+    return spoke === true;
+  }
+
+  /** A moth says its piece after a move or an action, in its own voice. */
+  function quip(moth: number, cue: MothCue) {
+    const voice = MOTH_VOICES[moth % MOTH_VOICES.length];
+    return (
+      speak(mothTakes(moth, cue), `${voice}-${cue}`, AUDIO.mothVoice, {
+        priority: 2,
+      }) === true
+    );
   }
 
   /** Play a sample once; false when it is not loaded (use a fallback). */
@@ -546,6 +609,7 @@ export function createSfx({
     },
     /** Points banked: one bright rising note per point, up to five. */
     say,
+    quip,
     chime(points: number) {
       if (muted || points <= 0) return;
       const ctx = audio();
