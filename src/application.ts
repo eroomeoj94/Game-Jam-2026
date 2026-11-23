@@ -416,7 +416,22 @@ export function startApplication({
       if (moth.respawning && !match.isResting(moth.id)) {
         match.mothOut(moth.id);
         // A zapped moth has had its line already; this one fell or was flung.
-        if (!zappedOut.delete(moth.id) && started) sfx.say('fall');
+        if (!zappedOut.delete(moth.id) && started) {
+          sfx.say('fall');
+          // Say what it costs, where the moth went over the edge.
+          const half = {
+            x: ARENA.desk.width / 2 - 2,
+            z: ARENA.desk.depth / 2 - 2,
+          };
+          scene.showNote?.(
+            `${ARENA.spawns[moth.id]?.name ?? 'Moth'} is off the desk · misses a round`,
+            {
+              x: Math.max(-half.x, Math.min(half.x, moth.x)),
+              z: Math.max(-half.z, Math.min(half.z, moth.z)),
+            },
+            moth.team,
+          );
+        }
       }
   }
   /** Carry out what the match decided: returns, handovers, lamp changes. */
@@ -531,6 +546,8 @@ export function startApplication({
     }
     if (state.phase === 'smack')
       return 'Here comes the hand. Any moth under it is flung away.';
+    if (state.resting.length && state.phase === 'plan')
+      return 'A moth knocked off the desk misses its next round. Shove rivals over the edge with a gust or a Bosh.';
     if (state.phase === 'scored')
       return state.dark.length
         ? 'A lamp that pays you twice running burns out for a round (✕). Keep moving.'
@@ -770,6 +787,12 @@ export function startApplication({
     fuelText.textContent = `${Math.round(active.flutter * 100)}%`;
     selectors.forEach((button, id) => {
       button.setAttribute('aria-pressed', String(id === view.selectedMoth));
+      // A moth knocked off the desk or zapped is marked as sitting out.
+      const out = !!turn?.resting.includes(id);
+      const label = `${id + 1} · ${ARENA.spawns[id]?.name ?? ''}${out ? ' · out' : ''}`;
+      if (button.textContent !== label) button.textContent = label;
+      const hint = out ? 'Sitting out: back after missing a round' : '';
+      if (button.title !== hint) button.title = hint;
       button.disabled = turn
         ? botTurn() ||
           turn.phase !== 'plan' ||

@@ -216,6 +216,10 @@ export function createWeaponEffects(
       preview = next;
     },
     showScore,
+    /** A short note floating up from a spot on the desk, in a team's colour. */
+    showNote(text: string, position: Vector3, team: number) {
+      popup(text, position, TEAM_COLOURS[team] ?? '#ffffff');
+    },
     play(events: WorldEvent[], view: WorldView) {
       for (const event of events) {
         if (event.type === 'gust') {

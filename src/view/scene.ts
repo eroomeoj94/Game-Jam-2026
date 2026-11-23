@@ -759,6 +759,10 @@ export function createScene(host: HTMLElement) {
           shake = Math.max(shake, BOSH.shake);
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
+    /** Float a short note above a spot on the desk, in a team's colour. */
+    showNote(text: string, at: { x: number; z: number }, team: number) {
+      weaponEffects.showNote(text, new Vector3(at.x, 2.5, at.z), team);
+    },
     /** Mark each lamp that just scored with the team it scored for. */
     showScores(
       awards: readonly (number | undefined)[],
