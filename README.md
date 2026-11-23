@@ -69,8 +69,7 @@ no music.
 - `npm run check` — check formatting, run tests, type-check, and build.
 
 The production build uses relative asset paths so it can also be hosted beneath
-a URL subdirectory. `.github/workflows/pages.yml` publishes it to GitHub Pages on
-every push to `main` once Pages is set to "GitHub Actions" in the repository settings.
+a URL subdirectory. Nothing publishes it automatically.
 
 ## Project layout
 

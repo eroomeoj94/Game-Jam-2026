@@ -37,7 +37,7 @@ Read this first when picking the project up in a new session.
 
 **Start and finish (23 November).** Until Start is pressed, two computers play a silent demo match behind the title; Start deals a fresh match. A win shows the result with a Play again button, worded as "You win!" or "The computer wins" in one-player.
 
-**Hosting (20 November).** `.github/workflows/pages.yml` builds and publishes to GitHub Pages on every push to `main`, once Pages is set to "GitHub Actions" in the repository settings. Not yet pushed or switched on. The Artlist sound files are not in the repository, so that build plays the synthesised fallback sounds and has no music.
+**Hosting.** Not set up. A GitHub Pages workflow was added on 20 November and removed on 23 November because it was not wanted.
 
 **Burn-out and the hot lamp (23 November).** To stop matches being won by standing still: each round one random warm lamp is hot and pays two points (`MATCH.hotLamp`, `hotPoints`), and a lamp that pays the same team twice running goes dark for a round (`MATCH.burnOut`, `burnAfter`, `burnRounds`). Both can be switched off in the tuning panel (`?tune`). In 20 computer-versus-computer matches with both on, matches averaged 6.2 rounds (5.2 without) with about five burn-outs each. Mustard won 14 of those 20, and 15 of 20 with the rules off, so the current computer player may favour the team that goes first; not yet investigated.
 
