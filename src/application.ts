@@ -96,6 +96,9 @@ export function startApplication({
   const start = document.querySelector<HTMLButtonElement>('#start');
   const startSolo = document.querySelector<HTMLButtonElement>('#start-solo');
   const again = document.querySelector<HTMLButtonElement>('#again');
+  const scoreboard = document.querySelector<HTMLElement>('#scoreboard');
+  const caption = document.querySelector<HTMLElement>('.caption');
+  const demoTag = document.querySelector<HTMLElement>('#demo-tag');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -476,6 +479,33 @@ export function startApplication({
   };
   function updateMatchHUD(view: WorldView, state: MatchView) {
     if (!score || !lampBar || !move || !moveText || !pass || !banner) return;
+    // The scoreboard along the top: a big score and a race bar for each team.
+    if (scoreboard) scoreboard.hidden = !started;
+    setText(document.querySelector('#round-label'), `Round ${state.round}`);
+    setText(
+      document.querySelector('#target-label'),
+      `First to ${MATCH.targetScore}`,
+    );
+    TEAM_LABELS.forEach((_, team) => {
+      const who = !bot ? '' : team === bot.team ? ' · computer' : ' · you';
+      setText(
+        document.querySelector(`#team-name-${team}`),
+        `${teamLabel(team)}${who}`,
+      );
+      const points = state.scores[team] ?? 0;
+      setText(document.querySelector(`#team-score-${team}`), String(points));
+      const bar = document.querySelector<HTMLElement>(`#team-bar-${team}`);
+      const width = `${Math.round(Math.min(1, Math.max(0, points / MATCH.targetScore)) * 100)}%`;
+      if (bar && bar.style.width !== width) bar.style.width = width;
+      const block = bar?.closest<HTMLElement>('.team');
+      const turn = String(
+        state.team === team &&
+          ['plan', 'move', 'settle', 'aim', 'resolve'].includes(state.phase),
+      );
+      if (block && block.dataset.turn !== turn) block.dataset.turn = turn;
+    });
+    const side = String(state.team);
+    if (caption && caption.dataset.team !== side) caption.dataset.team = side;
     setText(
       score,
       `${TEAM_LABELS.map((_, team) => `${teamLabel(team)} ${state.scores[team] ?? 0}`).join(' · ')} · Round ${state.round} · first to ${MATCH.targetScore}`,
@@ -865,6 +895,12 @@ export function startApplication({
   mute.disabled = pass.disabled = false;
   start.disabled = helpToggle.disabled = false;
   // The match has its own HUD; the playground keeps its debug controls.
+  if (demoTag) demoTag.hidden = !demoBots.length;
+  // The tuning panel is for free play and for anyone who asks with ?tune.
+  document.body.classList.toggle(
+    'show-tuning',
+    !playing || new URLSearchParams(location.search).has('tune'),
+  );
   modeTag.textContent = playing ? 'Match' : 'Weapon playground';
   reset.textContent = playing ? 'New match' : 'Reset scene';
   nudge.hidden = zaps.hidden = playing;
@@ -889,6 +925,8 @@ export function startApplication({
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();
+    if (scoreboard) scoreboard.hidden = true;
+    document.body.classList.remove('show-tuning');
     nudge.removeEventListener('click', onNudge);
     reset.removeEventListener('click', onReset);
     camera.removeEventListener('click', onCamera);

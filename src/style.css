@@ -494,12 +494,21 @@ header {
   bottom: 0;
   pointer-events: auto;
 }
+/* Dim the left for the title; leave the demo match on the right in view. */
 header::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: #101922b8;
+  background:
+    linear-gradient(
+      90deg,
+      #101922f5 0%,
+      #101922e0 34%,
+      #10192240 66%,
+      #10192200 100%
+    ),
+    linear-gradient(0deg, #101922cc 0%, #10192200 22%);
 }
 .intro-rules {
   max-width: 440px;
@@ -547,4 +556,275 @@ header::before {
 }
 #status {
   font-size: 16px;
+}
+
+/* Start screen: three rules, the keys, and a note about the demo match. */
+.how {
+  max-width: 460px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: how;
+}
+.how li {
+  position: relative;
+  margin: 0 0 14px;
+  padding-left: 44px;
+  color: #dfd3bd;
+  font-size: 15px;
+  line-height: 1.45;
+  counter-increment: how;
+}
+.how li::before {
+  content: counter(how);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e7c28b88;
+  border-radius: 50%;
+  color: #e7c28b;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+}
+.how strong {
+  color: #f6e7c8;
+}
+.first-to {
+  margin: 4px 0 22px 44px;
+  color: #e7c28b;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-style: italic;
+}
+.keys {
+  max-width: 460px;
+  margin: 22px 0 0;
+  color: #a3aca8;
+  font-size: 12px;
+  line-height: 2.1;
+}
+kbd {
+  margin: 0 3px 0 8px;
+  padding: 2px 7px;
+  border: 1px solid #78827b88;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: #efe4cc;
+  background: #172128;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+}
+.keys kbd:first-child {
+  margin-left: 0;
+}
+.demo-tag {
+  position: absolute;
+  right: 0;
+  bottom: 76px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 7px 13px;
+  border: 1px solid #c69d6244;
+  border-radius: 99px;
+  color: #d6c7ad;
+  background: #101922b0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.demo-tag span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff6b5e;
+  animation: demo-blink 1.4s ease-in-out infinite;
+}
+@keyframes demo-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (max-width: 700px) {
+  .demo-tag,
+  .keys {
+    display: none;
+  }
+}
+
+/* Scoreboard along the top of a match. */
+.scoreboard {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.scoreboard .team,
+.scoreboard .round {
+  display: grid;
+  align-content: center;
+  padding: 9px 18px 10px;
+  background: #101922e0;
+  border-top: 3px solid #78827b55;
+}
+.scoreboard .team {
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  align-items: center;
+  min-width: 190px;
+  opacity: 0.72;
+  transition: opacity 0.25s;
+}
+.scoreboard .team[data-turn='true'] {
+  opacity: 1;
+}
+.scoreboard .team[data-team='0'] {
+  border-radius: 8px 0 0 8px;
+}
+.scoreboard .team[data-team='1'] {
+  border-radius: 0 8px 8px 0;
+}
+.scoreboard .team[data-team='0'][data-turn='true'] {
+  border-top-color: #e7c28b;
+}
+.scoreboard .team[data-team='1'][data-turn='true'] {
+  border-top-color: #7fd1c8;
+}
+.scoreboard .team[data-team='1'] .team-name {
+  order: 2;
+  text-align: right;
+}
+.team-name {
+  color: #dfd3bd;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.team-score {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 34px;
+  line-height: 1;
+  text-align: right;
+}
+.scoreboard .team[data-team='0'] .team-score {
+  color: #e7c28b;
+}
+.scoreboard .team[data-team='1'] .team-score {
+  color: #7fd1c8;
+  text-align: left;
+}
+.team-bar {
+  grid-column: 1 / -1;
+  order: 3;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: #78827b44;
+  overflow: hidden;
+}
+.team-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #e7c28b;
+  transition: width 0.5s ease-out;
+}
+.scoreboard .team[data-team='1'] .team-bar i {
+  margin-left: auto;
+  background: #7fd1c8;
+}
+.scoreboard .round {
+  justify-items: center;
+  gap: 5px;
+  color: #a3aca8;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.scoreboard .round #round-label {
+  color: #f1e3c6;
+  font-weight: 650;
+}
+.scoreboard .lamp-bar {
+  flex-wrap: nowrap;
+  margin-top: 0;
+  gap: 3px;
+}
+.scoreboard .lamp-bar span {
+  min-width: 30px;
+  padding: 2px 5px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Keep the banners clear of the scoreboard. */
+.banner {
+  top: max(22%, 150px);
+}
+.banner[data-phase='plan'] {
+  top: 108px;
+}
+.again {
+  top: calc(max(22%, 150px) + 84px);
+}
+/* Once play starts the corner credit makes way for the scoreboard. */
+#intro[hidden] ~ .edition {
+  display: none;
+}
+.lil-gui.tuning {
+  display: none;
+}
+.show-tuning .lil-gui.tuning {
+  display: flex;
+}
+/* The bottom panel's edge shows whose turn it is. */
+.caption[data-team='0'] {
+  border-left: 3px solid #e7c28b;
+}
+.caption[data-team='1'] {
+  border-left: 3px solid #7fd1c8;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .scoreboard .team {
+    min-width: 0;
+    padding: 7px 10px 8px;
+  }
+  .team-name {
+    font-size: 10px;
+  }
+  .team-score {
+    font-size: 24px;
+  }
+  .scoreboard .lamp-bar span {
+    min-width: 0;
+    padding: 2px 3px;
+  }
+}
+
+/* A solid backing keeps the bottom panel readable over a bright desk. */
+.caption {
+  border-radius: 0 8px 8px 0;
+  background: #101922d6;
+}
+/* Its own layer, so the dimming sits over the desk and under the title. */
+#intro {
+  z-index: 1;
 }

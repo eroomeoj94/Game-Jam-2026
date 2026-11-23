@@ -15,45 +15,43 @@ npm run dev
 Open the local URL printed by Vite, normally `http://127.0.0.1:5173`.
 Stop the server with Ctrl+C. No credentials, backend, or environment variables are needed.
 
-## Current state
+## The game
 
-The starter is now a full 3D miniature bedroom: a wooden desk, book platforms,
-handmade-style moth models with stitched wings and boxing gloves, and a swinging
-bulb that casts warm light and shadows. Drag to rotate the camera, scroll to zoom,
-and use **Reset view** to return to the opening camera. **Nudge the lamp** tests
-the physical pendulum in both horizontal axes; **Reset scene** recreates the world.
-The desk ring is a preview of the proposed spherical halo at desk height; scoring
-is not implemented. Decorative mug, pencil, and spool are visual props only.
+Two teams of four felt moths fight over seven swinging lamps on a bedroom desk.
+Play one player against the computer or two players on one keyboard.
 
-This is now a movement playground: select either moth, walk, jump onto books,
-and hold jump for limited flutter. The selected moth has a ring and a flight
-meter. Walking has no turn allowance yet; landing refills flutter. Falling off
-the desk returns the moth after a short delay, using a clear alternate starting
-slot if necessary. Turns, scoring, gadgets, audio, and the bot are still to come.
+- On your turn each of your moths has one go: move, then one action (Wing Gust,
+  Bosh, Zap Switch, Bottle-Cap Flick or Firecracker) or a dance.
+- When you finish, your rival banks a point for every lamp where they still
+  have more moths in the light, so a lamp only pays if it survives the reply.
+- A Zap Switch turns a lamp into a bug zapper; each moth caught in it costs its
+  team a point and sits out a round.
+- Each round a giant hand hangs over the busiest lamp and swats it after both
+  teams have played. A firecracker or a Bosh that lands draws it elsewhere.
+- First to ten wins.
 
-## Movement controls
+Until you press a start button, two computers play a demo match behind the
+title. Add `?playground` to the address for free play with every weapon, and
+`?tune` to show the tuning panel during a match.
 
-- **PS5 controller:** left stick moves relative to the camera; Cross hops and,
-  when held, flutters; L1/R1 switches moths; right stick orbits the camera;
-  Triangle restores the starting view.
-- **Keyboard:** WASD or arrows move relative to the camera; Space hops/holds
-  flutter; 1/2 selects Dusty/Mothhew.
-- **Mouse:** click a moth or its name to select; drag to orbit; scroll to zoom.
-  A drag does not also select a moth. Reset scene restores the entire playground.
+## Controls
 
-Connect your DualSense over USB or Bluetooth, focus the game, and press a
-controller button. Release the sticks and buttons when prompted. The connection
-message reports whether the browser has detected a supported controller. The
-implementation uses the browser's standard gamepad mapping and a radial stick
-dead zone; unsupported mappings fall back to keyboard controls. See the
-[Gamepad API guide](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API)
-for browser activation behaviour.
+- **Keyboard:** WASD or arrows move; Space hops and, held, flutters; 1–8 pick a
+  moth; hold F to aim and charge, release to fire; Q / E change weapon; P dances
+  and ends the go; V switches to the board view; H shows the controls; M mutes.
+- **Mouse:** click a moth to pick it; drag to orbit; scroll to zoom.
+- **PS5 controller:** left stick moves; Cross hops / flutters; L1 / R1 pick a
+  moth; R2 or Square aims and fires; D-pad left / right changes weapon; Circle
+  dances; right stick orbits; Triangle switches view. Controller support is
+  tested with simulated input only, not yet with a real DualSense.
 
-Focus loss, tab hiding, resets, and moth changes clear held input. A controller
-must return to neutral before resuming after these events or a reconnect.
-Movement pauses while the window is unfocused. Controller behaviour is tested
-with simulated standard-mapped input; a physical PS5 controller still needs a
-playtest. Haptics and adaptive triggers are not implemented.
+The game pauses while the window is not focused.
+
+## Sound
+
+The licensed Artlist sound files are not in this repository (see
+`public/sounds/README.md`). Without them the game plays synthesised effects and
+no music.
 
 ## Commands
 
@@ -68,7 +66,8 @@ playtest. Haptics and adaptive triggers are not implemented.
 - `npm run check` — check formatting, run tests, type-check, and build.
 
 The production build uses relative asset paths so it can also be hosted beneath
-a URL subdirectory. Hosting has not been configured or deployed yet.
+a URL subdirectory. `.github/workflows/pages.yml` publishes it to GitHub Pages on
+every push to `main` once Pages is set to "GitHub Actions" in the repository settings.
 
 ## Project layout
 

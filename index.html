@@ -17,14 +17,21 @@
         <p class="eyebrow"><span></span> A light in the dark</p>
         <h1>Moth<br />Fight Club<span class="period">.</span></h1>
         <p class="subtitle">Tiny wings. Big grudges.</p>
-        <p class="intro-rules">
-          Two teams of moths, seven lamps. On your turn each of your moths moves
-          and takes one action. A lamp scores for you if you still have more
-          moths in its light after your rival's turn. Flip a lamp into a bug
-          zapper and anyone in its light costs their team a point. Each round a
-          giant hand hangs over the busiest lamp, then swats it. First to ten
-          wins.
-        </p>
+        <ol class="how">
+          <li>
+            <strong>Hold the light.</strong> On your turn each of your moths
+            moves, then gusts, punches, zaps or dances.
+          </li>
+          <li>
+            <strong>Survive the reply.</strong> A lamp scores for you if you
+            still have more moths in its light after your rival's turn.
+          </li>
+          <li>
+            <strong>Mind the hand.</strong> Each round a giant hand hangs over
+            the busiest lamp, then swats it. Loud noises draw it.
+          </li>
+        </ol>
+        <p class="first-to">First to ten wins.</p>
         <div class="start-buttons">
           <button id="start-solo" type="button" disabled>1 player</button>
           <button id="start" type="button" class="secondary" disabled>
@@ -34,6 +41,14 @@
         <p class="intro-rules small">
           One player: you are Mustard and the computer plays Teal.
         </p>
+        <p class="keys">
+          <kbd>WASD</kbd> move <kbd>Space</kbd> hop <kbd>F</kbd> hold to aim,
+          release to fire <kbd>Q</kbd><kbd>E</kbd> weapon <kbd>P</kbd> dance
+          <kbd>V</kbd> board view
+        </p>
+        <p class="demo-tag" id="demo-tag">
+          <span></span> Demo match · the computer is playing itself
+        </p>
       </header>
       <p id="paused" class="banner paused" role="status" hidden>
         Paused · click the game to carry on
@@ -41,18 +56,34 @@
       <aside class="edition">
         THE BEDROOM BOUT<span>01 / MINIATURE WORLD</span>
       </aside>
-      <p id="banner" class="banner" role="status" hidden></p>
-      <button id="again" type="button" class="again" hidden>Play again</button>
-      <div class="bottom-panel">
-        <div class="caption">
-          <span class="tag" id="mode">Match</span>
-          <p id="score" class="score" role="status"></p>
+      <div id="scoreboard" class="scoreboard" hidden>
+        <div class="team" data-team="0">
+          <span class="team-name" id="team-name-0"></span>
+          <span class="team-score" id="team-score-0">0</span>
+          <span class="team-bar"><i id="team-bar-0"></i></span>
+        </div>
+        <div class="round">
+          <span id="round-label">Round 1</span>
           <div
             class="lamp-bar"
             id="lamps"
             role="group"
             aria-label="Who holds each lamp"
           ></div>
+          <span class="target" id="target-label"></span>
+        </div>
+        <div class="team" data-team="1">
+          <span class="team-name" id="team-name-1"></span>
+          <span class="team-score" id="team-score-1">0</span>
+          <span class="team-bar"><i id="team-bar-1"></i></span>
+        </div>
+      </div>
+      <p id="banner" class="banner" role="status" hidden></p>
+      <button id="again" type="button" class="again" hidden>Play again</button>
+      <div class="bottom-panel">
+        <div class="caption">
+          <span class="tag" id="mode">Match</span>
+          <p id="score" class="score visually-hidden" role="status"></p>
           <div
             class="moth-select"
             id="moths"
@@ -155,7 +186,7 @@
       </div>
       <footer>
         <span>Felt, fury &amp; questionable decisions.</span
-        ><span>First to ten · Add ?playground for free play</span>
+        ><span>?playground for free play · ?tune for the tuning panel</span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
