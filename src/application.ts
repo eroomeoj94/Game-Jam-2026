@@ -130,6 +130,7 @@ export function startApplication({
   const coachText = document.querySelector<HTMLElement>('#coach-text');
   const coachHide = document.querySelector<HTMLButtonElement>('#coach-hide');
   const countdown = document.querySelector<HTMLElement>('#countdown');
+  const splatcam = document.querySelector<HTMLElement>('#splatcam');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -183,7 +184,8 @@ export function startApplication({
    */
   let pendingQuip: { moth: number; cue: MothCue } | undefined;
   /** Where the round's smack is landing, while the camera is held on it. */
-  let smackSpot: { x: number; z: number } | undefined;
+  let smackSpot:
+    { x: number; z: number; from?: { x: number; z: number } } | undefined;
   let countShown = 0;
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
@@ -547,7 +549,7 @@ export function startApplication({
     if (state.phase === 'smack')
       return 'Here comes the hand. Any moth under it is flung away.';
     if (state.round === 2 && state.phase === 'plan' && state.acted.length === 0)
-      return 'Lamps 6, 7 and 8 hang over the boxes and the book tower. Hold Space to flutter up: the hand cannot reach you there, but mind the drop.';
+      return 'Lamps 4, 5 and 6 hang over the boxes and the book tower. Hold Space to flutter up: the hand cannot reach you there, but mind the drop.';
     if (state.resting.length && state.phase === 'plan')
       return 'A moth knocked off the desk misses its next round. Shove rivals over the edge with a gust or a Bosh.';
     if (state.phase === 'scored')
@@ -977,8 +979,26 @@ export function startApplication({
       const smacking = match?.view().phase === 'smack';
       const hand = view.hazards[0];
       if (!smacking) smackSpot = undefined;
-      else if (hand) smackSpot = { x: hand.x, z: hand.z };
+      else if (hand) {
+        const giant = view.people[hand.person];
+        smackSpot = {
+          x: hand.x,
+          z: hand.z,
+          from: giant ? { x: giant.x, z: giant.z } : undefined,
+        };
+      }
       scene.setSpotlight(smackSpot);
+      // A frame and a label sit over the corner splat cam while it runs.
+      if (splatcam) {
+        const rect = smackSpot?.from ? scene.insetRect?.() : undefined;
+        splatcam.hidden = !rect;
+        if (rect) {
+          splatcam.style.left = `${rect.x}px`;
+          splatcam.style.bottom = `${rect.y}px`;
+          splatcam.style.width = `${rect.width}px`;
+          splatcam.style.height = `${rect.height}px`;
+        }
+      }
       const count =
         smacking && hand && !hand.held && hand.phase === 'warning'
           ? Math.max(1, Math.ceil((1 - hand.progress) * 3))
@@ -1191,6 +1211,7 @@ export function startApplication({
     coachHide?.removeEventListener('click', stopCoaching);
     if (menu) menu.hidden = true;
     if (countdown) countdown.hidden = true;
+    if (splatcam) splatcam.hidden = true;
     if (coach) coach.hidden = true;
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);

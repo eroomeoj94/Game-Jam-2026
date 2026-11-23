@@ -990,3 +990,26 @@ kbd {
 .lamp-bar span[data-tier='2'] {
   border-top: 5px double #fff6e0;
 }
+
+/* The frame over the corner splat cam; the picture is drawn by the game. */
+.splatcam {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #f1e3c6;
+  border-radius: 6px;
+  box-shadow: 0 10px 40px #000b;
+  pointer-events: none;
+}
+.splatcam span {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: #fff1d6;
+  background: #b3261ecc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

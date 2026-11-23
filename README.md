@@ -17,8 +17,8 @@ Stop the server with Ctrl+C. No credentials, backend, or environment variables a
 
 ## The game
 
-Two teams of four felt moths fight over eight swinging lamps on a bedroom desk:
-five over the desk, two over box lids in the back corners and one on top of a
+Two teams of four felt moths fight over six swinging lamps on a bedroom desk:
+three over the desk, two over box lids in the back corners and one on top of a
 book tower. The giants cannot reach the high ones.
 Play one player against the computer or two players on one keyboard.
 

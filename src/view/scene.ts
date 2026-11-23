@@ -119,8 +119,54 @@ export function createScene(host: HTMLElement) {
   let lastSeconds: number | undefined;
   const followTarget = new Vector3();
   /** A spot the camera is held on for a moment of drama, such as a smack. */
-  let spotlight: { x: number; z: number } | undefined;
+  let spotlight:
+    { x: number; z: number; from?: { x: number; z: number } } | undefined;
   let spotlit = false;
+  // A second camera for the corner "splat cam": it faces the giant, with the
+  // spot being swatted in the foreground.
+  const insetCamera = new PerspectiveCamera(62, 1.6, 0.1, 600);
+  /** The splat cam's rectangle in CSS pixels, measured from bottom-left. */
+  function insetRect() {
+    const width = Math.max(host.clientWidth, 1);
+    const size = Math.min(420, width * 0.3);
+    return {
+      x: width - size - width * 0.045,
+      y: 132,
+      width: size,
+      height: size * 0.62,
+    };
+  }
+  /** Draw the splat cam over the corner of the frame just rendered. */
+  function drawInset() {
+    if (!spotlight?.from) return;
+    const { x, y, width, height } = insetRect();
+    // Stand on the far side of the spot from the giant, looking back at them.
+    const away = new Vector3(
+      spotlight.x - spotlight.from.x,
+      0,
+      spotlight.z - spotlight.from.z,
+    );
+    const reach = Math.max(away.length(), 1e-3);
+    away.divideScalar(reach);
+    insetCamera.aspect = width / height;
+    insetCamera.updateProjectionMatrix();
+    insetCamera.position
+      .set(spotlight.x, 6, spotlight.z)
+      .addScaledVector(away, 12);
+    // Aim well up the giant, so their face is in shot above the hand.
+    insetCamera.lookAt(
+      spotlight.x - away.x * reach * 0.6,
+      8.5,
+      spotlight.z - away.z * reach * 0.6,
+    );
+    const full = renderer.getSize(new Vector2());
+    renderer.setScissorTest(true);
+    renderer.setScissor(x, y, width, height);
+    renderer.setViewport(x, y, width, height);
+    renderer.render(scene, insetCamera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, full.x, full.y);
+  }
   function applyLimits() {
     const follow = cameraMode === 'follow';
     controls.minDistance = follow ? CAMERA.followMinDistance : 30 * boardScale;
@@ -744,10 +790,18 @@ export function createScene(host: HTMLElement) {
       const { x, y, z } = controls.target;
       return { x, y, z };
     },
-    /** Hold the camera on a spot on the desk; undefined lets it go back. */
-    setSpotlight(spot: { x: number; z: number } | undefined) {
+    /**
+     * Hold the camera on a spot on the desk; undefined lets it go back.
+     * With `from` (where the giant stands), a corner inset shows them too.
+     */
+    setSpotlight(
+      spot:
+        { x: number; z: number; from?: { x: number; z: number } } | undefined,
+    ) {
       spotlight = spot;
     },
+    /** Where the splat cam is drawn, for the frame laid over it. */
+    insetRect,
     setAim(preview: AimPreview | undefined) {
       weaponEffects.setAim(preview);
     },
@@ -1017,6 +1071,7 @@ export function createScene(host: HTMLElement) {
       if (!TILT_SHIFT.enabled) {
         renderer.render(scene, camera);
         camera.position.sub(shakeOffset);
+        drawInset();
         return;
       }
       // Ease the focus band onto the active moth's height on screen.
@@ -1030,6 +1085,7 @@ export function createScene(host: HTMLElement) {
       tiltShift.update({ ...TILT_SHIFT, focus: focusLine }, size.x, size.y);
       composer.render(deltaSeconds);
       camera.position.sub(shakeOffset);
+      drawInset();
     },
     destroy() {
       if (disposed) return;

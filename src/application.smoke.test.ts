@@ -468,7 +468,7 @@ describe('match smoke tests', () => {
     expect(text('#status')).toContain('Mustard');
     expect(text('#status')).toContain('Dusty');
     expect(text('#banner')).toContain("Mustard's turn");
-    expect(document.querySelectorAll('#lamps span')).toHaveLength(8);
+    expect(document.querySelectorAll('#lamps span')).toHaveLength(6);
     expect(document.querySelector('#nudge')).toHaveProperty('hidden', true);
     // The other team's moth cannot be picked, by key or by button.
     key('Digit2');
@@ -757,4 +757,96 @@ describe('match smoke tests', () => {
     expect(text('#score')).toContain('Round 1');
     expect(render.mock.lastCall![0].selectedMoth).toBe(0);
   });
+});
+
+describe('ending a go hands over to the next moth', () => {
+  const text = (selector: string) =>
+    document.querySelector(selector)?.textContent ?? '';
+  const selected = () =>
+    [...document.querySelectorAll('#moths button')]
+      .filter((button) => button.getAttribute('aria-pressed') === 'true')
+      .map((button) => Number((button as HTMLElement).dataset.moth));
+  /** Run frames until `done`, and say how many it took. */
+  function until(done: () => boolean, from: number, limit = 600) {
+    let now = from;
+    for (let count = 0; count < limit; count++) {
+      if (done()) return { frames: count, now };
+      frame((now += 20));
+    }
+    return { frames: limit, now };
+  }
+
+  // The game as shipped: random starts, the hand, incoming scoring, the hot
+  // lamp and burn-out, with and without the computer.
+  for (const solo of [false, true])
+    it(`switches moth after every go with the default rules (${solo ? 'one player' : 'two players'})`, () => {
+      MATCH.scoring = 'incoming';
+      MATCH.burnOut = true;
+      MATCH.hotLamp = true;
+      const cleanup = startApplication({ mode: 'match' });
+      cleanups.push(cleanup);
+      const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
+      const render = vi.mocked(scene.render);
+      click(solo ? 'start-solo' : 'start');
+      let now = 0;
+      frame(now);
+      const mustard = [0, 2, 4, 6];
+      const seen: number[] = [];
+      for (let go = 0; go < 4; go++) {
+        expect(text('#status')).toContain('pick a moth');
+        const moth = render.mock.lastCall![0].selectedMoth;
+        // The moth in the status line, the panel and the world all agree.
+        expect(mustard).toContain(moth);
+        expect(selected()).toEqual([moth]);
+        expect(text('#status')).toContain(ARENA.spawns[moth]!.name);
+        expect(seen).not.toContain(moth);
+        seen.push(moth);
+        key('KeyP');
+        key('KeyP', 'keyup');
+        frame((now += 20));
+        expect(text('#status')).toContain('resolving');
+        // The next moth is up as soon as the dance is over. After the team's
+        // last go the score banner shows first, so that handover is slower.
+        const next = until(
+          () =>
+            !text('#status').includes('resolving') &&
+            render.mock.lastCall![0].selectedMoth !== moth,
+          now,
+        );
+        now = next.now;
+        expect(next.frames).toBeLessThan(go < 3 ? 200 : 400);
+      }
+      expect(seen.sort()).toEqual(mustard);
+      // Teal is up, with one of its own moths selected.
+      const teal = until(() => text('#status').includes('Teal ·'), now);
+      now = teal.now;
+      expect(teal.frames).toBeLessThan(400);
+      expect([1, 3, 5, 7]).toContain(render.mock.lastCall![0].selectedMoth);
+    }, 60_000);
+
+  it('switches moth after an attack as well as after a dance', () => {
+    MATCH.scoring = 'incoming';
+    MATCH.burnOut = true;
+    MATCH.hotLamp = true;
+    const cleanup = startApplication({ mode: 'match' });
+    cleanups.push(cleanup);
+    const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
+    const render = vi.mocked(scene.render);
+    click('start');
+    let now = 0;
+    frame(now);
+    const first = render.mock.lastCall![0].selectedMoth;
+    key('KeyF');
+    for (let hold = 0; hold < 5; hold++) frame((now += 20));
+    key('KeyF', 'keyup');
+    frame((now += 20));
+    expect(text('#status')).toContain('resolving');
+    const next = until(
+      () => render.mock.lastCall![0].selectedMoth !== first,
+      now,
+    );
+    expect(next.frames).toBeLessThan(250);
+    expect(selected()).toEqual([render.mock.lastCall![0].selectedMoth]);
+    expect(text('#status')).toContain('pick a moth');
+  }, 60_000);
 });

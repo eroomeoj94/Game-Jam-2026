@@ -87,10 +87,17 @@ const mothTakes = (moth: number, cue: MothCue) => {
  * desk, with three lines for the slam and one for the wind-up.
  */
 export const GIANT_VOICES = 3;
-const giantTakes = (person: number, cue: 'slam' | 'loom') =>
-  cue === 'slam'
-    ? [1, 2, 3].map((take) => `giant/${person % GIANT_VOICES}-slam-${take}`)
-    : [`giant/${person % GIANT_VOICES}-loom-1`];
+/** Slam lines each giant has; the third has a longer, sillier list. */
+const GIANT_SLAMS = [3, 3, 10];
+const giantTakes = (person: number, cue: 'slam' | 'loom') => {
+  const voice = person % GIANT_VOICES;
+  return cue === 'slam'
+    ? Array.from(
+        { length: GIANT_SLAMS[voice] ?? 3 },
+        (_, take) => `giant/${voice}-slam-${take + 1}`,
+      )
+    : [`giant/${voice}-loom-1`];
+};
 /** How long a clip is really talking, ignoring a quiet tail of reverb. */
 function spokenSeconds(buffer: AudioBuffer) {
   if (typeof buffer.getChannelData !== 'function') return buffer.duration;

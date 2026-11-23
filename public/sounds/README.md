@@ -58,7 +58,7 @@ grumbling at the moths: three lines each for the slam ("Bug off!", "Get out of
 here, you pest!") and one for the wind-up. They were generated with Cartesia
 Sonic 2 and its "Angry" emotion, using the Gravity and Professor voices; the
 third giant is the cloned "Joe Moore" voice on MiniMax Speech 02 HD, also set
-to angry. They are saved in the Artlist project "Moth Fight Club", folder "Giants".
+to angry, with seven extra silly slam lines (`2-slam-4` to `2-slam-10`). They are saved in the Artlist project "Moth Fight Club", folder "Giants".
 
 ## Optional recording
 

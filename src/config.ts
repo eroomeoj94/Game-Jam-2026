@@ -16,7 +16,7 @@ export type CylinderPiece = Piece & {
 export type TerrainPiece = BoxPiece | CylinderPiece;
 
 /** Shrinks or grows the desk and everything laid out on it. */
-const BOARD_SCALE = 0.36;
+const BOARD_SCALE = 0.24;
 const DESK = { width: 250 * BOARD_SCALE, depth: 134 * BOARD_SCALE } as const;
 const scaled = <T extends { x: number; z: number }>(spot: T) => ({
   x: spot.x * BOARD_SCALE,
@@ -101,7 +101,7 @@ const START_B = scaled({ x: 110, z: 0 });
 /** Height of the first tier above the desk; the summit is twice this. */
 const TIER = 3.4;
 /**
- * Where the lamps hang, in three tiers. Five hang over the desk, each with a
+ * Where the lamps hang, in three tiers. Three hang over the desk, each with a
  * cluster of perches beneath it. Two hang over the box lids in the back
  * corners, a flutter up from the desk, and one over the summit of the book
  * tower between them. `base` is the height of the surface a lamp lights: the
@@ -109,36 +109,34 @@ const TIER = 3.4;
  * out over the back of the desk, so a shove can send a moth off it for good.
  */
 const LAMP_SPOTS = [
-  { x: 0, z: 3, base: 0 },
-  { x: -22, z: 6, base: 0 },
-  { x: 22, z: 6, base: 0 },
-  { x: -18, z: -9, base: 0 },
-  { x: 18, z: -9, base: 0 },
-  { x: -38, z: -21, base: TIER },
-  { x: 38, z: -21, base: TIER },
-  { x: 0, z: -20, base: TIER * 2 },
+  { x: 0, z: 4, base: 0 },
+  { x: -14, z: 6, base: 0 },
+  { x: 14, z: 6, base: 0 },
+  { x: -24.5, z: -13.2, base: TIER },
+  { x: 24.5, z: -13.2, base: TIER },
+  { x: 0, z: -12.6, base: TIER * 2 },
 ];
 
 /** A box lid in a back corner with book steps up to it; `side` mirrors it. */
 const corner = (side: 1 | -1): TerrainPiece[] => [
-  block('box', side * 38, -21, 11, TIER, 9, 0xb08d62),
-  books(side * 31.5, -14.8, 3, 3, 2, 0x8a7a3e, 0.6),
-  books(side * 35, -14.8, 3.2, 3, 4, 0x6c5a86, 0.6),
-  round('spool', side * 41, -18.5, 0.5, 0.75, 0x9f6051, TIER),
-  block('pad', side * 35.2, -23.6, 1.4, 0.28, 1.4, 0xe0c65a, TIER),
+  block('box', side * 24.5, -13.2, 10, TIER, 8, 0xb08d62),
+  books(side * 17.9, -7.6, 3, 3, 2, 0x8a7a3e, 0.6),
+  books(side * 21.2, -7.6, 3, 3, 4, 0x6c5a86, 0.6),
+  round('spool', side * 27.6, -10.8, 0.5, 0.75, 0x9f6051, TIER),
+  block('pad', side * 21.4, -15.6, 1.4, 0.28, 1.4, 0xe0c65a, TIER),
 ];
 /** The book tower at the back: a wide stack, then a narrow summit. */
 const summit: TerrainPiece[] = [
-  books(0, -19, 13, 10, 6, 0x3f5d87, TIER / 6),
-  books(0, -20, 7, 6.4, 6, 0x995845, TIER / 6, TIER),
+  books(0, -12, 11, 9, 6, 0x3f5d87, TIER / 6),
+  books(0, -12.6, 6.4, 6, 6, 0x995845, TIER / 6, TIER),
   // Steps up either side of the wide stack.
   ...([1, -1] as const).flatMap((side) => [
-    books(side * 9.7, -15.4, 3, 3, 2, 0x526e6d, 0.6),
-    books(side * 8.3, -19, 3, 3.2, 4, 0x8a7a3e, 0.6),
+    books(side * 8.6, -8.6, 3, 3, 2, 0x526e6d, 0.6),
+    books(side * 7.2, -12, 3, 3.2, 4, 0x8a7a3e, 0.6),
   ]),
   // A box on the stack shortens the flutter to the summit.
-  block('box', 5, -15.4, 2, 1.5, 1.6, 0xb04a3a, TIER),
-  round('tin', -4.8, -15.6, 1.1, 0.5, 0x7d8e6a, TIER),
+  block('box', 3.8, -8.6, 2, 1.5, 1.6, 0xb04a3a, TIER),
+  round('tin', -3.8, -8.7, 1.1, 0.5, 0x7d8e6a, TIER),
 ];
 
 type Cluster = (x: number, z: number) => TerrainPiece[];
@@ -167,7 +165,7 @@ const study: Cluster = (x, z) => [
   books(x + 2.5, z + 0.5, 2.2, 2, 2, 0x995845),
 ];
 /** One cluster for each lamp over the desk, in the order of LAMP_SPOTS. */
-const CLUSTERS: Cluster[] = [ring, study, tower, tower, study];
+const CLUSTERS: Cluster[] = [ring, study, tower];
 
 /**
  * Seeded scatter between the lamps, so routes have cover and detours. The
@@ -307,7 +305,7 @@ export const MAX_LAMPS = 8;
  * tether and positions rebuild the scene; the halo radius applies live.
  */
 export const LAMPS = {
-  count: 8,
+  count: 6,
   /** Height of a lamp's anchor above the surface it lights. */
   anchorHeight: 9,
   tetherLength: 4,

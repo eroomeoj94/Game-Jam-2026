@@ -114,6 +114,8 @@ describe('random spawns', () => {
       used.add(distances.indexOf(nearest));
       placed.push(spot);
     }
-    expect(used.size).toBeGreaterThanOrEqual(5);
+    // Everyone starts by one of the lamps over the desk, and all are used.
+    const desk = lamps.filter(({ base }) => base === 0).length;
+    expect(used.size).toBe(desk);
   });
 });
