@@ -11,7 +11,3 @@ coverage/
 # Artlist sound effects are licensed to the downloader and must not be
 # redistributed from this public repository. See public/sounds/README.md.
 public/sounds/artlist/
-
-# The moth model was generated with Artlist and, like the sounds, is kept
-# out of this public repository. Without it the game draws its built-in moths.
-public/models/artlist/
