@@ -24,6 +24,8 @@ Play one player against the computer or two players on one keyboard.
   Bosh, Zap Switch, Bottle-Cap Flick or Firecracker) or a dance.
 - When you finish, your rival banks a point for every lamp where they still
   have more moths in the light, so a lamp only pays if it survives the reply.
+- Each round one lamp, pulsing and starred on the scoreboard, pays double. A
+  lamp that pays the same team twice running burns out for a round.
 - A Zap Switch turns a lamp into a bug zapper; each moth caught in it costs its
   team a point and sits out a round.
 - Each round a giant hand hangs over the busiest lamp and swats it after both

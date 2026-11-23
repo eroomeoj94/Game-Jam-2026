@@ -74,6 +74,8 @@ beforeEach(() => {
   // These walk-throughs were written for round scoring, which has one score
   // banner per round; incoming scoring is covered in the match rule tests.
   MATCH.scoring = 'round';
+  MATCH.burnOut = false;
+  MATCH.hotLamp = false;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     pendingFrames.set(++nextFrameId, callback);
     return nextFrameId;
@@ -86,6 +88,8 @@ beforeEach(() => {
 const defaultScoring = MATCH.scoring;
 afterEach(() => {
   MATCH.scoring = defaultScoring;
+  MATCH.burnOut = true;
+  MATCH.hotLamp = true;
   cleanups.forEach((cleanup) => cleanup());
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

@@ -203,9 +203,9 @@ export function createWeaponEffects(
   }
 
   /** A lamp just paid out: a glow and a "+1" in the team's colour. */
-  function showScore(position: Vector3, team: number) {
+  function showScore(position: Vector3, team: number, points = 1) {
     flash(position, team === 0 ? 0xffcf73 : 0x7fe3d8, 60);
-    popup('+1', position, TEAM_COLOURS[team] ?? '#ffffff', 'big');
+    popup(`+${points}`, position, TEAM_COLOURS[team] ?? '#ffffff', 'big');
   }
 
   // Smoke trails follow moths while they are flying from a zap.

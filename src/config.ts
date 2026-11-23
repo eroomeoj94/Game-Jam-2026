@@ -443,6 +443,16 @@ export const MATCH = {
    * won 15 of 20 matches between identical bots; with 'incoming' it was even.
    */
   scoring: 'incoming' as 'round' | 'incoming',
+  /**
+   * A lamp that pays the same team `burnAfter` times running burns out and
+   * goes dark for `burnRounds` rounds, so nobody can sit on one all match.
+   */
+  burnOut: true,
+  burnAfter: 2,
+  burnRounds: 1,
+  /** Each round one warm lamp, picked at random, is worth `hotPoints`. */
+  hotLamp: true,
+  hotPoints: 2,
   /** Seconds the end-of-round result is shown before the next round. */
   bannerSeconds: 2.5,
 };

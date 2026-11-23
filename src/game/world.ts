@@ -68,6 +68,10 @@ export type LampView = Position & {
   zapper: boolean;
   /** Fraction of zapper time left, 0 when warm. */
   zapperLeft: number;
+  /** Burnt out: the bulb is off and its light counts for nothing. */
+  dark: boolean;
+  /** This round's bonus lamp. */
+  hot: boolean;
 };
 export type ProjectileView = Position & {
   id: number;
@@ -341,7 +345,7 @@ export function createWorld({
     world.addConstraint(
       new DistanceConstraint(anchor, bulb, LAMPS.tetherLength),
     );
-    return { anchor, bulb, zapperTime: 0 };
+    return { anchor, bulb, zapperTime: 0, dark: false, hot: false };
   });
   type Projectile = {
     id: number;
@@ -844,7 +848,8 @@ export function createWorld({
   function useZapSwitch(attacker: Moth, aim: Aim) {
     const index = lampInReach(attacker, aim);
     const lamp = index === undefined ? undefined : lamps[index];
-    if (index === undefined || !lamp) return false;
+    // A burnt-out lamp has no current to turn on anyone.
+    if (index === undefined || !lamp || lamp.dark) return false;
     // Playground convenience: flipping a zapper turns it back into a lamp.
     const becomesZapper = lamp.zapperTime <= 0;
     if (match && !becomesZapper) return false;
@@ -1015,6 +1020,17 @@ export function createWorld({
       if (used && !match) weaponCooldown = PLAYGROUND.cooldown;
       return used;
     },
+    /** Match rules: switch a burnt-out lamp off, or back on. */
+    setLampDark(index: number, dark: boolean) {
+      const lamp = lamps[index];
+      if (lamp) lamp.dark = dark;
+    },
+    /** Match rules: mark the round's bonus lamp; undefined clears it. */
+    setHotLamp(index: number | undefined) {
+      lamps.forEach((lamp, each) => {
+        lamp.hot = each === index;
+      });
+    },
     /** Match rules: turn a zapper back into a warm lamp. */
     restoreLamp(index: number) {
       const lamp = lamps[index];
@@ -1108,9 +1124,11 @@ export function createWorld({
           return { x, z, heading, walked, smacking: hand?.person === index };
         }),
         teamZaps: [...teamZaps],
-        lamps: lamps.map(({ anchor, bulb, zapperTime }) => ({
+        lamps: lamps.map(({ anchor, bulb, zapperTime, dark, hot }) => ({
           ...positionOf(bulb),
           anchor: positionOf(anchor),
+          dark,
+          hot,
           zapper: zapperTime > 0,
           zapperLeft: match
             ? Number(zapperTime > 0)

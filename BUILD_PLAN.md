@@ -39,6 +39,10 @@ Read this first when picking the project up in a new session.
 
 **Hosting (20 November).** `.github/workflows/pages.yml` builds and publishes to GitHub Pages on every push to `main`, once Pages is set to "GitHub Actions" in the repository settings. Not yet pushed or switched on. The Artlist sound files are not in the repository, so that build plays the synthesised fallback sounds and has no music.
 
+**Burn-out and the hot lamp (23 November).** To stop matches being won by standing still: each round one random warm lamp is hot and pays two points (`MATCH.hotLamp`, `hotPoints`), and a lamp that pays the same team twice running goes dark for a round (`MATCH.burnOut`, `burnAfter`, `burnRounds`). Both can be switched off in the tuning panel (`?tune`). In 20 computer-versus-computer matches with both on, matches averaged 6.2 rounds (5.2 without) with about five burn-outs each. Mustard won 14 of those 20, and 15 of 20 with the rules off, so the current computer player may favour the team that goes first; not yet investigated.
+
+**Menu and tips (23 November).** Esc opens a pause menu with the controls; first-match tips run for two rounds.
+
 The demo is Friday 27 November.
 
 ## Progress at 16 November

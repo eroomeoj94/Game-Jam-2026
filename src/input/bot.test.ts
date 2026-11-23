@@ -25,7 +25,10 @@ function table(seed: number) {
     attention: 'hold',
     random,
   });
-  const match = createMatch(ARENA.spawns.map(({ team }) => team));
+  const match = createMatch(
+    ARENA.spawns.map(({ team }) => team),
+    { lamps: LAMPS.count, random },
+  );
   const bots = [createBot(0, random), createBot(1, random)];
   const orders: BotOrder['type'][] = [];
   const zaps: (number | undefined)[] = [];
@@ -35,6 +38,9 @@ function table(seed: number) {
         event.moths.forEach((id) => world.returnMoth(id));
       else if (event.type === 'lamp-restored') world.restoreLamp(event.lamp);
       else if (event.type === 'strike') world.strike();
+      else if (event.type === 'hot') world.setHotLamp(event.lamp);
+      else if (event.type === 'lamp-dark')
+        world.setLampDark(event.lamp, event.dark);
       else if (event.type === 'turn') {
         if (event.moth !== undefined) world.selectMoth(event.moth);
       } else if (event.type === 'threat') {

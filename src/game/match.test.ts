@@ -8,6 +8,7 @@ import { createWorld } from './world';
 const TEAMS = [0, 1, 0, 1];
 const lamp = (holder?: number, zapper = false): LampControl => ({
   zapper,
+  dark: false,
   counts: [0, 0],
   holder,
   contested: false,
@@ -49,10 +50,15 @@ const defaultScoring = MATCH.scoring;
 // simpler round scoring; the incoming rules have their own block below.
 beforeEach(() => {
   MATCH.scoring = 'round';
+  // Burn-out and the hot lamp have their own block at the end.
+  MATCH.burnOut = false;
+  MATCH.hotLamp = false;
 });
 afterEach(() => {
   MATCH.moveSeconds = defaultMoveSeconds;
   MATCH.scoring = defaultScoring;
+  MATCH.burnOut = true;
+  MATCH.hotLamp = true;
 });
 
 describe('unlimited movement', () => {
@@ -503,6 +509,7 @@ describe('incoming scoring', () => {
     expect(match.drainEvents()).toContainEqual({
       type: 'banked',
       awards: [undefined, 1, undefined],
+      points: [0, 1, 0],
     });
     expect(match.view()).toMatchObject({ phase: 'plan', team: 1, round: 1 });
     // Teal has played: Mustard banks its two lamps, and the round ends.
@@ -557,5 +564,91 @@ describe('incoming scoring', () => {
     } finally {
       MATCH.targetScore = 10;
     }
+  });
+});
+
+describe('burn-out and the hot lamp', () => {
+  beforeEach(() => {
+    MATCH.scoring = 'incoming';
+  });
+  function turn(match: Match, lamps: LampControl[]) {
+    passTurn(match, lamps);
+    const scored = match.view();
+    if (scored.phase === 'scored') match.nextRound();
+    return scored;
+  }
+
+  it('burns a lamp out for a round once it has paid the same team twice running', () => {
+    MATCH.burnOut = true;
+    const match = createMatch(TEAMS);
+    const lamps = [lamp(0), lamp()];
+    // Rounds 1 and 2: Mustard banks lamp 1 at the end of each.
+    turn(match, lamps);
+    expect(turn(match, lamps).scores).toEqual([1, 0]);
+    expect(match.view().dark).toEqual([]);
+    turn(match, lamps);
+    match.drainEvents();
+    expect(turn(match, lamps).scores).toEqual([2, 0]);
+    expect(match.view().dark).toEqual([0]);
+    expect(match.drainEvents()).toContainEqual({
+      type: 'lamp-dark',
+      lamp: 0,
+      dark: true,
+    });
+    // Round 3: still standing there pays nothing, then the lamp relights.
+    turn(match, lamps);
+    expect(match.view().dark).toEqual([0]);
+    expect(turn(match, lamps).scores).toEqual([2, 0]);
+    expect(match.view().dark).toEqual([]);
+    expect(match.drainEvents()).toContainEqual({
+      type: 'lamp-dark',
+      lamp: 0,
+      dark: false,
+    });
+    // Round 4: it pays again, with a fresh run.
+    turn(match, lamps);
+    expect(turn(match, lamps).scores).toEqual([3, 0]);
+    expect(match.view().dark).toEqual([]);
+  });
+
+  it('does not burn a lamp out when the run is broken', () => {
+    MATCH.burnOut = true;
+    const match = createMatch(TEAMS);
+    turn(match, [lamp(0)]);
+    turn(match, [lamp(0)]);
+    // Round 2: Mustard loses the lamp when it is up for payment.
+    turn(match, [lamp(0)]);
+    turn(match, [lamp()]);
+    // Round 3: back in the light, the count starts again.
+    turn(match, [lamp(0)]);
+    expect(turn(match, [lamp(0)]).scores).toEqual([2, 0]);
+    expect(match.view().dark).toEqual([]);
+  });
+
+  it('pays extra for the round’s hot lamp and never picks the same one twice running', () => {
+    MATCH.hotLamp = true;
+    const rolls = [0.99, 0.99, 0];
+    const match = createMatch(TEAMS, {
+      lamps: 3,
+      random: () => rolls.shift() ?? 0,
+    });
+    expect(match.view().hot).toBe(2);
+    expect(match.drainEvents()).toContainEqual({ type: 'hot', lamp: 2 });
+    const lamps = [lamp(0), lamp(), lamp(0)];
+    turn(match, lamps);
+    match.drainEvents();
+    expect(turn(match, lamps).scores).toEqual([1 + MATCH.hotPoints, 0]);
+    expect(match.drainEvents()).toContainEqual({
+      type: 'banked',
+      awards: [0, undefined, 0],
+      points: [1, 0, MATCH.hotPoints],
+    });
+    // Round 2: the top roll would be lamp 3 again, so it moves on.
+    expect(match.view().hot).toBe(1);
+  });
+
+  it('has no hot lamp when the rule is off', () => {
+    const match = createMatch(TEAMS, { lamps: 3 });
+    expect(match.view().hot).toBeUndefined();
   });
 });

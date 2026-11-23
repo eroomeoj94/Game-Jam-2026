@@ -173,6 +173,10 @@ export function createTuningPanel(actions: {
   rules.add(MATCH, 'zapperTurns', 1, 6, 1).name('Zapper lasts (turns)');
   rules.add(MATCH, 'restRounds', 0, 3, 1).name('Rounds sat out');
   rules.add(MATCH, 'roundSmack').name('Hand swats busiest lamp');
+  rules.add(MATCH, 'burnOut').name('Camped lamps burn out');
+  rules.add(MATCH, 'burnAfter', 2, 4, 1).name('Burn out after (pays)');
+  rules.add(MATCH, 'hotLamp').name('Hot lamp each round');
+  rules.add(MATCH, 'hotPoints', 2, 4, 1).name('Hot lamp pays');
   rules
     .add(MATCH, 'scoring', {
       'After rival’s turn': 'incoming',

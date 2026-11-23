@@ -84,7 +84,12 @@ export function startApplication({
       attention: hands ? (playing ? 'hold' : 'strike') : undefined,
     });
   const newMatch = () =>
-    playing ? createMatch(ARENA.spawns.map(({ team }) => team)) : undefined;
+    playing
+      ? createMatch(
+          ARENA.spawns.map(({ team }) => team),
+          { lamps: LAMPS.count },
+        )
+      : undefined;
   const host = document.querySelector<HTMLDivElement>('#game');
   const status = document.querySelector<HTMLParagraphElement>('#status');
   const nudge = document.querySelector<HTMLButtonElement>('#nudge');
@@ -378,8 +383,11 @@ export function startApplication({
       else if (event.type === 'lamp-restored') world.restoreLamp(event.lamp);
       else if (event.type === 'strike') world.strike();
       else if (event.type === 'banked') {
-        scene.showScores(event.awards, world.snapshot());
+        scene.showScores(event.awards, world.snapshot(), event.points);
         sfx.chime(event.awards.filter((team) => team !== undefined).length);
+      } else if (event.type === 'hot') world.setHotLamp(event.lamp);
+      else if (event.type === 'lamp-dark') {
+        world.setLampDark(event.lamp, event.dark);
       } else if (event.type === 'won') {
         sfx.fanfare();
         partyTimer = 0;
@@ -443,7 +451,9 @@ export function startApplication({
     if (state.phase === 'smack')
       return 'Here comes the hand. Any moth under it is flung away.';
     if (state.phase === 'scored')
-      return 'A lamp only pays out if you still hold it after your rival has replied.';
+      return state.dark.length
+        ? 'A lamp that pays you twice running burns out for a round (✕). Keep moving.'
+        : 'A lamp only pays out if you still hold it after your rival has replied.';
     if (state.phase === 'resolve') return '';
     if (bot && state.team === bot.team)
       return 'The computer replies. Lamps you still hold when it finishes score for you.';
@@ -462,7 +472,11 @@ export function startApplication({
       : '';
     if (state.phase === 'plan')
       return state.round === 1 && state.acted.length === 0
-        ? 'Walk a moth into the ring of light under a lamp: WASD to move, Space to hop.'
+        ? `Walk a moth into the ring of light under a lamp: WASD to move, Space to hop.${
+            state.hot === undefined
+              ? ''
+              : ` The pulsing lamp (★ ${state.hot + 1}) is worth ${MATCH.hotPoints} this round.`
+          }`
         : `Each of your moths gets one go. Move this one, or pick another with 1–8.${hand}`;
     if (state.phase === 'move' || state.phase === 'settle')
       return inLight
@@ -513,13 +527,20 @@ export function startApplication({
     if (state.phase === 'plan')
       return `${teamLabel(state.team)}'s turn · ${
         state.goesLeft === 1 ? 'last moth' : `${state.goesLeft} moths to go`
-      }`;
+      }${state.hot === undefined ? '' : ` · ★ lamp ${state.hot + 1} pays ${MATCH.hotPoints}`}`;
     if (state.phase === 'scored' && MATCH.scoring === 'incoming') {
       const banker = (state.team + 1) % TEAM_LABELS.length;
       const lamps = state.awards.filter((holder) => holder === banker).length;
+      const points = state.awards.reduce<number>(
+        (sum, holder, lamp) =>
+          holder !== banker
+            ? sum
+            : sum + (lamp === state.hot ? MATCH.hotPoints : 1),
+        0,
+      );
       return `${teamLabel(banker)} ${
         lamps
-          ? `banks ${lamps} lamp${lamps === 1 ? '' : 's'} · +${lamps}`
+          ? `banks ${lamps} lamp${lamps === 1 ? '' : 's'} · +${points}`
           : 'held no lamps'
       }`;
     }
@@ -533,6 +554,7 @@ export function startApplication({
   }
   function lampChip(lamp: LampControl) {
     if (lamp.zapper) return { state: 'zapper', mark: '⚡', text: 'bug zapper' };
+    if (lamp.dark) return { state: 'dark', mark: '✕', text: 'burnt out' };
     if (lamp.holder !== undefined)
       return {
         state: `team-${lamp.holder}`,
@@ -597,9 +619,15 @@ export function startApplication({
       const chip = lampBar.children[index] as HTMLElement;
       const { state: chipState, mark, text } = lampChip(lamp);
       const swat = index === threatened;
-      setText(chip, `${index + 1} ${mark}${swat ? ' ✋' : ''}`);
+      const bonus = index === state.hot && !lamp.dark;
+      setText(
+        chip,
+        `${index + 1} ${mark}${bonus ? ' ★' : ''}${swat ? ' ✋' : ''}`,
+      );
       if (chip.dataset.state !== chipState) chip.dataset.state = chipState;
-      const title = `Lamp ${index + 1}: ${text}${swat ? ', hand overhead' : ''}`;
+      const hot = String(bonus);
+      if (chip.dataset.hot !== hot) chip.dataset.hot = hot;
+      const title = `Lamp ${index + 1}: ${text}${bonus ? `, worth ${MATCH.hotPoints} this round` : ''}${swat ? ', hand overhead' : ''}`;
       if (chip.title !== title) chip.title = title;
     });
     // With no move limit there is nothing to meter.

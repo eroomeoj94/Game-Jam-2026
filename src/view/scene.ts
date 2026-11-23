@@ -753,13 +753,18 @@ export function createScene(host: HTMLElement) {
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
     /** Mark each lamp that just scored with the team it scored for. */
-    showScores(awards: readonly (number | undefined)[], view: WorldView) {
+    showScores(
+      awards: readonly (number | undefined)[],
+      view: WorldView,
+      points: readonly number[] = [],
+    ) {
       awards.forEach((team, index) => {
         const lamp = view.lamps[index];
         if (team === undefined || !lamp) return;
         weaponEffects.showScore(
           new Vector3(lamp.x, lamp.y + 1.5, lamp.z),
           team,
+          points[index] ?? 1,
         );
       });
     },
@@ -880,13 +885,24 @@ export function createScene(host: HTMLElement) {
           ? 0.75 + 0.25 * Math.sin(seconds * 47) * Math.sin(seconds * 13.3)
           : 1;
         light.color.setHex(lamp.zapper ? 0x9b7bff : 0xffc987);
-        light.intensity = LIGHTING.lampIntensity * flicker;
+        // A burnt-out lamp is nearly off; the hot lamp burns bright and pulses.
+        const pulse = 1.35 + 0.25 * Math.sin(seconds * 5);
+        const power = lamp.dark ? 0.06 : lamp.hot && !lamp.zapper ? pulse : 1;
+        light.intensity = LIGHTING.lampIntensity * flicker * power;
         glow.emissive.setHex(lamp.zapper ? 0x8a5cff : 0xffb34b);
         glow.color.setHex(lamp.zapper ? 0xe6dcff : 0xffefd0);
-        glow.emissiveIntensity = 3 * flicker;
+        glow.emissiveIntensity = 3 * flicker * (lamp.dark ? 0.08 : power);
         cage.visible = lamp.zapper;
-        ring.color.setHex(lamp.zapper ? 0xb48cff : 0xedc778);
-        ring.opacity = lamp.zapper ? 0.85 : 0.48;
+        ring.color.setHex(
+          lamp.zapper ? 0xb48cff : lamp.hot && !lamp.dark ? 0xff9d2e : 0xedc778,
+        );
+        ring.opacity = lamp.zapper
+          ? 0.85
+          : lamp.dark
+            ? 0.12
+            : lamp.hot
+              ? 0.55 + 0.3 * Math.sin(seconds * 5)
+              : 0.48;
         light.angle = LIGHTING.lampAngle;
         light.position.set(lamp.x, lamp.y - 0.15, lamp.z);
         light.target.position.set(lamp.x, 0, lamp.z);

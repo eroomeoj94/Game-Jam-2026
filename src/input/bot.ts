@@ -15,6 +15,8 @@ export const BOT = {
   boshChance: 0.5,
   /** Rivals alone in a lamp's light before a Zap Switch is worth spending. */
   zapRivals: 2,
+  /** How many extra units of walking the hot lamp is worth. */
+  hotPull: 12,
 };
 
 export type BotShot = { weapon: WeaponId; aim: Aim };
@@ -72,7 +74,12 @@ export function createBot(team: number, random: () => number = Math.random) {
         (sum, count, other) => (other === team ? sum : sum + count),
         0,
       );
-      if (lamp.zapper || (counts[team] ?? 0) > 0 || rivals < BOT.zapRivals)
+      if (
+        lamp.zapper ||
+        lamp.dark ||
+        (counts[team] ?? 0) > 0 ||
+        rivals < BOT.zapRivals
+      )
         return;
       const gap = Math.hypot(lamp.x - me.x, lamp.z - me.z);
       if (!best || gap < best.gap) best = { lamp: index, gap };
@@ -101,7 +108,8 @@ export function createBot(team: number, random: () => number = Math.random) {
     let best = -1;
     let bestCost = Infinity;
     view.lamps.forEach((lamp, index) => {
-      if (lamp.zapper) return;
+      // A burnt-out lamp pays nothing; the hot lamp is worth a longer walk.
+      if (lamp.zapper || lamp.dark) return;
       const counts = control[index]?.counts ?? [];
       const mine = counts[team] ?? 0;
       const theirs = counts.reduce(
@@ -116,7 +124,8 @@ export function createBot(team: number, random: () => number = Math.random) {
       const lead = mine - (inside ? 1 : 0) - theirs;
       let cost =
         Math.hypot(lamp.anchor.x - me.x, lamp.anchor.z - me.z) +
-        (lead > 0 ? 25 : lead === 0 ? 0 : 6);
+        (lead > 0 ? 25 : lead === 0 ? 0 : 6) -
+        (lamp.hot ? BOT.hotPull : 0);
       if (
         hand &&
         Math.hypot(lamp.anchor.x - hand.x, lamp.anchor.z - hand.z) <

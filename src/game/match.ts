@@ -5,6 +5,8 @@ import type { WorldView } from './world';
 /** Who holds one lamp's light right now. */
 export type LampControl = {
   zapper: boolean;
+  /** Burnt out: nobody can hold or score it until it relights. */
+  dark: boolean;
   /** Moths of each team with their centre inside the light. */
   counts: number[];
   /** The team with the outright majority, if any. A zapper has no holder. */
@@ -38,8 +40,12 @@ export function lampControl(
     const majority = best > 0 && leaders === 1;
     return {
       zapper: lamp.zapper,
+      dark: lamp.dark,
       counts,
-      holder: majority && !lamp.zapper ? counts.indexOf(best) : undefined,
+      holder:
+        majority && !lamp.zapper && !lamp.dark
+          ? counts.indexOf(best)
+          : undefined,
       contested: best > 0 && !majority,
     };
   });
@@ -58,7 +64,7 @@ export function crowdedSpot(
   let most = 0;
   let spots: { lamp: number; x: number; z: number }[] = [];
   view.lamps.forEach((lamp, index) => {
-    if (lamp.zapper) return;
+    if (lamp.zapper || lamp.dark) return;
     const inside = view.moths.filter(
       (moth) =>
         !moth.respawning &&
@@ -104,7 +110,16 @@ export type MatchEvent =
   /** The round's goes are over: let the hanging hand fall. */
   | { type: 'strike' }
   /** Points were just handed out: the team awarded each lamp, if any. */
-  | { type: 'banked'; awards: (number | undefined)[] }
+  | {
+      type: 'banked';
+      awards: (number | undefined)[];
+      /** Points each lamp paid: more than one for the hot lamp. */
+      points: number[];
+    }
+  /** This round's hot lamp, worth extra; undefined when there is none. */
+  | { type: 'hot'; lamp: number | undefined }
+  /** A lamp burnt out after paying the same team too often, or relit. */
+  | { type: 'lamp-dark'; lamp: number; dark: boolean }
   /** A zapper's time is up: turn it back into a warm lamp. */
   | { type: 'lamp-restored'; lamp: number }
   | {
@@ -150,6 +165,10 @@ export type MatchView = {
   awards: (number | undefined)[];
   /** Points each team has banked so far this round. */
   gained: number[];
+  /** The lamp worth extra this round, if any. */
+  hot: number | undefined;
+  /** Lamps that have burnt out and pay nothing until they relight. */
+  dark: number[];
   winner: number | undefined;
 };
 
@@ -163,9 +182,16 @@ const STEPPING: readonly Phase[] = ['move', 'settle', 'resolve', 'smack'];
  * play passes to the other team. The caller runs the world while
  * `stepping` is true, reports what happens, and applies the events.
  *
- * `teams` gives the team of each moth, by moth id.
+ * `teams` gives the team of each moth, by moth id. `lamps` is how many lamps
+ * the desk has, needed to pick each round's hot lamp.
  */
-export function createMatch(teams: readonly number[]) {
+export function createMatch(
+  teams: readonly number[],
+  {
+    lamps: lampCount = 0,
+    random = Math.random,
+  }: { lamps?: number; random?: () => number } = {},
+) {
   const teamCount = Math.max(...teams) + 1;
   const scores = Array.from({ length: teamCount }, () => 0);
   const zapSwitches = Array.from(
@@ -178,6 +204,11 @@ export function createMatch(teams: readonly number[]) {
   const zappers = new Map<number, number>();
   /** Moths that have had their go in the current team's turn. */
   const acted = new Set<number>();
+  /** Burnt-out lamp → turn ends left before it relights. */
+  const dark = new Map<number, number>();
+  /** Per lamp: the team it last paid and how many times running. */
+  const streaks = new Map<number, { team: number; count: number }>();
+  let hot: number | undefined;
   let events: MatchEvent[] = [];
   let phase: Phase = 'plan';
   let round = 1;
@@ -206,7 +237,10 @@ export function createMatch(teams: readonly number[]) {
   function beginTurn() {
     team = teamFor(round, turn);
     acted.clear();
-    if (turn === 0) events.push({ type: 'threat', round });
+    if (turn === 0) {
+      events.push({ type: 'threat', round });
+      pickHot();
+    }
     const returning = teams.flatMap((mothTeam, id) =>
       mothTeam === team && (out.get(id) ?? Infinity) <= round ? [id] : [],
     );
@@ -230,16 +264,49 @@ export function createMatch(teams: readonly number[]) {
     timer = 0;
   }
 
-  /** Hand out a point for each awarded lamp. */
-  function bank(given: (number | undefined)[]) {
+  /** Choose this round's hot lamp from the lamps that can still score. */
+  function pickHot() {
+    const before = hot;
+    const open = Array.from({ length: lampCount }, (_, lamp) => lamp).filter(
+      (lamp) => !dark.has(lamp) && !zappers.has(lamp),
+    );
+    // Not the same lamp twice running, when there is a choice.
+    const fresh = open.filter((lamp) => lamp !== before);
+    const choices = fresh.length ? fresh : open;
+    hot =
+      MATCH.hotLamp && choices.length
+        ? choices[Math.floor(random() * choices.length)]
+        : undefined;
+    if (hot !== before || hot !== undefined)
+      events.push({ type: 'hot', lamp: hot });
+  }
+
+  /**
+   * Hand out the points for each awarded lamp. `scorers` are the teams whose
+   * lamps were up for payment; returns the lamps that burn out as a result.
+   */
+  function bank(given: (number | undefined)[], scorers: readonly number[]) {
     awards = given;
-    for (const holder of given) {
-      if (holder === undefined) continue;
-      scores[holder] = scores[holder]! + 1;
-      gained[holder] = gained[holder]! + 1;
-    }
+    const points = given.map((holder, lamp) =>
+      holder === undefined ? 0 : lamp === hot ? MATCH.hotPoints : 1,
+    );
+    const burning: number[] = [];
+    given.forEach((holder, lamp) => {
+      const streak = streaks.get(lamp);
+      if (holder === undefined) {
+        // A team that was up for payment and missed out breaks its run.
+        if (streak && scorers.includes(streak.team)) streaks.delete(lamp);
+        return;
+      }
+      scores[holder] = scores[holder]! + points[lamp]!;
+      gained[holder] = gained[holder]! + points[lamp]!;
+      const count = streak?.team === holder ? streak.count + 1 : 1;
+      streaks.set(lamp, { team: holder, count });
+      if (MATCH.burnOut && count >= MATCH.burnAfter) burning.push(lamp);
+    });
     if (given.some((holder) => holder !== undefined))
-      events.push({ type: 'banked', awards: given });
+      events.push({ type: 'banked', awards: given, points });
+    return burning;
   }
 
   function endTurn({ lamps, hand }: TurnFacts) {
@@ -258,19 +325,41 @@ export function createMatch(teams: readonly number[]) {
       return;
     }
     const incoming = MATCH.scoring === 'incoming';
+    let burning: number[] = [];
     if (incoming) {
       // The team about to play banks the lamps it still holds: its moths
       // have just stood through the whole of its rival's turn.
       const scorer = roundOver
         ? teamFor(round + 1, 0)
         : teamFor(round, turn + 1);
-      bank(
-        lamps.map((lamp) =>
-          !lamp.zapper && lamp.holder === scorer ? scorer : undefined,
+      burning = bank(
+        lamps.map((lamp, index) =>
+          !lamp.zapper && !dark.has(index) && lamp.holder === scorer
+            ? scorer
+            : undefined,
         ),
+        [scorer],
       );
     } else if (roundOver)
-      bank(lamps.map((lamp) => (lamp.zapper ? undefined : lamp.holder)));
+      burning = bank(
+        lamps.map((lamp, index) =>
+          lamp.zapper || dark.has(index) ? undefined : lamp.holder,
+        ),
+        scores.map((_, each) => each),
+      );
+    // Dark lamps count down like zappers, then today's burn-outs go dark.
+    for (const [lamp, left] of [...dark]) {
+      if (left > 1) dark.set(lamp, left - 1);
+      else {
+        dark.delete(lamp);
+        events.push({ type: 'lamp-dark', lamp, dark: false });
+      }
+    }
+    for (const lamp of burning) {
+      dark.set(lamp, Math.max(1, MATCH.burnRounds * teamCount));
+      streaks.delete(lamp);
+      events.push({ type: 'lamp-dark', lamp, dark: true });
+    }
     // Scoring comes first, so a zapper never scores in the round it ends.
     for (const [lamp, left] of [...zappers]) {
       if (left > 1) zappers.set(lamp, left - 1);
@@ -434,6 +523,8 @@ export function createMatch(teams: readonly number[]) {
         goesLeft: waiting().length,
         awards: [...awards],
         gained: [...gained],
+        hot,
+        dark: [...dark.keys()],
         winner,
       };
     },

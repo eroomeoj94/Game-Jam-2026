@@ -930,3 +930,15 @@ kbd {
 .again {
   top: calc(max(30%, 230px) + 84px);
 }
+
+/* Scoreboard chips: a burnt-out lamp and this round's bonus lamp. */
+.lamp-bar span[data-state='dark'] {
+  color: #5d6663;
+  background: #0b1218;
+  border-style: dotted;
+}
+.lamp-bar span[data-hot='true'] {
+  box-shadow:
+    0 0 0 1px #ff9d2e,
+    0 0 10px #ff9d2e99;
+}
