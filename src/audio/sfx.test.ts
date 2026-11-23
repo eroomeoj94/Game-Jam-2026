@@ -268,3 +268,65 @@ describe('loudness and status', () => {
     expect(pending.status).toBe('unsupported');
   });
 });
+
+describe('the announcer', () => {
+  async function announcer(rolls: number[] = []) {
+    const { context, started } = fakeAudio();
+    const sfx = createSfx({
+      createContext: () => context,
+      speech: undefined,
+      findRecording: async () => undefined,
+      loadSample: async () => undefined,
+      loadVoice: async (_ctx, file) =>
+        ({ name: `voice:${file}`, duration: 1 }) as unknown as AudioBuffer,
+      random: () => rolls.shift() ?? 0,
+    });
+    sfx.unlock();
+    await Promise.resolve();
+    await Promise.resolve();
+    const spoken = () =>
+      started
+        .map(({ name }) => name)
+        .filter((name) => name.startsWith('voice:'))
+        .map((name) => name.slice(6));
+    return { sfx, context, spoken };
+  }
+
+  it('speaks one line at a time unless a bigger moment cuts in', async () => {
+    const { sfx, context, spoken } = await announcer();
+    expect(sfx.say('bank')).toBe(true);
+    // Another everyday line is dropped while he is talking.
+    expect(sfx.say('turn0')).toBe(false);
+    // A zap outranks it and cuts in.
+    expect(sfx.say('zap', { priority: 2 })).toBe(true);
+    expect(spoken()).toHaveLength(2);
+    // Once he has finished, ordinary lines are welcome again.
+    (context as unknown as { currentTime: number }).currentTime = 5;
+    expect(sfx.say('turn0')).toBe(true);
+    expect(spoken().at(-1)).toBe('turn-0');
+    sfx.destroy();
+  });
+
+  it('varies the take, rolls for occasional lines and stays quiet when muted', async () => {
+    const { sfx, context, spoken } = await announcer([0, 0, 0, 0, 0.9]);
+    const clock = context as unknown as { currentTime: number };
+    sfx.say('bosh');
+    clock.currentTime = 5;
+    sfx.say('bosh');
+    expect(new Set(spoken()).size).toBe(2);
+    clock.currentTime = 10;
+    // A roll of 0.9 misses a 15% line.
+    expect(sfx.say('dance', { chance: 0.15 })).toBe(false);
+    sfx.setMuted(true);
+    expect(sfx.say('zap', { priority: 3 })).toBe(false);
+    expect(spoken()).toHaveLength(2);
+    sfx.destroy();
+  });
+
+  it('calls a landed Bosh himself instead of the spoken fallback', async () => {
+    const { sfx, spoken } = await announcer();
+    sfx.bosh(true);
+    expect(spoken()[0]).toMatch(/^bosh-/);
+    sfx.destroy();
+  });
+});

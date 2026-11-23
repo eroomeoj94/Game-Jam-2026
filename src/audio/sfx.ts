@@ -30,6 +30,40 @@ export type SampleName = (typeof SAMPLES)[number];
 const samplePath = (name: SampleName) =>
   `sounds/artlist/${name}.${name === 'music' ? 'mp3' : 'aac'}`;
 
+/**
+ * The announcer: short spoken lines for the big moments, generated with an
+ * Artlist voice and loaded from `public/sounds/artlist/voice/` when present.
+ * Each cue has one or more takes; one is picked at random.
+ */
+export const VOICE_LINES = {
+  start: ['start-1', 'start-2'],
+  round1: ['round-1'],
+  round2: ['round-2'],
+  round3: ['round-3'],
+  round: ['round-next'],
+  turn0: ['turn-0'],
+  turn1: ['turn-1'],
+  bosh: ['bosh-1', 'bosh-2', 'bosh-3'],
+  miss: ['miss'],
+  zap: ['zap-1', 'zap-2', 'zap-3'],
+  zapper: ['zapper'],
+  hand: ['hand-1', 'hand-2'],
+  smack: ['smack-1', 'smack-2'],
+  hot: ['hot'],
+  burn: ['burn'],
+  bank: ['bank-1', 'bank-2'],
+  fall: ['fall-1', 'fall-2'],
+  bang: ['bang'],
+  dance: ['dance'],
+  gust: ['gust'],
+  matchpoint: ['matchpoint'],
+  win0: ['win-0'],
+  win1: ['win-1'],
+  winEnd: ['win-end'],
+} as const;
+export type VoiceCue = keyof typeof VOICE_LINES;
+const voicePath = (file: string) => `sounds/artlist/voice/${file}.mp3`;
+
 /** Every sample is boosted or cut so its loudest moment peaks here. */
 const TARGET_PEAK = 0.9;
 
@@ -61,6 +95,12 @@ type Dependencies = {
     context: AudioContext,
     name: SampleName,
   ) => Promise<AudioBuffer | undefined>;
+  /** Fetches and decodes one announcer clip, by file name. */
+  loadVoice?: (
+    context: AudioContext,
+    file: string,
+  ) => Promise<AudioBuffer | undefined>;
+  random?: () => number;
 };
 
 /** Ask the server whether the optional recording exists. */
@@ -78,6 +118,17 @@ async function findBoshRecording() {
 async function fetchSample(context: AudioContext, name: SampleName) {
   try {
     const response = await fetch(samplePath(name));
+    const type = response.headers.get('content-type') ?? '';
+    if (!response.ok || type.includes('html')) return undefined;
+    return await context.decodeAudioData(await response.arrayBuffer());
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchVoice(context: AudioContext, file: string) {
+  try {
+    const response = await fetch(voicePath(file));
     const type = response.headers.get('content-type') ?? '';
     if (!response.ok || type.includes('html')) return undefined;
     return await context.decodeAudioData(await response.arrayBuffer());
@@ -110,7 +161,20 @@ export function createSfx({
   speech = typeof window !== 'undefined' ? window.speechSynthesis : undefined,
   findRecording = findBoshRecording,
   loadSample = fetchSample,
+  // A caller that supplies its own samples gets no announcer unless it
+  // supplies those clips too.
+  loadVoice = loadSample === fetchSample ? fetchVoice : async () => undefined,
+  random = Math.random,
 }: Dependencies = {}) {
+  const voices = new Map<string, AudioBuffer>();
+  const voiceMakeup = new Map<string, number>();
+  const lastTake = new Map<VoiceCue, string>();
+  /** The line being spoken, so a bigger moment can cut in over it. */
+  let speaking:
+    | { source: AudioBufferSourceNode; until: number; priority: number }
+    | undefined;
+  /** A line asked for before its clip had loaded, tried again on arrival. */
+  let waiting: { cue: VoiceCue; priority: number; expires: number } | undefined;
   let context: AudioContext | undefined;
   let effects: GainNode | undefined;
   let beds: GainNode | undefined;
@@ -187,6 +251,62 @@ export function createSfx({
         makeup.set(name, normalisingGain(buffer));
         buffers.set(name, buffer);
       });
+    for (const file of Object.values(VOICE_LINES).flat())
+      void loadVoice(ctx, file).then((buffer) => {
+        if (!buffer) return;
+        voiceMakeup.set(file, normalisingGain(buffer));
+        voices.set(file, buffer);
+        if (!waiting) return;
+        const { cue, priority, expires } = waiting;
+        if (ctx.currentTime > expires) waiting = undefined;
+        else if (say(cue, { priority })) waiting = undefined;
+      });
+  }
+
+  /**
+   * Have the announcer speak a line. One line at a time: a new one is
+   * dropped unless it outranks the one in progress, which it then cuts off.
+   * `chance` makes the commoner cues occasional. Returns whether it spoke.
+   */
+  function say(
+    cue: VoiceCue,
+    { priority = 1, chance = 1 }: { priority?: number; chance?: number } = {},
+  ) {
+    const ctx = context;
+    if (!ctx || !effects || muted) return false;
+    const takes = VOICE_LINES[cue].filter((file) => voices.has(file));
+    if (!takes.length) {
+      // Still loading: keep the most important line for a few seconds.
+      if (loading && voices.size === 0 && priority >= (waiting?.priority ?? 0))
+        waiting = { cue, priority, expires: ctx.currentTime + 4 };
+      return false;
+    }
+    const now = ctx.currentTime;
+    if (speaking && now < speaking.until && priority <= speaking.priority)
+      return false;
+    if (random() >= chance) return false;
+    const fresh = takes.filter((file) => file !== lastTake.get(cue));
+    const pool = fresh.length ? fresh : takes;
+    const file = pool[Math.floor(random() * pool.length)]!;
+    const buffer = voices.get(file)!;
+    if (speaking && now < speaking.until) {
+      try {
+        speaking.source.stop();
+      } catch {
+        // Already finished.
+      }
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = AUDIO.voice * (voiceMakeup.get(file) ?? 1);
+    source.connect(gain).connect(effects);
+    source.start(now);
+    lastTake.set(cue, file);
+    speaking = { source, until: now + buffer.duration + 0.2, priority };
+    // The music steps back while the announcer talks.
+    dip(0.4, buffer.duration);
+    return true;
   }
 
   /** Play a sample once; false when it is not loaded (use a fallback). */
@@ -392,7 +512,15 @@ export function createSfx({
       } else if (!play('swish', { volume: loud * 0.7, rate: vary(0.3) }))
         noise(ctx, 0.22, 900, 0.35 * volume);
     }
-    shout();
+    // The announcer calls it when his clips are loaded; otherwise the old
+    // spoken "Bosh!" does.
+    if (
+      !(connected
+        ? say('bosh', { priority: 2 })
+        : say('miss', { priority: 1 })) &&
+      !voices.size
+    )
+      shout();
   }
 
   return {
@@ -417,6 +545,7 @@ export function createSfx({
       applyVolumes();
     },
     /** Points banked: one bright rising note per point, up to five. */
+    say,
     chime(points: number) {
       if (muted || points <= 0) return;
       const ctx = audio();
@@ -458,6 +587,16 @@ export function createSfx({
               ? event.origin
               : undefined;
         const volume = attenuation(listener, at);
+        // The announcer reacts to the big moments, and now and then to the
+        // small ones.
+        if (event.type === 'zap') say('zap', { priority: 2 });
+        else if (event.type === 'smack')
+          say('smack', { priority: 2, chance: event.moths ? 1 : 0.3 });
+        else if (event.type === 'loom') say('hand', { chance: 0.7 });
+        else if (event.type === 'explode') say('bang', { chance: 0.6 });
+        else if (event.type === 'lamp' && event.zapper) say('zapper');
+        else if (event.type === 'dance') say('dance', { chance: 0.15 });
+        else if (event.type === 'gust') say('gust', { chance: 0.2 });
         if (event.type === 'bosh') bosh(event.moth !== undefined, volume);
         else if (event.type === 'gust') {
           if (!play('whoosh', { volume, rate: vary() }) && ctx)

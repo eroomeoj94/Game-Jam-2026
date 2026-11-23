@@ -41,6 +41,10 @@ Read this first when picking the project up in a new session.
 
 **Burn-out and the hot lamp (23 November).** To stop matches being won by standing still: each round one random warm lamp is hot and pays two points (`MATCH.hotLamp`, `hotPoints`), and a lamp that pays the same team twice running goes dark for a round (`MATCH.burnOut`, `burnAfter`, `burnRounds`). Both can be switched off in the tuning panel (`?tune`). In 20 computer-versus-computer matches with both on, matches averaged 6.2 rounds (5.2 without) with about five burn-outs each. Mustard won 14 of those 20, and 15 of 20 with the rules off, so the current computer player may favour the team that goes first; not yet investigated.
 
+**Seat fairness (23 November).** The hot lamp used to change before the second team could bank it; each team is now paid for the lamp that was hot when it took its turn. Sixty computer-versus-computer matches per setting after that fix: everything on, Mustard (first) 40–20; computer not using Zap Switches, Teal 45–15; no Zap and no hand, Mustard 37–23. So the hand favours the team that moves last before it lands, and the way this computer player uses the Zap Switch favours the team that moves first; the two pull in opposite directions and neither is settled. `MATCH.headStart` (default 0, in the tuning panel) gives the second team starting points if human playtests show a tilt: 1 gave 36–24 and 2 gave 33–27. The harness is not in the repository.
+
+**Announcer (23 November).** Thirty-three Artlist voice lines play on the big moments: the start, rounds, turns, Bosh, zaps, the hand, hot and burnt-out lamps, banking, match point, falls and the win (`VOICE_LINES` and `say` in `src/audio/sfx.ts`; clips in the git-ignored `public/sounds/artlist/voice/`). One line at a time, bigger moments cut in, the music dips underneath. Nobody has listened to them in the game yet.
+
 **Menu and tips (23 November).** Esc opens a pause menu with the controls; first-match tips run for two rounds.
 
 The demo is Friday 27 November.

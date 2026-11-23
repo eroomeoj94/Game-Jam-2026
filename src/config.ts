@@ -453,6 +453,11 @@ export const MATCH = {
   /** Each round one warm lamp, picked at random, is worth `hotPoints`. */
   hotLamp: true,
   hotPoints: 2,
+  /**
+   * Points the team that plays second starts with, to offset the edge that
+   * going first showed in computer-versus-computer matches.
+   */
+  headStart: 0,
   /** Seconds the end-of-round result is shown before the next round. */
   bannerSeconds: 2.5,
 };
@@ -595,6 +600,8 @@ export const AUDIO = {
   effects: 1,
   /** Background music: a light, sneaky pizzicato tune on a loop. */
   music: 0.3,
+  /** The announcer's voice lines, when the clips are present. */
+  voice: 1.3,
   /** Night room tone with crickets, kept faint under the music. */
   ambience: 0.1,
   /** Distance at which a sound is at half volume. */

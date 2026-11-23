@@ -163,6 +163,8 @@ export type MatchView = {
   goesLeft: number;
   /** The last round's lamp awards, shown while `phase` is 'scored' or 'won'. */
   awards: (number | undefined)[];
+  /** What each of those lamps paid: more than one for a hot lamp. */
+  points: number[];
   /** Points each team has banked so far this round. */
   gained: number[];
   /** The lamp worth extra this round, if any. */
@@ -193,7 +195,9 @@ export function createMatch(
   }: { lamps?: number; random?: () => number } = {},
 ) {
   const teamCount = Math.max(...teams) + 1;
-  const scores = Array.from({ length: teamCount }, () => 0);
+  const scores = Array.from({ length: teamCount }, (_, each) =>
+    each === teamCount - 1 && teamCount > 1 ? MATCH.headStart : 0,
+  );
   const zapSwitches = Array.from(
     { length: teamCount },
     () => MATCH.zapSwitches,
@@ -209,6 +213,13 @@ export function createMatch(
   /** Per lamp: the team it last paid and how many times running. */
   const streaks = new Map<number, { team: number; count: number }>();
   let hot: number | undefined;
+  /**
+   * The lamp that was hot when each team last played. A team banks after its
+   * rival's turn, which for the second team is in the next round, so it is
+   * paid for the lamp it could see pulsing when it took up its positions.
+   */
+  const hotFor: (number | undefined)[] = scores.map(() => undefined);
+  let points: number[] = [];
   let events: MatchEvent[] = [];
   let phase: Phase = 'plan';
   let round = 1;
@@ -241,6 +252,7 @@ export function createMatch(
       events.push({ type: 'threat', round });
       pickHot();
     }
+    hotFor[team] = hot;
     const returning = teams.flatMap((mothTeam, id) =>
       mothTeam === team && (out.get(id) ?? Infinity) <= round ? [id] : [],
     );
@@ -287,8 +299,13 @@ export function createMatch(
    */
   function bank(given: (number | undefined)[], scorers: readonly number[]) {
     awards = given;
-    const points = given.map((holder, lamp) =>
-      holder === undefined ? 0 : lamp === hot ? MATCH.hotPoints : 1,
+    const incoming = MATCH.scoring === 'incoming';
+    points = given.map((holder, lamp) =>
+      holder === undefined
+        ? 0
+        : lamp === (incoming ? hotFor[holder] : hot)
+          ? MATCH.hotPoints
+          : 1,
     );
     const burning: number[] = [];
     given.forEach((holder, lamp) => {
@@ -305,7 +322,7 @@ export function createMatch(
       if (MATCH.burnOut && count >= MATCH.burnAfter) burning.push(lamp);
     });
     if (given.some((holder) => holder !== undefined))
-      events.push({ type: 'banked', awards: given, points });
+      events.push({ type: 'banked', awards: given, points: [...points] });
     return burning;
   }
 
@@ -522,6 +539,7 @@ export function createMatch(
         acted: [...acted],
         goesLeft: waiting().length,
         awards: [...awards],
+        points: [...points],
         gained: [...gained],
         hot,
         dark: [...dark.keys()],

@@ -170,6 +170,10 @@ export function startApplication({
   // Until Start is pressed, two computers play each other behind the title.
   const demoBots = playing && attract ? [createBot(0), createBot(1)] : [];
   let demoWon = 0;
+  /** Teams the announcer has already called match point for. */
+  const matchPointCalled = new Set<number>();
+  /** Moths on their way off the desk because they were zapped. */
+  const zappedOut = new Set<number>();
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
     selectMoth,
@@ -370,9 +374,16 @@ export function startApplication({
   function reportToMatch(view: WorldView, events: readonly WorldEvent[]) {
     if (!match) return;
     for (const event of events)
-      if (event.type === 'zap') match.zapped(event.team);
+      if (event.type === 'zap') {
+        match.zapped(event.team);
+        zappedOut.add(event.moth);
+      }
     for (const moth of view.moths)
-      if (moth.respawning && !match.isResting(moth.id)) match.mothOut(moth.id);
+      if (moth.respawning && !match.isResting(moth.id)) {
+        match.mothOut(moth.id);
+        // A zapped moth has had its line already; this one fell or was flung.
+        if (!zappedOut.delete(moth.id) && started) sfx.say('fall');
+      }
   }
   /** Carry out what the match decided: returns, handovers, lamp changes. */
   function applyMatchEvents() {
@@ -385,13 +396,46 @@ export function startApplication({
       else if (event.type === 'banked') {
         scene.showScores(event.awards, world.snapshot(), event.points);
         sfx.chime(event.awards.filter((team) => team !== undefined).length);
+        // One call of "Match point!" per team, when it gets within a hot lamp.
+        const close = match
+          .view()
+          .scores.findIndex(
+            (points, team) =>
+              points >= MATCH.targetScore - MATCH.hotPoints &&
+              !matchPointCalled.has(team),
+          );
+        if (close >= 0) {
+          matchPointCalled.add(close);
+          sfx.say('matchpoint', { priority: 2 });
+        } else sfx.say('bank', { chance: 0.6 });
       } else if (event.type === 'hot') world.setHotLamp(event.lamp);
       else if (event.type === 'lamp-dark') {
         world.setLampDark(event.lamp, event.dark);
+        if (event.dark) sfx.say('burn', { priority: 2 });
       } else if (event.type === 'won') {
         sfx.fanfare();
+        sfx.say(
+          bot?.team === event.team
+            ? 'winEnd'
+            : event.team === 0
+              ? 'win0'
+              : 'win1',
+          { priority: 3 },
+        );
         partyTimer = 0;
       } else if (event.type === 'threat') {
+        // Round one is covered by the opening line.
+        if (started && event.round > 1)
+          sfx.say(
+            match.view().hot !== undefined && Math.random() < 0.4
+              ? 'hot'
+              : event.round === 2
+                ? 'round2'
+                : event.round === 3
+                  ? 'round3'
+                  : 'round',
+            { priority: 2 },
+          );
         const view = world.snapshot();
         const spot =
           hands && MATCH.roundSmack && !view.hazards.length
@@ -400,6 +444,9 @@ export function startApplication({
         if (spot) world.threaten(spot);
       } else if (event.type === 'turn') {
         if (event.moth !== undefined) world.selectMoth(event.moth);
+        // The first go of a team's turn: call them up, some of the time.
+        if (started && match.view().acted.length === 0)
+          sfx.say(event.team === 0 ? 'turn0' : 'turn1', { chance: 0.6 });
         // Keys still held by the last player must not move the next moth.
         clearInput();
         wasRespawning = false;
@@ -533,9 +580,7 @@ export function startApplication({
       const lamps = state.awards.filter((holder) => holder === banker).length;
       const points = state.awards.reduce<number>(
         (sum, holder, lamp) =>
-          holder !== banker
-            ? sum
-            : sum + (lamp === state.hot ? MATCH.hotPoints : 1),
+          holder === banker ? sum + (state.points[lamp] ?? 1) : sum,
         0,
       );
       return `${teamLabel(banker)} ${
@@ -886,6 +931,7 @@ export function startApplication({
     demoBots.forEach((demo) => demo.reset());
     demoWon = 0;
     hitstop = 0;
+    matchPointCalled.clear();
     settleWorld();
     resetClock();
     seconds = 0;
@@ -948,6 +994,7 @@ export function startApplication({
     if (demoBots.length) restart();
     intro.hidden = true;
     sfx.unlock();
+    if (playing) sfx.say('start', { priority: 3 });
     clearInput();
     resetClock();
     focusCanvas();

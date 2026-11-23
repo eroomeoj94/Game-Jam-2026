@@ -177,6 +177,7 @@ export function createTuningPanel(actions: {
   rules.add(MATCH, 'burnAfter', 2, 4, 1).name('Burn out after (pays)');
   rules.add(MATCH, 'hotLamp').name('Hot lamp each round');
   rules.add(MATCH, 'hotPoints', 2, 4, 1).name('Hot lamp pays');
+  rules.add(MATCH, 'headStart', 0, 3, 1).name('Second team head start');
   rules
     .add(MATCH, 'scoring', {
       'After rival’s turn': 'incoming',

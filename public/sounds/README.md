@@ -31,6 +31,16 @@ music) and save it in
 Before hosting a public build that serves these files, confirm that your
 Artlist licence covers use in a game.
 
+## Announcer voice lines (not in the repository)
+
+`artlist/voice/` holds 33 short announcer clips ("Bosh!", "Zapped!", "Hot lamp!
+Double points!", "Mustard wins!" and so on), generated on 23 November 2026 with
+Artlist's voice-over tool: the "Hype" voice, British accent. They are saved in
+the Artlist project "Moth Fight Club", folder "Announcer". The file names and
+the moment each one plays are listed in `VOICE_LINES` in `src/audio/sfx.ts`.
+Without the clips the game has no announcer and falls back to the browser's
+spoken "Bosh!".
+
 ## Optional recording
 
 - `bosh.mp3` — the shout when a moth throws a Bosh. Without it, the browser's

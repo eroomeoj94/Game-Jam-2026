@@ -652,3 +652,32 @@ describe('burn-out and the hot lamp', () => {
     expect(match.view().hot).toBeUndefined();
   });
 });
+
+describe('the hot lamp and the second team', () => {
+  it('pays the second team for the lamp that was hot when it played', () => {
+    MATCH.scoring = 'incoming';
+    MATCH.hotLamp = true;
+    // Round 1's hot lamp is lamp 1; round 2's is lamp 3.
+    const rolls = [0, 0.99];
+    const match = createMatch(TEAMS, {
+      lamps: 3,
+      random: () => rolls.shift() ?? 0,
+    });
+    expect(match.view().hot).toBe(0);
+    const lamps = [lamp(1), lamp(), lamp(1)];
+    // Round 1: Mustard plays, Teal banks before it has seen a hot lamp.
+    passTurn(match, lamps);
+    match.nextRound();
+    // Teal plays with lamp 1 pulsing, then Mustard banks nothing.
+    passTurn(match, lamps);
+    match.nextRound();
+    expect(match.view()).toMatchObject({ round: 2, hot: 2, scores: [0, 2] });
+    // Round 2: Mustard plays; Teal banks lamp 1 at double, lamp 3 at one.
+    passTurn(match, lamps);
+    expect(match.view()).toMatchObject({
+      phase: 'scored',
+      scores: [0, 2 + MATCH.hotPoints + 1],
+      points: [MATCH.hotPoints, 0, 1],
+    });
+  });
+});
