@@ -10,12 +10,19 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  */
 export const MOTH_MODEL_URL = 'models/artlist/moth.glb';
 
+type Joint = { x: number; y: number; z: number };
 export type MothModel = {
   body: BufferGeometry;
   /** Left (x < 0) then right, each with the hinge at its origin. */
   wings: [BufferGeometry, BufferGeometry];
   /** Where the hinges sit, in the model's own space after scaling. */
   hinge: { y: number; z: number };
+  /** Arms and legs, left then right, each with its joint at the origin. */
+  arms: [BufferGeometry, BufferGeometry];
+  legs: [BufferGeometry, BufferGeometry];
+  /** Shoulder and hip positions after scaling, left then right. */
+  shoulders: [Joint, Joint];
+  hips: [Joint, Joint];
   map: Texture;
 };
 
@@ -33,21 +40,65 @@ export function isWood(red: number, _green: number, blue: number) {
 }
 
 /**
- * Sort a triangle into the body (0), the left wing (1) or the right wing (2)
- * from its corners, in the model's original coordinates, and whether each
- * corner is painted as wood.
+ * Where the figure's limbs are, in the model's original coordinates, read off
+ * a front-view silhouette of the mesh. The figure stands slightly off centre,
+ * so the two sides differ.
+ */
+const LIMBS = {
+  /** Arms hang outside these lines, between the hands and the shoulders. */
+  armLeft: -0.17,
+  armRight: 0.195,
+  armBottom: -0.56,
+  armTop: 0.07,
+  /** Legs are everything below the hips, split down the middle of the gap. */
+  legTop: -0.5,
+  legSplit: 0.03,
+  shoulders: [
+    { x: -0.2, y: 0.04, z: -0.03 },
+    { x: 0.215, y: 0.04, z: -0.03 },
+  ],
+  hips: [
+    { x: -0.09, y: -0.5, z: 0 },
+    { x: 0.15, y: -0.5, z: 0 },
+  ],
+} as const;
+
+/** The parts a triangle can belong to, in the order `classifyTriangle` uses. */
+export const PARTS = [
+  'body',
+  'wingLeft',
+  'wingRight',
+  'armLeft',
+  'armRight',
+  'legLeft',
+  'legRight',
+] as const;
+
+/**
+ * Sort a triangle into one of PARTS (by index) from its corners, in the
+ * model's original coordinates, and whether each corner is painted as wood.
+ * Wings are picked out first, then arms, then legs; the rest is the body.
  */
 export function classifyTriangle(
-  corners: readonly { x: number; z: number; wood: boolean }[],
+  corners: readonly { x: number; y: number; z: number; wood: boolean }[],
 ) {
-  const x = corners.reduce((sum, corner) => sum + corner.x, 0) / corners.length;
-  const z = corners.reduce((sum, corner) => sum + corner.z, 0) / corners.length;
+  const mean = (
+    pick: (corner: { x: number; y: number; z: number }) => number,
+  ) => corners.reduce((sum, corner) => sum + pick(corner), 0) / corners.length;
+  const x = mean((corner) => corner.x);
+  const y = mean((corner) => corner.y);
+  const z = mean((corner) => corner.z);
   const painted = corners.filter((corner) => !corner.wood).length;
   const wing =
     Math.abs(x) > BODY_REACH ||
     (painted * 2 > corners.length && z < WING_DEPTH);
-  if (!wing) return 0;
-  return x < 0 ? 1 : 2;
+  if (wing) return x < 0 ? 1 : 2;
+  if (y > LIMBS.armBottom && y < LIMBS.armTop) {
+    if (x < LIMBS.armLeft) return 3;
+    if (x > LIMBS.armRight) return 4;
+  }
+  if (y < LIMBS.legTop) return x < LIMBS.legSplit ? 5 : 6;
+  return 0;
 }
 
 let pending: Promise<MothModel | undefined> | undefined;
@@ -106,7 +157,7 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
   const box = flat.boundingBox!;
   const scale = HEIGHT / Math.max(box.max.y - box.min.y, 1e-6);
   const lift = FEET - box.min.y * scale;
-  const parts = [0, 1, 2].map(() => ({
+  const parts = PARTS.map(() => ({
     position: [] as number[],
     normal: [] as number[],
     uv: [] as number[],
@@ -129,13 +180,14 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
       const at = (v * width + u) * 4;
       return {
         x: position.getX(index),
+        y: position.getY(index),
         z: position.getZ(index),
         wood: isWood(pixels[at]!, pixels[at + 1]!, pixels[at + 2]!),
       };
     });
     const kind = classifyTriangle(corners);
     kinds.push(kind);
-    if (kind === 0) continue;
+    if (kind !== 1 && kind !== 2) continue;
     for (const { x, z } of corners)
       if (Math.abs(x) < 0.12) {
         hingeZ += z;
@@ -146,6 +198,21 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
     y: lift,
     z: (hingeCount ? hingeZ / hingeCount : -0.14) * scale,
   };
+  const joint = ({ x, y, z }: Joint): Joint => ({
+    x: x * scale,
+    y: y * scale + lift,
+    z: z * scale,
+  });
+  const shoulders = LIMBS.shoulders.map(joint) as [Joint, Joint];
+  const hips = LIMBS.hips.map(joint) as [Joint, Joint];
+  /** Each part's own origin: the body's is the model's, a limb's is its joint. */
+  const origins: Joint[] = [
+    { x: 0, y: 0, z: 0 },
+    { x: 0, y: hinge.y, z: hinge.z },
+    { x: 0, y: hinge.y, z: hinge.z },
+    ...shoulders,
+    ...hips,
+  ];
   kinds.forEach((kind, triangle) => {
     const part = parts[kind]!;
     for (let offset = 0; offset < 3; offset++) {
@@ -153,9 +220,9 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
       const x = position.getX(index) * scale;
       const y = position.getY(index) * scale + lift;
       const z = position.getZ(index) * scale;
-      // Wings are stored relative to their hinge.
-      if (kind === 0) part.position.push(x, y, z);
-      else part.position.push(x, y - hinge.y, z - hinge.z);
+      // Wings and limbs are stored relative to their hinge or joint.
+      const origin = origins[kind]!;
+      part.position.push(x - origin.x, y - origin.y, z - origin.z);
       if (normal)
         part.normal.push(
           normal.getX(index),
@@ -165,30 +232,50 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
       part.uv.push(uv.getX(index), uv.getY(index));
     }
   });
-  const [body, left, right] = parts.map((part) => {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new BufferAttribute(new Float32Array(part.position), 3),
-    );
-    if (part.normal.length)
+  const [body, left, right, armLeft, armRight, legLeft, legRight] = parts.map(
+    (part) => {
+      const geometry = new BufferGeometry();
       geometry.setAttribute(
-        'normal',
-        new BufferAttribute(new Float32Array(part.normal), 3),
+        'position',
+        new BufferAttribute(new Float32Array(part.position), 3),
       );
-    else geometry.computeVertexNormals();
-    geometry.setAttribute(
-      'uv',
-      new BufferAttribute(new Float32Array(part.uv), 2),
-    );
-    return geometry;
-  });
-  if (!body || !left || !right) return undefined;
+      if (part.normal.length)
+        geometry.setAttribute(
+          'normal',
+          new BufferAttribute(new Float32Array(part.normal), 3),
+        );
+      else geometry.computeVertexNormals();
+      geometry.setAttribute(
+        'uv',
+        new BufferAttribute(new Float32Array(part.uv), 2),
+      );
+      return geometry;
+    },
+  );
+  if (
+    !body ||
+    !left ||
+    !right ||
+    !armLeft ||
+    !armRight ||
+    !legLeft ||
+    !legRight
+  )
+    return undefined;
   // A model with no wings to cut off is not the one this was written for.
   if (
     !left.getAttribute('position').count ||
     !right.getAttribute('position').count
   )
     return undefined;
-  return { body, wings: [left, right], hinge, map } satisfies MothModel;
+  return {
+    body,
+    wings: [left, right],
+    hinge,
+    arms: [armLeft, armRight],
+    legs: [legLeft, legRight],
+    shoulders,
+    hips,
+    map,
+  } satisfies MothModel;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyTriangle, isWood } from './mothModel';
+import { classifyTriangle, isWood, PARTS } from './mothModel';
 
 describe('cutting the wings off the moth model', () => {
   it('tells the wooden body from the painted wings by colour', () => {
@@ -11,7 +11,13 @@ describe('cutting the wings off the moth model', () => {
     expect(isWood(81, 91, 91)).toBe(false);
   });
 
-  const corner = (x: number, z: number, wood: boolean) => ({ x, z, wood });
+  /** A corner at chest height unless a height is given. */
+  const corner = (x: number, z: number, wood: boolean, y = 0.2) => ({
+    x,
+    y,
+    z,
+    wood,
+  });
 
   it('keeps the body, arms and face with the body', () => {
     // The chest, in front of the wings.
@@ -22,12 +28,12 @@ describe('cutting the wings off the moth model', () => {
         corner(0.08, 0.08, true),
       ]),
     ).toBe(0);
-    // A hand, out to the side but wooden and level with the body.
+    // The head is wider than the chest, but it is above the shoulders.
     expect(
       classifyTriangle([
-        corner(0.3, 0.02, true),
-        corner(0.32, 0.04, true),
-        corner(0.31, 0.0, true),
+        corner(0.2, 0.02, true, 0.3),
+        corner(0.21, 0.04, true, 0.32),
+        corner(0.2, 0.0, true, 0.28),
       ]),
     ).toBe(0);
     // A dark eye is not wood-coloured, but it is on the front of the head.
@@ -59,5 +65,23 @@ describe('cutting the wings off the moth model', () => {
         corner(0.66, -0.1, false),
       ]),
     ).toBe(2);
+  });
+
+  it('cuts the arms off at the shoulders and the legs at the hips', () => {
+    const limb = (x: number, y: number) => [
+      corner(x, 0, true, y),
+      corner(x + 0.01, 0.01, true, y - 0.02),
+      corner(x - 0.01, 0.01, true, y + 0.02),
+    ];
+    // Hands and forearms hang outside the torso.
+    expect(PARTS[classifyTriangle(limb(-0.26, -0.3))]).toBe('armLeft');
+    expect(PARTS[classifyTriangle(limb(0.28, -0.3))]).toBe('armRight');
+    // The waist between them stays with the body.
+    expect(PARTS[classifyTriangle(limb(0.05, -0.3))]).toBe('body');
+    // Below the hips each side is a leg, feet included.
+    expect(PARTS[classifyTriangle(limb(-0.09, -0.7))]).toBe('legLeft');
+    expect(PARTS[classifyTriangle(limb(0.15, -0.7))]).toBe('legRight');
+    expect(PARTS[classifyTriangle(limb(-0.2, -0.85))]).toBe('legLeft');
+    expect(PARTS[classifyTriangle(limb(0.3, -0.85))]).toBe('legRight');
   });
 });

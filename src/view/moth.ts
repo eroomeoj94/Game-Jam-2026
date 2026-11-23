@@ -146,6 +146,9 @@ export function createMoth(
   // When the wooden figure is available it replaces the felt puppet: the
   // same body for everyone, with wings painted in the moth's own colour.
   let modelled = false;
+  /** The wooden figure's arms and legs, left then right, once it is loaded. */
+  const arms: Group[] = [];
+  const legs: Group[] = [];
   void loadMothModel().then((model) => {
     if (!model) return;
     puppet.clear();
@@ -184,6 +187,20 @@ export function createMoth(
       puppet.add(wing);
       wings.push(wing);
     }
+    for (const [geometries, joints, limbs] of [
+      [model.arms, model.shoulders, arms],
+      [model.legs, model.hips, legs],
+    ] as const)
+      geometries.forEach((geometry, side) => {
+        const joint = joints[side]!;
+        const limb = new Group();
+        limb.position.set(joint.x, joint.y, joint.z);
+        const part = new Mesh(geometry, wood);
+        part.castShadow = true;
+        limb.add(part);
+        puppet.add(limb);
+        limbs.push(limb);
+      });
     modelled = true;
     rememberColours();
   });
@@ -278,6 +295,69 @@ export function createMoth(
       }
       wings.forEach((wing, index) => {
         wing.rotation.y = (index === 0 ? -1 : 1) * wingSpread;
+      });
+      if (!modelled) return;
+      // The wooden figure moves smoothly: a stepped walk on a jointed body
+      // reads as flicker. Negative angles swing a limb forwards.
+      const stride = seconds * 13 + phase;
+      let armSwing = [0, 0];
+      let legSwing = [0, 0];
+      let armLift = 0;
+      let legSplay = 0;
+      if (walking) {
+        puppet.rotation.z = Math.sin(stride) * 0.06;
+        puppet.position.y = Math.abs(Math.sin(stride)) * 0.05;
+        puppet.rotation.x = 0.12;
+        // The wings sit just behind the shoulders, so the arms pump mostly
+        // in front of the body and are held a little out to the sides.
+        armSwing = [
+          -0.4 + Math.sin(stride) * 0.6,
+          -0.4 - Math.sin(stride) * 0.6,
+        ];
+        armLift = 0.18;
+        legSwing = [-Math.sin(stride) * 0.7, Math.sin(stride) * 0.7];
+      } else if (!state.grounded) {
+        // In the air: arms back and out, legs trailing and paddling a little.
+        const kick = Math.sin(seconds * 18 + phase) * 0.2;
+        armSwing = [-0.25, -0.25];
+        armLift = 0.7;
+        legSwing = [0.35 + kick, 0.35 - kick];
+      } else {
+        const breath = Math.sin(seconds * 2 + phase) * 0.06;
+        armSwing = [breath, -breath];
+      }
+      if (state.punching) {
+        armSwing = [-1.5, -1.3];
+        legSwing = [-0.4, 0.5];
+      }
+      if (state.dance) {
+        const beat = state.danceTime;
+        if (state.dance === 1) {
+          // The Spin: arms flung out.
+          armLift = 1.2;
+        } else if (state.dance === 2) {
+          armSwing = [Math.sin(beat * 16) * 0.8, -Math.sin(beat * 16) * 0.8];
+          legSwing = [Math.sin(beat * 16) * 0.3, -Math.sin(beat * 16) * 0.3];
+        } else if (state.dance === 3) {
+          // Shadow Boxing: one fist out, then the other.
+          const jab = Math.sin(beat * 14);
+          armSwing = [jab > 0 ? -1.5 : -0.4, jab > 0 ? -0.4 : -1.5];
+        } else if (state.dance === 4) {
+          // The Big Flap: star jumps.
+          const jump = Math.abs(Math.sin(beat * 7));
+          armLift = jump * 1.4;
+          legSplay = jump * 0.5;
+        } else {
+          armSwing = [-2.6, -2.6];
+        }
+      }
+      arms.forEach((arm, side) => {
+        arm.rotation.x = armSwing[side] ?? 0;
+        arm.rotation.z = (side === 0 ? -1 : 1) * armLift;
+      });
+      legs.forEach((leg, side) => {
+        leg.rotation.x = legSwing[side] ?? 0;
+        leg.rotation.z = (side === 0 ? -1 : 1) * legSplay;
       });
     },
   };
