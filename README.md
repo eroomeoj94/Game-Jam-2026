@@ -52,6 +52,13 @@ title. Add `?playground` to the address for free play with every weapon, and
 
 The game pauses while the window is not focused.
 
+## The moth model
+
+The moths are a wooden figure generated with Artlist's 3D tool, loaded from
+`public/models/artlist/moth.glb`. Like the sounds, the file is not in this
+repository; without it the game draws its built-in felt moths. The game cuts
+the wings away from the body when it loads the model, so they can flap.
+
 ## Sound
 
 The licensed Artlist sound files are not in this repository (see

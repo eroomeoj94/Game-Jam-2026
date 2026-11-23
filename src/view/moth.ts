@@ -1,6 +1,7 @@
 import {
   CatmullRomCurve3,
   Color,
+  DoubleSide,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -11,6 +12,7 @@ import {
 import { FUR, MOTH_LOOK } from '../config';
 import type { MothView } from '../game/world';
 import { createFurShells } from './fur';
+import { loadMothModel } from './mothModel';
 import type { createMaterials } from './materials';
 
 export function createMoth(
@@ -125,17 +127,65 @@ export function createMoth(
   root.rotation.y = team === 0 ? 0.3 : -0.3;
   // Remember every material's colour so a zap can char it and it can recover.
   const tintable: { material: MeshStandardMaterial; colour: Color }[] = [];
-  root.traverse((object) => {
-    if (!(object instanceof Mesh)) return;
-    const list = Array.isArray(object.material)
-      ? object.material
-      : [object.material];
-    for (const material of list)
-      if (
-        material instanceof MeshStandardMaterial &&
-        !tintable.some((item) => item.material === material)
-      )
-        tintable.push({ material, colour: material.color.clone() });
+  function rememberColours() {
+    tintable.length = 0;
+    root.traverse((object) => {
+      if (!(object instanceof Mesh)) return;
+      const list = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of list)
+        if (
+          material instanceof MeshStandardMaterial &&
+          !tintable.some((item) => item.material === material)
+        )
+          tintable.push({ material, colour: material.color.clone() });
+    });
+  }
+  rememberColours();
+  // When the wooden figure is available it replaces the felt puppet: the
+  // same body for everyone, with wings painted in the moth's own colour.
+  let modelled = false;
+  void loadMothModel().then((model) => {
+    if (!model) return;
+    puppet.clear();
+    wings.length = 0;
+    shells.length = 0;
+    const wood = new MeshStandardMaterial({
+      map: model.map,
+      roughness: 0.8,
+      side: DoubleSide,
+      emissive: 0xffffff,
+      emissiveMap: model.map,
+      emissiveIntensity: MOTH_LOOK.glow,
+    });
+    // The wings are pale blue-grey in the texture: tinting them well past
+    // white brings out the team colour while keeping the painted stripe.
+    const tint = new Color(color).multiplyScalar(1.7);
+    const paint = new MeshStandardMaterial({
+      map: model.map,
+      color: tint,
+      roughness: 0.85,
+      side: DoubleSide,
+      emissive: tint,
+      emissiveMap: model.map,
+      emissiveIntensity: MOTH_LOOK.glow,
+    });
+    const figure = new Mesh(model.body, wood);
+    figure.castShadow = true;
+    figure.receiveShadow = true;
+    puppet.add(figure);
+    for (const geometry of model.wings) {
+      const wing = new Group();
+      wing.position.set(0, model.hinge.y, model.hinge.z);
+      const panel = new Mesh(geometry, paint);
+      panel.castShadow = true;
+      wing.add(panel);
+      puppet.add(wing);
+      wings.push(wing);
+    }
+    modelled = true;
+    rememberColours();
   });
   const soot = new Color(0x1c1714);
   let char = 0;
@@ -189,6 +239,12 @@ export function createMoth(
       let wingSpread = state.fluttering
         ? 0.35 + Math.sin(steppedTime * 28) * 0.8
         : 0.15 + Math.sin(steppedTime * 3 + phase) * 0.08;
+      // The wooden figure's big flat wings beat as it walks and breathe at
+      // rest, so they are never still.
+      if (modelled && !state.fluttering)
+        wingSpread = walking
+          ? 0.3 + Math.sin(steppedTime * 14 + phase) * 0.35
+          : 0.22 + Math.sin(steppedTime * 3.2 + phase) * 0.2;
       if (state.dance) {
         // Stepped like the rest of the puppet, for a stop-motion routine.
         const t = Math.floor(state.danceTime * 12) / 12;
