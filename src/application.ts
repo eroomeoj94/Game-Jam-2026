@@ -106,6 +106,7 @@ export function startApplication({
   const chargeText = document.querySelector<HTMLElement>('#charge-value');
   const zaps = document.querySelector<HTMLElement>('#zaps');
   const mute = document.querySelector<HTMLButtonElement>('#mute');
+  const music = document.querySelector<HTMLButtonElement>('#music');
   const mothBar = document.querySelector<HTMLElement>('#moths');
   const modeTag = document.querySelector<HTMLElement>('#mode');
   const score = document.querySelector<HTMLElement>('#score');
@@ -369,15 +370,21 @@ export function startApplication({
       view.setAttribute('aria-pressed', String(mode === 'board'));
     }
   }
-  /** Say why it is silent: muted, or waiting for the browser to allow audio. */
+  /** Keep the two sound switches in the menu in step with the mixer. */
   function updateSoundLabel() {
-    if (!mute) return;
-    const label = sfx.muted
-      ? 'Sound off'
-      : sfx.status === 'on'
-        ? 'Sound on'
-        : 'Sound: press any key';
-    if (mute.textContent !== label) mute.textContent = label;
+    const show = (
+      button: HTMLButtonElement | null,
+      name: string,
+      on: boolean,
+    ) => {
+      if (!button) return;
+      const label = `${name} ${on ? 'on' : 'off'}`;
+      if (button.textContent?.trim() !== label) button.textContent = label;
+      if (button.getAttribute('aria-pressed') !== String(on))
+        button.setAttribute('aria-pressed', String(on));
+    };
+    show(music, 'Music', sfx.music);
+    show(mute, 'Sound effects', sfx.effects);
   }
   /** After a win the world runs on and the winners dance until New match. */
   function celebrate(winner: number | undefined) {
@@ -978,10 +985,19 @@ export function startApplication({
   const onFirstGesture = () => sfx.unlock();
   const onMute = () => {
     sfx.unlock();
-    sfx.setMuted(!sfx.muted);
-    mute.setAttribute('aria-pressed', String(sfx.muted));
+    sfx.setEffects(!sfx.effects);
     updateSoundLabel();
-    focusCanvas();
+  };
+  const onMusic = () => {
+    sfx.unlock();
+    sfx.setMusic(!sfx.music);
+    updateSoundLabel();
+  };
+  /** M silences everything, or brings it all back. */
+  const onMuteAll = () => {
+    sfx.unlock();
+    sfx.setMuted(sfx.music || sfx.effects);
+    updateSoundLabel();
   };
   const onMuteKey = (event: KeyboardEvent) => {
     if (
@@ -990,7 +1006,7 @@ export function startApplication({
       !event.ctrlKey &&
       !event.metaKey
     )
-      onMute();
+      onMuteAll();
   };
   const onSelect = (event: Event) => {
     if (event.currentTarget instanceof HTMLButtonElement)
@@ -1068,6 +1084,8 @@ export function startApplication({
   camera.addEventListener('click', onCamera);
   view.addEventListener('click', onView);
   mute.addEventListener('click', onMute);
+  music?.addEventListener('click', onMusic);
+  if (music) music.disabled = false;
   window.addEventListener('keydown', onMuteKey);
   window.addEventListener('pointerdown', onFirstGesture, { once: true });
   window.addEventListener('keydown', onFirstGesture, { once: true });
@@ -1124,6 +1142,7 @@ export function startApplication({
     camera.removeEventListener('click', onCamera);
     view.removeEventListener('click', onView);
     mute.removeEventListener('click', onMute);
+    music?.removeEventListener('click', onMusic);
     window.removeEventListener('keydown', onMuteKey);
     window.removeEventListener('pointerdown', onFirstGesture);
     window.removeEventListener('keydown', onFirstGesture);

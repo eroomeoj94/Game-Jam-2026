@@ -202,7 +202,9 @@ export function createSfx({
   let effects: GainNode | undefined;
   let beds: GainNode | undefined;
   let duck: GainNode | undefined;
-  let muted = false;
+  // Music and everything else (effects, voices, room tone) switch separately.
+  let musicOn = true;
+  let effectsOn = true;
   let loading = false;
   let unsupported = false;
   let recording: HTMLAudioElement | undefined;
@@ -252,17 +254,22 @@ export function createSfx({
   let appliedVolumes = '';
   function applyVolumes() {
     if (!context || !effects || !beds) return;
-    const master = muted ? 0 : AUDIO.master;
+    const master = AUDIO.master;
     // Only reschedule the mix when a setting actually changed.
-    const key = `${master}:${AUDIO.effects}`;
+    const key = `${master}:${AUDIO.effects}:${effectsOn}:${musicOn}`;
     if (key === appliedVolumes) return;
     appliedVolumes = key;
     effects.gain.setTargetAtTime(
-      master * AUDIO.effects,
+      effectsOn ? master * AUDIO.effects : 0,
       context.currentTime,
       0.05,
     );
-    beds.gain.setTargetAtTime(master, context.currentTime, 0.2);
+    // The looping beds are switched one by one, in `update`.
+    beds.gain.setTargetAtTime(
+      effectsOn || musicOn ? master : 0,
+      context.currentTime,
+      0.2,
+    );
   }
 
   function load(ctx: AudioContext) {
@@ -302,7 +309,7 @@ export function createSfx({
     { priority = 1, chance = 1 }: { priority?: number; chance?: number } = {},
   ) {
     const ctx = context;
-    if (!ctx || !effects || muted) return undefined;
+    if (!ctx || !effects || !effectsOn) return undefined;
     const takes = files.filter((file) => voices.has(file));
     if (!takes.length) return false;
     const now = ctx.currentTime;
@@ -383,7 +390,7 @@ export function createSfx({
   ) {
     const ctx = context;
     const buffer = buffers.get(name);
-    if (!ctx || !effects || !buffer || muted) return false;
+    if (!ctx || !effects || !buffer || !effectsOn) return false;
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = rate;
@@ -550,7 +557,7 @@ export function createSfx({
   }
 
   function bosh(connected: boolean, volume = 1) {
-    if (muted) return;
+    if (!effectsOn) return;
     const ctx = audio();
     if (ctx) {
       const loud = volume * BOSH.loudness;
@@ -591,8 +598,31 @@ export function createSfx({
       const ctx = audio();
       if (ctx) load(ctx);
     },
+    /** True when both the music and the sound effects are off. */
     get muted() {
-      return muted;
+      return !musicOn && !effectsOn;
+    },
+    get music() {
+      return musicOn;
+    },
+    get effects() {
+      return effectsOn;
+    },
+    /** Switch the background music on or off. */
+    setMusic(on: boolean) {
+      musicOn = on;
+      if (!on) loop('music', 0);
+      applyVolumes();
+    },
+    /** Switch effects, voices and room tone on or off. */
+    setEffects(on: boolean) {
+      effectsOn = on;
+      if (!on) {
+        speech?.cancel();
+        for (const name of [...loops.keys()])
+          if (name !== 'music') loop(name, 0);
+      }
+      applyVolumes();
     },
     /**
      * 'waiting' until the browser lets audio start (after the first key
@@ -603,15 +633,18 @@ export function createSfx({
       return context.state === 'running' ? 'on' : 'waiting';
     },
     setMuted(value: boolean) {
-      muted = value;
-      if (muted) speech?.cancel();
+      musicOn = effectsOn = !value;
+      if (value) {
+        speech?.cancel();
+        for (const name of [...loops.keys()]) loop(name, 0);
+      }
       applyVolumes();
     },
     /** Points banked: one bright rising note per point, up to five. */
     say,
     quip,
     chime(points: number) {
-      if (muted || points <= 0) return;
+      if (!effectsOn || points <= 0) return;
       const ctx = audio();
       if (!ctx) return;
       const scale = [523.25, 659.25, 783.99, 1046.5, 1318.5];
@@ -620,7 +653,7 @@ export function createSfx({
     },
     /** The match is won: a short rising fanfare with a held last chord. */
     fanfare() {
-      if (muted) return;
+      if (!effectsOn) return;
       const ctx = audio();
       if (!ctx) return;
       dip(0.25, 1.6);
@@ -634,7 +667,7 @@ export function createSfx({
     bosh,
     /** Sounds for a batch of world events, heard from `listener`. */
     playEvents(events: readonly WorldEvent[], listener?: Position) {
-      if (muted || !events.length) return;
+      if (!effectsOn || !events.length) return;
       const ctx = audio();
       // A gust or punch already covers the knock it causes.
       const covered = events.some(
@@ -693,9 +726,11 @@ export function createSfx({
     /** Keep the looping beds in step with the world each frame. */
     update(view: WorldView, listener?: Position) {
       if (!context) return;
-      loop('ambience', AUDIO.ambience);
+      // With the effects off every bed but the music falls silent.
+      const sound = effectsOn ? 1 : 0;
+      loop('ambience', AUDIO.ambience * sound);
       // The tune always begins at its opening bar.
-      loop('music', AUDIO.music, true);
+      loop('music', musicOn ? AUDIO.music : 0, true);
       const zapperVolume = view.lamps.reduce(
         (loudest, lamp) =>
           lamp.zapper
@@ -703,7 +738,7 @@ export function createSfx({
             : loudest,
         0,
       );
-      loop('zapper-hum', zapperVolume * 0.55 * AUDIO.effects);
+      loop('zapper-hum', zapperVolume * 0.55 * AUDIO.effects * sound);
       const fuseVolume = view.projectiles.reduce(
         (loudest, projectile) =>
           projectile.kind === 'firecracker'
@@ -711,9 +746,9 @@ export function createSfx({
             : loudest,
         0,
       );
-      loop('fuse', fuseVolume * 0.6 * AUDIO.effects);
+      loop('fuse', fuseVolume * 0.6 * AUDIO.effects * sound);
       const active = view.moths[view.selectedMoth];
-      loop('flutter', active?.fluttering ? 0.45 * AUDIO.effects : 0);
+      loop('flutter', active?.fluttering ? 0.45 * AUDIO.effects * sound : 0);
       applyVolumes();
     },
     destroy() {

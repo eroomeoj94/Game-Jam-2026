@@ -384,3 +384,35 @@ describe('moth voices', () => {
     sfx.destroy();
   });
 });
+
+describe('music and sound-effect switches', () => {
+  it('switches the music and the effects off separately', async () => {
+    const { sfx, started } = await loadedSfx();
+    const view = {
+      lamps: [],
+      projectiles: [],
+      moths: [],
+      selectedMoth: 0,
+    } as unknown as Parameters<typeof sfx.update>[0];
+    sfx.setMusic(false);
+    sfx.update(view);
+    // Effects still play, the room tone loops, and the tune stays silent.
+    sfx.playEvents([{ type: 'gust', origin: here, direction }], here);
+    expect(started.map(({ name }) => name)).toEqual(['ambience', 'whoosh']);
+    expect(sfx.muted).toBe(false);
+    sfx.setEffects(false);
+    sfx.setMusic(true);
+    sfx.update(view);
+    sfx.playEvents([{ type: 'gust', origin: here, direction }], here);
+    // Now only the tune starts; nothing else makes a sound.
+    expect(started.map(({ name }) => name)).toEqual([
+      'ambience',
+      'whoosh',
+      'music',
+    ]);
+    expect(sfx).toMatchObject({ music: true, effects: false, muted: false });
+    sfx.setMuted(true);
+    expect(sfx).toMatchObject({ music: false, effects: false, muted: true });
+    sfx.destroy();
+  });
+});
