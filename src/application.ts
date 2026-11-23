@@ -462,7 +462,8 @@ export function startApplication({
       } else if (event.type === 'hot') world.setHotLamp(event.lamp);
       else if (event.type === 'lamp-dark') {
         world.setLampDark(event.lamp, event.dark);
-        if (event.dark) sfx.say('burn', { priority: 2 });
+        // Loud and on top of everything: this is the call players miss.
+        if (event.dark) sfx.say('burn', { priority: 3 });
         const lamp = world.snapshot().lamps[event.lamp];
         if (lamp)
           scene.showNote?.(

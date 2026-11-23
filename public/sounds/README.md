@@ -33,13 +33,16 @@ Artlist licence covers use in a game.
 
 ## Announcer voice lines (not in the repository)
 
-`artlist/voice/` holds 33 short announcer clips ("Bosh!", "Zapped!", "Hot lamp!
+`artlist/voice/` holds 35 short announcer clips ("Bosh!", "Zapped!", "Hot lamp!
 Double points!", "Mustard wins!" and so on), generated on 23 November 2026 with
 Artlist's voice-over tool: the "Hype" voice, British accent, with the
 "Announcer" voice effect. They are saved in
 the Artlist project "Moth Fight Club", folder "Announcer". The file names and
 the moment each one plays are listed in `VOICE_LINES` in `src/audio/sfx.ts`.
-Without the clips the game has no announcer and falls back to the browser's
+The three burnt-out warnings (`burn-1` to `burn-3`: "WARNING! WARNING! That
+lamp is BURNT OUT!", "LAMP DOWN! LAMP DOWN!", "OH NO! The bulb has BLOWN!")
+were added later the same day with a wilder delivery, and interrupt any other
+line. Without the clips the game has no announcer and falls back to the browser's
 spoken "Bosh!".
 
 ## Moth voice lines (not in the repository)

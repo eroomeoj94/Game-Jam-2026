@@ -50,7 +50,7 @@ export const VOICE_LINES = {
   hand: ['hand-1', 'hand-2'],
   smack: ['smack-1', 'smack-2'],
   hot: ['hot'],
-  burn: ['burn'],
+  burn: ['burn-1', 'burn-2', 'burn-3'],
   bank: ['bank-1', 'bank-2'],
   fall: ['fall-1', 'fall-2'],
   bang: ['bang'],
