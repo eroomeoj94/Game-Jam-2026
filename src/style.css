@@ -526,6 +526,15 @@ header::before {
   margin: 12px 0 0;
   font-size: 13px;
 }
+.again {
+  position: absolute;
+  top: calc(22% + 84px);
+  left: 50%;
+  padding: 14px 34px;
+  transform: translateX(-50%);
+  font-size: 18px;
+  pointer-events: auto;
+}
 .banner.paused {
   top: 44%;
 }

@@ -37,6 +37,8 @@ export type ApplicationOptions = {
   hands?: boolean;
   /** The computer plays Teal from the start, as the '1 player' button does. */
   solo?: boolean;
+  /** Two computers play a match behind the start screen (on by default). */
+  attract?: boolean;
 };
 
 /** The team the computer plays in a one-player match: Teal, who goes second. */
@@ -53,6 +55,7 @@ export function startApplication({
     : 'match',
   hands = true,
   solo = false,
+  attract = true,
 }: ApplicationOptions = {}) {
   const playing = mode === 'match';
   const newWorld = () =>
@@ -92,6 +95,7 @@ export function startApplication({
   const intro = document.querySelector<HTMLElement>('#intro');
   const start = document.querySelector<HTMLButtonElement>('#start');
   const startSolo = document.querySelector<HTMLButtonElement>('#start-solo');
+  const again = document.querySelector<HTMLButtonElement>('#again');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -132,6 +136,9 @@ export function startApplication({
   let world = newWorld();
   let match = newMatch();
   let bot: Bot | undefined = playing && solo ? createBot(BOT_TEAM) : undefined;
+  // Until Start is pressed, two computers play each other behind the title.
+  const demoBots = playing && attract ? [createBot(0), createBot(1)] : [];
+  let demoWon = 0;
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
     selectMoth,
@@ -182,14 +189,14 @@ export function startApplication({
   let pointerStart: { x: number; y: number; id: number } | undefined;
 
   /** True while the computer, not a person, is playing the current go. */
-  function botTurn() {
-    const turn = bot && match?.view();
-    return (
-      !!turn &&
-      turn.team === bot?.team &&
-      ['plan', 'move', 'settle', 'aim'].includes(turn.phase)
-    );
+  function pilot() {
+    const turn = match?.view();
+    if (!turn || !['plan', 'move', 'settle', 'aim'].includes(turn.phase))
+      return undefined;
+    if (!started) return demoBots[turn.team];
+    return bot?.team === turn.team ? bot : undefined;
   }
+  const botTurn = () => !!pilot();
   /** Carry out the computer's order; returns how its moth should move. */
   function obey(order: BotOrder) {
     if (!match) return NO_MOVEMENT;
@@ -197,11 +204,24 @@ export function startApplication({
     else if (order.type === 'walk') return order;
     else if (order.type === 'aim') {
       match.beginAim();
-      scene.setAim(order.shot ? { ...order.shot, power: 1 } : undefined);
+      scene.setAim(
+        order.shot
+          ? {
+              ...order.shot,
+              power: 1,
+              lamp:
+                order.shot.weapon === 'zap'
+                  ? world.zapTarget(order.shot.aim)
+                  : undefined,
+            }
+          : undefined,
+      );
     } else if (order.type === 'fire') {
       scene.setAim(undefined);
-      if (world.useWeapon(order.shot.weapon, order.shot.aim))
-        match.fired(order.shot.weapon);
+      const { weapon, aim } = order.shot;
+      const lamp = weapon === 'zap' ? world.zapTarget(aim) : undefined;
+      if (match.canUse(weapon) && world.useWeapon(weapon, aim))
+        match.fired(weapon, lamp);
       else if (match.pass()) world.dance();
     } else if (order.type === 'dance' && match.pass()) world.dance();
     return NO_MOVEMENT;
@@ -381,6 +401,10 @@ export function startApplication({
   }
   function turnMessage(state: MatchView, mothName: string) {
     const team = teamLabel(state.team);
+    if (state.phase === 'won' && bot)
+      return state.winner === bot.team
+        ? 'The computer wins · press Play again for a rematch'
+        : 'You win! · press Play again';
     if (botTurn()) return `${team} · ${mothName} · the computer is playing…`;
     const zapOut =
       WEAPONS[weaponIndex]?.id === 'zap' && state.zapSwitches[state.team] === 0;
@@ -430,6 +454,8 @@ export function startApplication({
     }
     if (state.phase === 'scored')
       return `Round ${state.round} · ${tally(state.awards)}`;
+    if (state.phase === 'won' && bot)
+      return `${state.winner === bot.team ? 'The computer wins' : 'You win!'} · ${state.scores.join(' – ')}`;
     if (state.phase === 'won')
       return `${teamLabel(state.winner ?? 0)} wins ${state.scores.join(' – ')}`;
     return '';
@@ -489,9 +515,11 @@ export function startApplication({
     );
     pass.disabled =
       botTurn() || !['plan', 'move', 'settle', 'aim'].includes(state.phase);
-    const message = bannerMessage(state);
+    // The match behind the start screen plays on without announcements.
+    const message = started ? bannerMessage(state) : '';
     setText(banner, message);
     banner.hidden = message === '';
+    if (again) again.hidden = !started || state.phase !== 'won';
     if (banner.dataset.phase !== state.phase)
       banner.dataset.phase = state.phase;
     weaponButtons.forEach((button, index) => {
@@ -608,7 +636,7 @@ export function startApplication({
         ? 0
         : Math.min(time - previousTime, MAX_FRAME_MS);
     previousTime = time;
-    if (!started) {
+    if (!started && !demoBots.length) {
       // The start screen shows the desk but takes no game input.
       if (!document.hidden && !unfocused) {
         keyboard.clear();
@@ -622,7 +650,12 @@ export function startApplication({
       const pad = gamepad.poll();
       if (controllerStatus && controllerStatus.textContent !== pad.text)
         controllerStatus.textContent = pad.text;
-      if (pad.switchMoth) {
+      if (!started) {
+        // The demo match takes no input, and starts again once it is won.
+        keyboard.clear();
+        demoWon = match?.view().phase === 'won' ? demoWon + elapsed / 1000 : 0;
+        if (demoWon > 6) restart();
+      } else if (pad.switchMoth) {
         const current = world.snapshot().selectedMoth;
         const turn = match?.view();
         // In a match the bumpers cycle through the team's moths on the desk.
@@ -641,11 +674,13 @@ export function startApplication({
           ];
         if (next !== undefined) selectMoth(next);
       }
-      if (pad.pass) passTurn();
-      if (pad.toggleView) toggleView();
-      if (pad.resetView) scene.resetCamera();
-      scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
-      if (pad.weaponStep) selectWeapon(weaponIndex + pad.weaponStep);
+      if (started) {
+        if (pad.pass) passTurn();
+        if (pad.toggleView) toggleView();
+        if (pad.resetView) scene.resetCamera();
+        scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
+        if (pad.weaponStep) selectWeapon(weaponIndex + pad.weaponStep);
+      }
       if (!botTurn())
         updateWeapon(keyboard.fireHeld() || pad.fire, elapsed / 1000);
       seconds += elapsed / 1000;
@@ -669,10 +704,7 @@ export function startApplication({
           continue;
         }
         // On its turn the computer gives the orders and the player's are ignored.
-        const order =
-          bot && botTurn()
-            ? bot.tick(world.snapshot(), match.view())
-            : undefined;
+        const order = pilot()?.tick(world.snapshot(), match.view());
         const steer = order ? obey(order) : command;
         // The first movement input locks in the moth and starts its allowance.
         if (!order && (movement.x || movement.z || jump)) match.startMove();
@@ -702,8 +734,10 @@ export function startApplication({
         accumulator = 0;
       }
       const listener = scene.listenerPosition();
-      sfx.playEvents(events, listener);
-      sfx.update(view, listener);
+      if (started) {
+        sfx.playEvents(events, listener);
+        sfx.update(view, listener);
+      }
       scene.playEvents(events, view);
       updateHUD(view);
       scene.render(view, seconds);
@@ -714,17 +748,23 @@ export function startApplication({
     world.nudgeLamp();
     focusCanvas();
   };
-  const onReset = () => {
+  function restart() {
     clearInput();
     world.destroy();
     world = newWorld();
     match = newMatch();
     bot?.reset();
+    demoBots.forEach((demo) => demo.reset());
+    demoWon = 0;
+    hitstop = 0;
     settleWorld();
     resetClock();
     seconds = 0;
     wasRespawning = false;
     updateHUD(world.snapshot());
+  }
+  const onReset = () => {
+    restart();
     focusCanvas();
   };
   const onCamera = () => {
@@ -774,6 +814,8 @@ export function startApplication({
   };
   const onStart = () => {
     started = true;
+    // Clear away the demo match and deal a fresh one.
+    if (demoBots.length) restart();
     intro.hidden = true;
     sfx.unlock();
     clearInput();
@@ -799,6 +841,7 @@ export function startApplication({
   };
   start.addEventListener('click', onStart);
   startSolo?.addEventListener('click', onStartSolo);
+  again?.addEventListener('click', onReset);
   if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
   window.addEventListener('keydown', onHelpKey);
@@ -842,6 +885,7 @@ export function startApplication({
     pass.removeEventListener('click', onPass);
     start.removeEventListener('click', onStart);
     startSolo?.removeEventListener('click', onStartSolo);
+    again?.removeEventListener('click', onReset);
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();

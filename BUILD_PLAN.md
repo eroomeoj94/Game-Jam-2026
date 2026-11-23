@@ -33,7 +33,9 @@ Read this first when picking the project up in a new session.
 
 **Open questions for playtesting.** Teal always plays last, so Teal gets the final say on who is under the hand and where a noise drags it; watch whether that is too strong. Dancing does not count as noise (it would punish every pass). With no move limit a player can wait for a lamp to swing or for a hand to clear a lamp; bring back `MATCH.moveSeconds` if that is abused. Bosh now launches moths far enough to leave the small desk often. First to ten may be too short or too long now that every moth moves each turn.
 
-**One player (20 November).** The start screen offers "1 player" and "2 players". In a one-player match the computer plays Teal (`src/input/bot.ts`): each go it walks a moth to the nearest warm lamp it is not already winning, avoids a lamp with a hand over it, then gusts or Boshes a rival in reach, or dances. It does not use the Zap Switch, bottle cap or firecracker. Two computers finish a whole match in a test; nobody has played against it yet.
+**One player (20 November).** The start screen offers "1 player" and "2 players". In a one-player match the computer plays Teal (`src/input/bot.ts`): each go it walks a moth to the nearest warm lamp it is not already winning, avoids a lamp with a hand over it, then gusts or Boshes a rival in reach, or dances. When two or more rivals stand in a lamp's light with none of its own, it stands back and flips the lamp with a Zap Switch (23 November). It does not use the bottle cap or firecracker. Two computers finish a whole match in a test.
+
+**Start and finish (23 November).** Until Start is pressed, two computers play a silent demo match behind the title; Start deals a fresh match. A win shows the result with a Play again button, worded as "You win!" or "The computer wins" in one-player.
 
 **Hosting (20 November).** `.github/workflows/pages.yml` builds and publishes to GitHub Pages on every push to `main`, once Pages is set to "GitHub Actions" in the repository settings. Not yet pushed or switched on. The Artlist sound files are not in the repository, so that build plays the synthesised fallback sounds and has no music.
 

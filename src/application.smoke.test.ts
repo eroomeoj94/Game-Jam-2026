@@ -558,6 +558,41 @@ describe('match smoke tests', () => {
     expect(text('#banner')).toContain("Mustard's turn");
   });
 
+  it('plays a demo match behind the start screen and deals a fresh one on Start', () => {
+    const cleanup = startApplication({
+      randomSpawns: false,
+      mode: 'match',
+      hands: false,
+    });
+    cleanups.push(cleanup);
+    const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
+    const render = vi.mocked(scene.render);
+    frame(0);
+    const dealt = render.mock.lastCall![0].moths.map(
+      ({ x, z }: { x: number; z: number }) => ({ x, z }),
+    );
+    let now = 0;
+    for (let tick = 0; tick < 400; tick++) frame((now += 20));
+    const moved = render.mock.lastCall![0].moths.some(
+      (moth: { x: number; z: number }, id: number) =>
+        Math.hypot(moth.x - dealt[id].x, moth.z - dealt[id].z) > 1,
+    );
+    // The computers are walking their moths about, silently and unannounced.
+    expect(moved).toBe(true);
+    expect(document.querySelector<HTMLElement>('#banner')?.hidden).toBe(true);
+    click('start');
+    frame((now += 20));
+    expect(text('#score')).toContain('Round 1');
+    expect(text('#status')).toContain('Mustard');
+    expect(text('#status')).toContain('pick a moth');
+    const fresh = render.mock.lastCall![0].moths;
+    dealt.forEach((spot: { x: number; z: number }, id: number) =>
+      expect(
+        Math.hypot(fresh[id].x - spot.x, fresh[id].z - spot.z),
+      ).toBeLessThan(0.5),
+    );
+  });
+
   it('lets the computer play Teal unaided in a one-player match', () => {
     const cleanup = startApplication({
       randomSpawns: false,

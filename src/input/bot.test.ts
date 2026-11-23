@@ -28,6 +28,7 @@ function table(seed: number) {
   const match = createMatch(ARENA.spawns.map(({ team }) => team));
   const bots = [createBot(0, random), createBot(1, random)];
   const orders: BotOrder['type'][] = [];
+  const zaps: (number | undefined)[] = [];
   const apply = () => {
     for (const event of match.drainEvents()) {
       if (event.type === 'return')
@@ -56,8 +57,11 @@ function table(seed: number) {
     else if (order.type === 'walk') steer = order;
     else if (order.type === 'aim') match.beginAim();
     else if (order.type === 'fire') {
-      if (world.useWeapon(order.shot.weapon, order.shot.aim))
-        match.fired(order.shot.weapon);
+      const { weapon, aim } = order.shot;
+      const lamp = weapon === 'zap' ? world.zapTarget(aim) : undefined;
+      if (weapon === 'zap') zaps.push(lamp);
+      if (match.canUse(weapon) && world.useWeapon(weapon, aim))
+        match.fired(weapon, lamp);
       else if (match.pass()) world.dance();
     } else if (order.type === 'dance' && match.pass()) world.dance();
     const turn = match.view();
@@ -89,7 +93,7 @@ function table(seed: number) {
   apply();
   for (let step = 0; step < 30; step++) world.step();
   world.drainEvents();
-  return { world, match, tick, orders };
+  return { world, match, tick, orders, zaps };
 }
 
 const saved = { ...MATCH };
