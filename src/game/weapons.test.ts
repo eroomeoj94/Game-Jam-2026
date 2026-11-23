@@ -438,7 +438,8 @@ describe('giant hands', () => {
     world.drainEvents();
     expect(world.strike()).toBe(true);
     expect(world.strike()).toBe(false);
-    advance(world, warnTicks + 1);
+    // A hand let go on purpose winds up for longer than a random one.
+    advance(world, Math.ceil(HAZARD.strikeSeconds * 60) + 1);
     expect(world.drainEvents()).toContainEqual(
       expect.objectContaining({ type: 'smack', moths: 1 }),
     );

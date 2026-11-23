@@ -473,6 +473,8 @@ export const HAZARD = {
   maxGap: 6,
   /** Seconds the shadow looms before the hand lands. */
   warnSeconds: 1.6,
+  /** The longer wind-up, with a countdown, when a hanging hand is let go. */
+  strikeSeconds: 2.4,
   /** Seconds the hand rests on the desk, then takes to lift away. */
   holdSeconds: 0.4,
   liftSeconds: 0.7,
@@ -604,6 +606,8 @@ export const AUDIO = {
   voice: 1.3,
   /** The moths' own lines after a move or an attack. */
   mothVoice: 1.15,
+  /** The giants grumbling at the moths as they swat. */
+  giantVoice: 1.4,
   /** Night room tone with crickets, kept faint under the music. */
   ambience: 0.1,
   /** Distance at which a sound is at half volume. */

@@ -35,7 +35,8 @@ Artlist licence covers use in a game.
 
 `artlist/voice/` holds 33 short announcer clips ("Bosh!", "Zapped!", "Hot lamp!
 Double points!", "Mustard wins!" and so on), generated on 23 November 2026 with
-Artlist's voice-over tool: the "Hype" voice, British accent. They are saved in
+Artlist's voice-over tool: the "Hype" voice, British accent, with the
+"Announcer" voice effect. They are saved in
 the Artlist project "Moth Fight Club", folder "Announcer". The file names and
 the moment each one plays are listed in `VOICE_LINES` in `src/audio/sfx.ts`.
 Without the clips the game has no announcer and falls back to the browser's
@@ -49,6 +50,14 @@ action. Four Artlist voices (Chipper, Pep, Boss and Tattle; files `a-`, `b-`,
 `firecracker`, `dance` and `move`. A moth's number picks its voice. They were
 generated on 23 November 2026 and are saved in the Artlist project "Moth Fight
 Club", folder "Moth voices". See `MOTH_CUES` in `src/audio/sfx.ts`.
+
+## Giants' voice lines (not in the repository)
+
+`artlist/voice/giant/` holds 12 clips of the three people round the desk
+grumbling at the moths: three lines each for the slam ("Bug off!", "Get out of
+here, you pest!") and one for the wind-up. They were generated with Cartesia
+Sonic 2 and its "Angry" emotion, using the Gravity, Professor and Deadpan
+voices, and are saved in the Artlist project "Moth Fight Club", folder "Giants".
 
 ## Optional recording
 

@@ -82,6 +82,26 @@ const mothTakes = (moth: number, cue: MothCue) => {
   const voice = MOTH_VOICES[moth % MOTH_VOICES.length]!;
   return [1, 2].map((take) => `moth/${voice}-${cue}-${take}`);
 };
+/**
+ * The giants grumble as they swat: three voices, one per person round the
+ * desk, with three lines for the slam and one for the wind-up.
+ */
+export const GIANT_VOICES = 3;
+const giantTakes = (person: number, cue: 'slam' | 'loom') =>
+  cue === 'slam'
+    ? [1, 2, 3].map((take) => `giant/${person % GIANT_VOICES}-slam-${take}`)
+    : [`giant/${person % GIANT_VOICES}-loom-1`];
+/** How long a clip is really talking, ignoring a quiet tail of reverb. */
+function spokenSeconds(buffer: AudioBuffer) {
+  if (typeof buffer.getChannelData !== 'function') return buffer.duration;
+  const data = buffer.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < data.length; i++)
+    peak = Math.max(peak, Math.abs(data[i]!));
+  let last = data.length - 1;
+  while (last > 0 && Math.abs(data[last]!) < peak * 0.12) last--;
+  return Math.min(buffer.duration, (last + 1) / buffer.sampleRate + 0.15);
+}
 const voicePath = (file: string) => `sounds/artlist/voice/${file}.mp3`;
 
 /** Every sample is boosted or cut so its loudest moment peaks here. */
@@ -188,6 +208,9 @@ export function createSfx({
 }: Dependencies = {}) {
   const voices = new Map<string, AudioBuffer>();
   const voiceMakeup = new Map<string, number>();
+  const voiceLength = new Map<string, number>();
+  /** Whoever is swinging the hand, for picking the giant's voice. */
+  let giantPerson = 0;
   const lastTake = new Map<string, string>();
   /**
    * The line being spoken and any queued behind it, so a bigger moment can
@@ -284,10 +307,19 @@ export function createSfx({
     const mothFiles = MOTH_VOICES.flatMap((_, moth) =>
       MOTH_CUES.flatMap((cue) => mothTakes(moth, cue)),
     );
-    for (const file of [...Object.values(VOICE_LINES).flat(), ...mothFiles])
+    const giantFiles = Array.from({ length: GIANT_VOICES }, (_, person) => [
+      ...giantTakes(person, 'slam'),
+      ...giantTakes(person, 'loom'),
+    ]).flat();
+    for (const file of [
+      ...Object.values(VOICE_LINES).flat(),
+      ...mothFiles,
+      ...giantFiles,
+    ])
       void loadVoice(ctx, file).then((buffer) => {
         if (!buffer) return;
         voiceMakeup.set(file, normalisingGain(buffer));
+        voiceLength.set(file, spokenSeconds(buffer));
         voices.set(file, buffer);
         if (!waiting) return;
         const { cue, priority, expires } = waiting;
@@ -337,13 +369,14 @@ export function createSfx({
     source.connect(gain).connect(effects);
     source.start(now + wait);
     lastTake.set(key, file);
+    const length = voiceLength.get(file) ?? buffer.duration;
     speaking = {
       sources: wait ? [...speaking!.sources, source] : [source],
-      until: now + wait + buffer.duration + 0.2,
+      until: now + wait + length + 0.2,
       priority: wait ? speaking!.priority : priority,
     };
     // The music steps back while anyone is talking.
-    dip(0.4, wait + buffer.duration);
+    dip(0.4, wait + length);
     return true;
   }
 
@@ -643,6 +676,12 @@ export function createSfx({
     /** Points banked: one bright rising note per point, up to five. */
     say,
     quip,
+    /** One tick of the countdown before a hand lands; the last is higher. */
+    count(left: number) {
+      if (!effectsOn) return;
+      const ctx = audio();
+      if (ctx) tone(ctx, left <= 1 ? 880 : 587.33, 0, 0.22, 0.4);
+    },
     chime(points: number) {
       if (!effectsOn || points <= 0) return;
       const ctx = audio();
@@ -687,10 +726,26 @@ export function createSfx({
         // The announcer reacts to the big moments, and now and then to the
         // small ones.
         if (event.type === 'zap') say('zap', { priority: 2 });
-        else if (event.type === 'smack')
+        else if (event.type === 'smack') {
+          // The giant has the first word, then the announcer.
+          speak(
+            giantTakes(giantPerson, 'slam'),
+            `giant-${giantPerson % GIANT_VOICES}-slam`,
+            AUDIO.giantVoice,
+            { priority: 3 },
+          );
           say('smack', { priority: 2, chance: event.moths ? 1 : 0.3 });
-        else if (event.type === 'loom') say('hand', { chance: 0.7 });
-        else if (event.type === 'explode') say('bang', { chance: 0.6 });
+        } else if (event.type === 'loom') {
+          if (
+            speak(
+              giantTakes(giantPerson, 'loom'),
+              `giant-${giantPerson % GIANT_VOICES}-loom`,
+              AUDIO.giantVoice,
+              { priority: 2, chance: 0.5 },
+            ) !== true
+          )
+            say('hand', { chance: 0.7 });
+        } else if (event.type === 'explode') say('bang', { chance: 0.6 });
         else if (event.type === 'lamp' && event.zapper) say('zapper');
         else if (event.type === 'dance') say('dance', { chance: 0.15 });
         else if (event.type === 'gust') say('gust', { chance: 0.2 });
@@ -726,6 +781,7 @@ export function createSfx({
     /** Keep the looping beds in step with the world each frame. */
     update(view: WorldView, listener?: Position) {
       if (!context) return;
+      giantPerson = view.hazards?.[0]?.person ?? giantPerson;
       // With the effects off every bed but the music falls silent.
       const sound = effectsOn ? 1 : 0;
       loop('ambience', AUDIO.ambience * sound);

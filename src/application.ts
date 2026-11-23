@@ -129,6 +129,7 @@ export function startApplication({
   const coach = document.querySelector<HTMLElement>('#coach');
   const coachText = document.querySelector<HTMLElement>('#coach-text');
   const coachHide = document.querySelector<HTMLButtonElement>('#coach-hide');
+  const countdown = document.querySelector<HTMLElement>('#countdown');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -181,6 +182,9 @@ export function startApplication({
    * announcer gets the first word.
    */
   let pendingQuip: { moth: number; cue: MothCue } | undefined;
+  /** Where the round's smack is landing, while the camera is held on it. */
+  let smackSpot: { x: number; z: number } | undefined;
+  let countShown = 0;
   const gamepad = createGamepadInput();
   const keyboard = createPlayerInput(
     selectMoth,
@@ -935,6 +939,28 @@ export function startApplication({
         hitstop = BOSH.hitstop;
         accumulator = 0;
       }
+      // The round's smack: count the hand down and swing the camera onto it,
+      // holding there until the dust has settled.
+      const smacking = match?.view().phase === 'smack';
+      const hand = view.hazards[0];
+      if (!smacking) smackSpot = undefined;
+      else if (hand) smackSpot = { x: hand.x, z: hand.z };
+      scene.setSpotlight(smackSpot);
+      const count =
+        smacking && hand && !hand.held && hand.phase === 'warning'
+          ? Math.max(1, Math.ceil((1 - hand.progress) * 3))
+          : 0;
+      if (count !== countShown) {
+        countShown = count;
+        if (countdown) {
+          countdown.hidden = !count || !started;
+          // A fresh element each tick restarts the pop animation.
+          const digit = document.createElement('span');
+          digit.textContent = count ? String(count) : '';
+          countdown.replaceChildren(digit);
+        }
+        if (count && started) sfx.count(count);
+      }
       const listener = scene.listenerPosition();
       if (started) {
         sfx.playEvents(events, listener);
@@ -1131,6 +1157,7 @@ export function startApplication({
     quit?.removeEventListener('click', onQuit);
     coachHide?.removeEventListener('click', stopCoaching);
     if (menu) menu.hidden = true;
+    if (countdown) countdown.hidden = true;
     if (coach) coach.hidden = true;
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);

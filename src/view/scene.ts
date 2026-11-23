@@ -118,6 +118,9 @@ export function createScene(host: HTMLElement) {
   let lastRespawning = false;
   let lastSeconds: number | undefined;
   const followTarget = new Vector3();
+  /** A spot the camera is held on for a moment of drama, such as a smack. */
+  let spotlight: { x: number; z: number } | undefined;
+  let spotlit = false;
   function applyLimits() {
     const follow = cameraMode === 'follow';
     controls.minDistance = follow ? CAMERA.followMinDistance : 30 * boardScale;
@@ -741,6 +744,10 @@ export function createScene(host: HTMLElement) {
       const { x, y, z } = controls.target;
       return { x, y, z };
     },
+    /** Hold the camera on a spot on the desk; undefined lets it go back. */
+    setSpotlight(spot: { x: number; z: number } | undefined) {
+      spotlight = spot;
+    },
     setAim(preview: AimPreview | undefined) {
       weaponEffects.setAim(preview);
     },
@@ -958,7 +965,21 @@ export function createScene(host: HTMLElement) {
       // Orbit from the player's chosen position, not last frame's pulled-in one.
       if (unobstructed) camera.position.copy(unobstructed);
       unobstructed = undefined;
-      if (cameraMode === 'follow' && active) {
+      if (spotlight) {
+        // Swing round to look down on the spot from the front of the desk.
+        if (!spotlit) {
+          controls.minDistance = 1;
+          controls.maxDistance = 420;
+        }
+        spotlit = true;
+        const ease = 1 - Math.exp(-deltaSeconds * 3.5);
+        const goal = new Vector3(spotlight.x, 1, spotlight.z);
+        controls.target.lerp(goal, ease);
+        camera.position.lerp(goal.add(new Vector3(0, 13, 21)), ease);
+      } else if (spotlit) {
+        spotlit = false;
+        resetCamera();
+      } else if (cameraMode === 'follow' && active) {
         const switched = view.selectedMoth !== lastSelected;
         const returned = lastRespawning && !active.respawning;
         if (firstView || switched || returned) snapBehind();
@@ -977,7 +998,7 @@ export function createScene(host: HTMLElement) {
       // Keep the shoulder camera in front of the back wall.
       if (camera.position.z < CAMERA.wallLimitZ)
         camera.position.z = CAMERA.wallLimitZ;
-      if (cameraMode === 'follow') {
+      if (cameraMode === 'follow' && !spotlight) {
         unobstructed = camera.position.clone();
         avoidOcclusion();
       }

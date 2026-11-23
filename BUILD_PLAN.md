@@ -47,6 +47,8 @@ Read this first when picking the project up in a new session.
 
 **Moth voices (23 November).** Every move and every action ends with a line from the moth that made it: seven pools (one per weapon, plus dancing and finishing a move), four voices shared out by moth number, 56 clips in `public/sounds/artlist/voice/moth/`. A moth waits for the announcer to finish, so a Bosh goes "Bosh!" then the moth's line. Nobody has listened to them in play yet.
 
+**The smack as a set piece (23 November).** When the round's hand is let go it winds up for 2.4 seconds (`HAZARD.strikeSeconds`) with a 3–2–1 countdown and a tick for each number, the camera swings round to look down on the spot and holds there until the flung moths have settled, and the giant doing it shouts a line ("Bug off!"), followed by the announcer. The pause menu's sound button is now two: Music and Sound effects.
+
 **Menu and tips (23 November).** Esc opens a pause menu with the controls; first-match tips run for two rounds.
 
 The demo is Friday 27 November.

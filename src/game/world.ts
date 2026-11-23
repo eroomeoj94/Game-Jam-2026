@@ -288,6 +288,8 @@ export function createWorld({
     side: 1 | -1;
     time: number;
     held: boolean;
+    /** Seconds of warning before this hand lands. */
+    warn: number;
   };
   // Giants pace a U-shaped path round the desk's three open sides (the
   // fourth is against the wall): `at` is the distance along it.
@@ -623,6 +625,7 @@ export function createWorld({
       side: random() < 0.5 ? 1 : -1,
       time: 0,
       held,
+      warn: HAZARD.warnSeconds,
     };
     events.push({ type: 'loom', position: { x, y, z } });
   }
@@ -711,12 +714,8 @@ export function createWorld({
     if (hand.held) return;
     const before = hand.time;
     hand.time += DT;
-    if (before < HAZARD.warnSeconds && hand.time >= HAZARD.warnSeconds)
-      landHand(hand);
-    if (
-      hand.time >=
-      HAZARD.warnSeconds + HAZARD.holdSeconds + HAZARD.liftSeconds
-    ) {
+    if (before < hand.warn && hand.time >= hand.warn) landHand(hand);
+    if (hand.time >= hand.warn + HAZARD.holdSeconds + HAZARD.liftSeconds) {
       hand = undefined;
       nextHand = handGap();
     }
@@ -724,11 +723,11 @@ export function createWorld({
 
   function handView(): HazardView[] {
     if (!hand) return [];
-    const { time, ...rest } = hand;
-    const sinceLanding = time - HAZARD.warnSeconds;
+    const { time, warn, ...rest } = hand;
+    const sinceLanding = time - warn;
     if (sinceLanding < 0)
       return [
-        { ...rest, phase: 'warning', progress: time / HAZARD.warnSeconds },
+        { ...rest, phase: 'warning', progress: time / Math.max(warn, 1e-6) },
       ];
     if (sinceLanding < HAZARD.holdSeconds)
       return [
@@ -1105,6 +1104,8 @@ export function createWorld({
     strike() {
       if (!hand?.held) return false;
       hand.held = false;
+      // A hand let go on purpose winds up for longer: time for a countdown.
+      hand.warn = HAZARD.strikeSeconds;
       return true;
     },
     /** Push every lamp, each in a different direction. */
