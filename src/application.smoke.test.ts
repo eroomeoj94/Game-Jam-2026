@@ -593,6 +593,38 @@ describe('match smoke tests', () => {
     );
   });
 
+  it('freezes the match behind the pause menu and can quit to the title', () => {
+    const { render } = mount('match');
+    frame(0);
+    frame(20);
+    const menu = document.querySelector<HTMLElement>('#menu')!;
+    expect(menu.hidden).toBe(true);
+    // First-match tips show until they are hidden.
+    expect(text('#coach-text')).toContain('ring of light');
+    click('coach-hide');
+    frame(40);
+    expect(document.querySelector<HTMLElement>('#coach')?.hidden).toBe(true);
+    key('Escape');
+    key('Escape', 'keyup');
+    expect(menu.hidden).toBe(false);
+    const calls = render.mock.calls.length;
+    frame(60);
+    frame(80);
+    expect(render.mock.calls.length).toBe(calls);
+    click('resume');
+    expect(menu.hidden).toBe(true);
+    frame(100);
+    expect(render.mock.calls.length).toBeGreaterThan(calls);
+    click('help-toggle');
+    expect(menu.hidden).toBe(false);
+    click('quit');
+    expect(menu.hidden).toBe(true);
+    expect(document.querySelector<HTMLElement>('#intro')?.hidden).toBe(false);
+    expect(document.querySelector<HTMLElement>('#scoreboard')?.hidden).toBe(
+      true,
+    );
+  });
+
   it('lets the computer play Teal unaided in a one-player match', () => {
     const cleanup = startApplication({
       randomSpawns: false,

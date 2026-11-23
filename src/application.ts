@@ -41,6 +41,23 @@ export type ApplicationOptions = {
   attract?: boolean;
 };
 
+const COACHED_KEY = 'moth-fight-club:coached';
+/** Small flags kept between visits; storage may be blocked, so never rely on it. */
+function recall(key: string) {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}
+function remember(key: string) {
+  try {
+    localStorage.setItem(key, '1');
+  } catch {
+    // Without storage the tips simply show again next visit.
+  }
+}
+
 /** The team the computer plays in a one-player match: Teal, who goes second. */
 const BOT_TEAM = 1;
 
@@ -99,6 +116,12 @@ export function startApplication({
   const scoreboard = document.querySelector<HTMLElement>('#scoreboard');
   const caption = document.querySelector<HTMLElement>('.caption');
   const demoTag = document.querySelector<HTMLElement>('#demo-tag');
+  const menu = document.querySelector<HTMLElement>('#menu');
+  const resume = document.querySelector<HTMLButtonElement>('#resume');
+  const quit = document.querySelector<HTMLButtonElement>('#quit');
+  const coach = document.querySelector<HTMLElement>('#coach');
+  const coachText = document.querySelector<HTMLElement>('#coach-text');
+  const coachHide = document.querySelector<HTMLButtonElement>('#coach-hide');
   const paused = document.querySelector<HTMLElement>('#paused');
   const help = document.querySelector<HTMLElement>('#help');
   const helpToggle = document.querySelector<HTMLButtonElement>('#help-toggle');
@@ -184,6 +207,10 @@ export function startApplication({
   let frame = 0;
   let disposed = false;
   let unfocused = false;
+  /** The pause menu is open and the match is frozen behind it. */
+  let menuOpen = false;
+  /** First-match tips, until the player hides them or finishes two rounds. */
+  let coaching = !recall(COACHED_KEY);
   // Nothing responds until Start is pressed on the title screen.
   let started = false;
   /** Seconds until the winning team's next round of dancing. */
@@ -402,6 +429,47 @@ export function startApplication({
     world.drainEvents();
     applyMatchEvents();
   }
+  function stopCoaching() {
+    coaching = false;
+    remember(COACHED_KEY);
+  }
+  /** What to do next, for someone playing their first match. */
+  function coachMessage(state: MatchView, view: WorldView) {
+    if (!coaching || !started || state.phase === 'won') return '';
+    if (state.round > 2) {
+      stopCoaching();
+      return '';
+    }
+    if (state.phase === 'smack')
+      return 'Here comes the hand. Any moth under it is flung away.';
+    if (state.phase === 'scored')
+      return 'A lamp only pays out if you still hold it after your rival has replied.';
+    if (state.phase === 'resolve') return '';
+    if (bot && state.team === bot.team)
+      return 'The computer replies. Lamps you still hold when it finishes score for you.';
+    const active =
+      state.active === undefined ? undefined : view.moths[state.active];
+    const inLight =
+      !!active &&
+      view.lamps.some(
+        (lamp) =>
+          !lamp.zapper &&
+          Math.hypot(active.x - lamp.x, active.y - lamp.y, active.z - lamp.z) <=
+            LAMPS.haloRadius,
+      );
+    const hand = view.hazards.length
+      ? ' ✋ on the scoreboard marks the lamp the hand will swat this round.'
+      : '';
+    if (state.phase === 'plan')
+      return state.round === 1 && state.acted.length === 0
+        ? 'Walk a moth into the ring of light under a lamp: WASD to move, Space to hop.'
+        : `Each of your moths gets one go. Move this one, or pick another with 1–8.${hand}`;
+    if (state.phase === 'move' || state.phase === 'settle')
+      return inLight
+        ? 'In the light. Hold F to aim and release to fire, or press P to dance and end this go.'
+        : `Head for the ring of light under a lamp. Then hold F to aim, or press P to dance.${hand}`;
+    return 'Line up a rival and let go of F. Q / E changes weapon: Wing Gust shoves, Bosh hits hard but the noise draws the hand.';
+  }
   function turnMessage(state: MatchView, mothName: string) {
     const team = teamLabel(state.team);
     if (state.phase === 'won' && bot)
@@ -583,6 +651,9 @@ export function startApplication({
             : 'In the air';
     const turn = match?.view();
     if (turn) updateMatchHUD(view, turn);
+    const tip = turn ? coachMessage(turn, view) : '';
+    setText(coachText, tip);
+    if (coach) coach.hidden = tip === '';
     const mothName = ARENA.spawns[active.id]?.name ?? 'Moth';
     const message = turn
       ? turnMessage(turn, mothName)
@@ -626,7 +697,7 @@ export function startApplication({
   };
   const onBlur = () => {
     unfocused = true;
-    paused.hidden = !started;
+    paused.hidden = !started || menuOpen;
     resetClock();
     clearInput();
   };
@@ -668,7 +739,7 @@ export function startApplication({
     previousTime = time;
     if (!started && !demoBots.length) {
       // The start screen shows the desk but takes no game input.
-      if (!document.hidden && !unfocused) {
+      if (!document.hidden && !unfocused && !menuOpen) {
         keyboard.clear();
         seconds += elapsed / 1000;
         scene.render(world.snapshot(), seconds);
@@ -676,7 +747,7 @@ export function startApplication({
       frame = requestAnimationFrame(render);
       return;
     }
-    if (!document.hidden && !unfocused) {
+    if (!document.hidden && !unfocused && !menuOpen) {
       const pad = gamepad.poll();
       if (controllerStatus && controllerStatus.textContent !== pad.text)
         controllerStatus.textContent = pad.text;
@@ -794,6 +865,7 @@ export function startApplication({
     updateHUD(world.snapshot());
   }
   const onReset = () => {
+    setMenu(false);
     restart();
     focusCanvas();
   };
@@ -852,26 +924,43 @@ export function startApplication({
     resetClock();
     focusCanvas();
   };
-  const toggleHelp = () => {
-    help.hidden = !help.hidden;
-    helpToggle.setAttribute('aria-expanded', String(!help.hidden));
-  };
-  const onHelp = () => {
-    toggleHelp();
-    focusCanvas();
+  /** Open or close the pause menu; the match is frozen while it is open. */
+  function setMenu(open: boolean) {
+    if (!menu || menuOpen === (open && started)) return;
+    menuOpen = open && started;
+    menu.hidden = !menuOpen;
+    helpToggle?.setAttribute('aria-expanded', String(menuOpen));
+    clearInput();
+    resetClock();
+    if (menuOpen) resume?.focus({ preventScroll: true });
+    else focusCanvas();
+  }
+  const onHelp = () => setMenu(!menuOpen);
+  const onResume = () => setMenu(false);
+  /** Back to the title, where the demo match starts again. */
+  const onQuit = () => {
+    setMenu(false);
+    started = false;
+    bot = undefined;
+    intro.hidden = false;
+    paused.hidden = true;
+    restart();
   };
   const onHelpKey = (event: KeyboardEvent) => {
     if (
-      event.code === 'KeyH' &&
+      (event.code === 'KeyH' || event.code === 'Escape') &&
       !event.repeat &&
       !event.ctrlKey &&
       !event.metaKey
     )
-      toggleHelp();
+      setMenu(!menuOpen);
   };
   start.addEventListener('click', onStart);
   startSolo?.addEventListener('click', onStartSolo);
   again?.addEventListener('click', onReset);
+  resume?.addEventListener('click', onResume);
+  quit?.addEventListener('click', onQuit);
+  coachHide?.addEventListener('click', stopCoaching);
   if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
   window.addEventListener('keydown', onHelpKey);
@@ -922,6 +1011,11 @@ export function startApplication({
     start.removeEventListener('click', onStart);
     startSolo?.removeEventListener('click', onStartSolo);
     again?.removeEventListener('click', onReset);
+    resume?.removeEventListener('click', onResume);
+    quit?.removeEventListener('click', onQuit);
+    coachHide?.removeEventListener('click', stopCoaching);
+    if (menu) menu.hidden = true;
+    if (coach) coach.hidden = true;
     helpToggle.removeEventListener('click', onHelp);
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();
