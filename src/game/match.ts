@@ -1,4 +1,4 @@
-import { MATCH } from '../config';
+import { HAZARD, MATCH } from '../config';
 import type { WeaponId } from '../config';
 import type { WorldView } from './world';
 
@@ -64,7 +64,8 @@ export function crowdedSpot(
   let most = 0;
   let spots: { lamp: number; x: number; z: number }[] = [];
   view.lamps.forEach((lamp, index) => {
-    if (lamp.zapper || lamp.dark) return;
+    // The giants cannot reach the lamps up on the tiers.
+    if (lamp.zapper || lamp.dark || lamp.base > HAZARD.reach) return;
     const inside = view.moths.filter(
       (moth) =>
         !moth.respawning &&

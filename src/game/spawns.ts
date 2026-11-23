@@ -76,7 +76,10 @@ export function nearLampPlacement(
   random: () => number = Math.random,
 ): Placement {
   const anywhere = randomPlacement(random);
-  const lamps = LAMPS.positions.slice(0, LAMPS.count);
+  // Everyone starts on the desk: the tiers have to be climbed.
+  const lamps = LAMPS.positions
+    .slice(0, LAMPS.count)
+    .filter(({ base }) => base === 0);
   // Start from a random lamp so matches do not all open the same way.
   let next = Math.floor(random() * Math.max(lamps.length, 1));
   return (id, occupied) => {

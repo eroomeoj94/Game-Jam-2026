@@ -509,3 +509,53 @@ describe('giant hands', () => {
     expect(smacks).toBeGreaterThanOrEqual(Math.floor(60 / longest));
   });
 });
+
+describe('the high tiers', () => {
+  const box = LAMPS.positions.find(({ base }) => base > 0)!;
+  const onBox = { x: box.x, y: box.base + 0.6, z: box.z };
+
+  it('hang lamps above raised platforms a moth can stand on', () => {
+    const world = createWorld();
+    worlds.push(world);
+    world.placeMoth(0, onBox);
+    advance(world, 60);
+    const moth = world.snapshot().moths[0]!;
+    // It is standing on the box lid, well above the desk, in the lamp's light.
+    expect(moth.grounded).toBe(true);
+    expect(moth.y).toBeGreaterThan(box.base);
+    const lamp = world.snapshot().lamps.find(({ base }) => base === box.base)!;
+    expect(lamp.y).toBeCloseTo(
+      box.base + LAMPS.anchorHeight - LAMPS.tetherLength,
+      1,
+    );
+    expect(
+      Math.hypot(moth.x - lamp.x, moth.y - lamp.y, moth.z - lamp.z),
+    ).toBeLessThan(LAMPS.haloRadius);
+  });
+
+  it('are out of the giants’ reach: no swat and no answer to noise', () => {
+    const world = createWorld({ attention: 'hold', random: () => 0.5 });
+    worlds.push(world);
+    world.placeMoth(0, onBox);
+    world.placeMoth(1, { x: box.x + 1.2, y: box.base + 0.6, z: box.z });
+    advance(world, 60);
+    world.drainEvents();
+    // A Bosh that lands up there draws nobody.
+    world.selectMoth(0);
+    expect(world.useWeapon('bosh', { x: 1, y: 0, z: 0 })).toBe(true);
+    advance(world, 5);
+    const events = world.drainEvents().map(({ type }) => type);
+    expect(events).toContain('bosh');
+    expect(events).not.toContain('heard');
+    expect(world.snapshot().hazards).toEqual([]);
+    // A hand brought down beside the box flings nobody standing on it.
+    world.placeMoth(0, onBox);
+    advance(world, 30);
+    world.smack({ x: box.x, z: box.z });
+    advance(world, Math.ceil(HAZARD.warnSeconds * 60) + 2);
+    expect(world.drainEvents()).toContainEqual(
+      expect.objectContaining({ type: 'smack', moths: 0 }),
+    );
+    expect(world.snapshot().moths[0]!.y).toBeGreaterThan(box.base);
+  });
+});

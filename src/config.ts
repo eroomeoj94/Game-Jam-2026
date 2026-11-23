@@ -31,13 +31,15 @@ function books(
   levels: number,
   color: number,
   levelHeight = 0.4,
+  /** Height of whatever the stack stands on; 0 is the desk. */
+  base = 0,
 ): BoxPiece {
   const height = levels * levelHeight;
   return {
     kind: 'books',
     shape: 'box',
     x,
-    y: height / 2,
+    y: base + height / 2,
     z,
     width,
     height,
@@ -54,12 +56,13 @@ function block(
   height: number,
   depth: number,
   color: number,
+  base = 0,
 ): BoxPiece {
   return {
     kind,
     shape: 'box',
     x,
-    y: height / 2,
+    y: base + height / 2,
     z,
     width,
     height,
@@ -74,12 +77,13 @@ function round(
   radius: number,
   height: number,
   color: number,
+  base = 0,
 ): CylinderPiece {
   return {
     kind,
     shape: 'cylinder',
     x,
-    y: height / 2,
+    y: base + height / 2,
     z,
     radius,
     height,
@@ -94,17 +98,48 @@ function round(
 const START_A = scaled({ x: -110, z: 0 });
 const START_B = scaled({ x: 110, z: 0 });
 
-/** Where the lamps hang; each one gets a cluster of perches beneath it. */
+/** Height of the first tier above the desk; the summit is twice this. */
+const TIER = 3.4;
+/**
+ * Where the lamps hang, in three tiers. Five hang over the desk, each with a
+ * cluster of perches beneath it. Two hang over the box lids in the back
+ * corners, a flutter up from the desk, and one over the summit of the book
+ * tower between them. `base` is the height of the surface a lamp lights: the
+ * giants cannot reach the high ones, but their platforms are small and jut
+ * out over the back of the desk, so a shove can send a moth off it for good.
+ */
 const LAMP_SPOTS = [
-  { x: 0, z: 0 },
-  { x: -45, z: -30 },
-  { x: -45, z: 30 },
-  { x: 45, z: -30 },
-  { x: 45, z: 30 },
-  { x: -80, z: 0 },
-  { x: 80, z: 0 },
-  { x: 0, z: 45 },
-].map(scaled);
+  { x: 0, z: 3, base: 0 },
+  { x: -22, z: 6, base: 0 },
+  { x: 22, z: 6, base: 0 },
+  { x: -18, z: -9, base: 0 },
+  { x: 18, z: -9, base: 0 },
+  { x: -38, z: -21, base: TIER },
+  { x: 38, z: -21, base: TIER },
+  { x: 0, z: -20, base: TIER * 2 },
+];
+
+/** A box lid in a back corner with book steps up to it; `side` mirrors it. */
+const corner = (side: 1 | -1): TerrainPiece[] => [
+  block('box', side * 38, -21, 11, TIER, 9, 0xb08d62),
+  books(side * 31.5, -14.8, 3, 3, 2, 0x8a7a3e, 0.6),
+  books(side * 35, -14.8, 3.2, 3, 4, 0x6c5a86, 0.6),
+  round('spool', side * 41, -18.5, 0.5, 0.75, 0x9f6051, TIER),
+  block('pad', side * 35.2, -23.6, 1.4, 0.28, 1.4, 0xe0c65a, TIER),
+];
+/** The book tower at the back: a wide stack, then a narrow summit. */
+const summit: TerrainPiece[] = [
+  books(0, -19, 13, 10, 6, 0x3f5d87, TIER / 6),
+  books(0, -20, 7, 6.4, 6, 0x995845, TIER / 6, TIER),
+  // Steps up either side of the wide stack.
+  ...([1, -1] as const).flatMap((side) => [
+    books(side * 9.7, -15.4, 3, 3, 2, 0x526e6d, 0.6),
+    books(side * 8.3, -19, 3, 3.2, 4, 0x8a7a3e, 0.6),
+  ]),
+  // A box on the stack shortens the flutter to the summit.
+  block('box', 5, -15.4, 2, 1.5, 1.6, 0xb04a3a, TIER),
+  round('tin', -4.8, -15.6, 1.1, 0.5, 0x7d8e6a, TIER),
+];
 
 type Cluster = (x: number, z: number) => TerrainPiece[];
 /** A ring of low perches inside a lamp's light. */
@@ -131,16 +166,8 @@ const study: Cluster = (x, z) => [
   round('spool', x - 2, z + 5, 0.5, 0.75, 0xc9b37a),
   books(x + 2.5, z + 0.5, 2.2, 2, 2, 0x995845),
 ];
-const CLUSTERS: Cluster[] = [
-  ring,
-  tower,
-  study,
-  study,
-  tower,
-  ring,
-  ring,
-  tower,
-];
+/** One cluster for each lamp over the desk, in the order of LAMP_SPOTS. */
+const CLUSTERS: Cluster[] = [ring, study, tower, tower, study];
 
 /**
  * Seeded scatter between the lamps, so routes have cover and detours. The
@@ -242,10 +269,13 @@ export const ARENA = {
     },
     books(START_A.x + 0.9, START_A.z - 2.1, 2.5, 2, 2, 0x995845),
     books(START_B.x - 0.9, START_B.z - 2.25, 2.2, 2.4, 3, 0x526e6d),
-    // A wide notebook behind the centre lamp makes a raised stage.
     ...[
-      block('pad', 0, -10 * BOARD_SCALE * 2, 7, 0.3, 5, 0x4a6b5a),
-      ...LAMP_SPOTS.flatMap((spot, index) => CLUSTERS[index]!(spot.x, spot.z)),
+      ...LAMP_SPOTS.flatMap(
+        (spot, index) => CLUSTERS[index]?.(spot.x, spot.z) ?? [],
+      ),
+      ...corner(-1),
+      ...corner(1),
+      ...summit,
       // Keep the clutter about as dense whatever the desk size.
       ...scatter(Math.round(60 * BOARD_SCALE ** 2 * 1.6), 20261127),
     ],
@@ -277,12 +307,14 @@ export const MAX_LAMPS = 8;
  * tether and positions rebuild the scene; the halo radius applies live.
  */
 export const LAMPS = {
-  count: 7,
+  count: 8,
+  /** Height of a lamp's anchor above the surface it lights. */
   anchorHeight: 9,
   tetherLength: 4,
   /** Lit radius on the desk is about 4.9 with the lamp hanging at rest. */
   haloRadius: 7,
-  positions: LAMP_SPOTS.map(({ x, z }) => ({ x, z })),
+  /** `base` is the height of the surface each lamp lights; 0 is the desk. */
+  positions: LAMP_SPOTS.map(({ x, z, base }) => ({ x, z, base })),
 };
 
 export const LIGHTING = {
@@ -475,6 +507,11 @@ export const HAZARD = {
   warnSeconds: 1.6,
   /** The longer wind-up, with a countdown, when a hanging hand is let go. */
   strikeSeconds: 2.4,
+  /**
+   * How high a giant can reach. Lamps, moths and noises above this are safe
+   * from the hands: that is the point of climbing.
+   */
+  reach: 2.6,
   /** Seconds the hand rests on the desk, then takes to lift away. */
   holdSeconds: 0.4,
   liftSeconds: 0.7,

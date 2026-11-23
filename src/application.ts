@@ -546,6 +546,8 @@ export function startApplication({
     }
     if (state.phase === 'smack')
       return 'Here comes the hand. Any moth under it is flung away.';
+    if (state.round === 2 && state.phase === 'plan' && state.acted.length === 0)
+      return 'Lamps 6, 7 and 8 hang over the boxes and the book tower. Hold Space to flutter up: the hand cannot reach you there, but mind the drop.';
     if (state.resting.length && state.phase === 'plan')
       return 'A moth knocked off the desk misses its next round. Shove rivals over the edge with a gust or a Bosh.';
     if (state.phase === 'scored')
@@ -723,7 +725,13 @@ export function startApplication({
       if (chip.dataset.state !== chipState) chip.dataset.state = chipState;
       const hot = String(bonus);
       if (chip.dataset.hot !== hot) chip.dataset.hot = hot;
-      const title = `Lamp ${index + 1}: ${text}${bonus ? `, worth ${MATCH.hotPoints} this round` : ''}${swat ? ', hand overhead' : ''}`;
+      // How high the lamp hangs: 0 on the desk, 1 and 2 for the tiers.
+      const base = view.lamps[index]?.base ?? 0;
+      const tier = base <= 0 ? '0' : base <= HAZARD.reach + 1 ? '1' : '2';
+      if (chip.dataset.tier !== tier) chip.dataset.tier = tier;
+      const height =
+        tier === '0' ? '' : tier === '1' ? ', up on a box' : ', on the summit';
+      const title = `Lamp ${index + 1}${height}: ${text}${bonus ? `, worth ${MATCH.hotPoints} this round` : ''}${swat ? ', hand overhead' : ''}`;
       if (chip.title !== title) chip.title = title;
     });
     // With no move limit there is nothing to meter.

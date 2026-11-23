@@ -156,3 +156,39 @@ it('two computers play a whole match to a winner', () => {
   expect(Math.max(...end.scores)).toBeGreaterThanOrEqual(MATCH.targetScore);
   world.destroy();
 }, 120_000);
+
+it('flies up to a lamp on a raised tier', () => {
+  const world = createWorld({ match: true, random: seeded(4) });
+  const match = createMatch(
+    ARENA.spawns.map(({ team }) => team),
+    { lamps: 0 },
+  );
+  const high = world.snapshot().lamps.findIndex(({ base }) => base > 0);
+  const lamp = world.snapshot().lamps[high]!;
+  // Start on the desk a short walk from the box, with every other lamp
+  // already won so the box is the only one worth having.
+  world.placeMoth(0, { x: lamp.anchor.x + 12, y: 0.5, z: lamp.anchor.z + 12 });
+  for (let step = 0; step < 30; step++) world.step();
+  const bot = createBot(0, seeded(4));
+  const view = () => {
+    const now = world.snapshot();
+    return {
+      ...now,
+      lamps: now.lamps.map((each, index) =>
+        index === high ? each : { ...each, dark: true },
+      ),
+    };
+  };
+  for (let step = 0; step < 600; step++) {
+    const order = bot.tick(view(), match.view());
+    if (order.type === 'start') match.startMove();
+    if (order.type === 'aim') break;
+    world.step(order.type === 'walk' ? order : undefined);
+  }
+  const moth = world.snapshot().moths[0]!;
+  expect(moth.y).toBeGreaterThan(lamp.base);
+  expect(
+    Math.hypot(moth.x - lamp.x, moth.y - lamp.y, moth.z - lamp.z),
+  ).toBeLessThan(LAMPS.haloRadius);
+  world.destroy();
+});

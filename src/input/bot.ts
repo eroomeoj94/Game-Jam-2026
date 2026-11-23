@@ -1,4 +1,12 @@
-import { BOSH, GUST, HAZARD, LAMPS, PHYSICS_STEP_MS, ZAP } from '../config';
+import {
+  ARENA,
+  BOSH,
+  GUST,
+  HAZARD,
+  LAMPS,
+  PHYSICS_STEP_MS,
+  ZAP,
+} from '../config';
 import type { WeaponId } from '../config';
 import type { Aim } from '../game/gadgets';
 import { lampControl } from '../game/match';
@@ -17,6 +25,10 @@ export const BOT = {
   zapRivals: 2,
   /** How many extra units of walking the hot lamp is worth. */
   hotPull: 12,
+  /** Extra walking a lamp is judged to cost for each unit it is raised. */
+  climbCost: 1.2,
+  /** How close to a tier the computer takes off for it. */
+  takeOff: 7,
 };
 
 export type BotShot = { weapon: WeaponId; aim: Aim };
@@ -50,7 +62,8 @@ export function createBot(team: number, random: () => number = Math.random) {
   let aiming = 0;
   let stuck = 0;
   let lastGap = Infinity;
-  let target: { x: number; z: number } | undefined;
+  /** Where the moth is heading; `y` is the height of the surface there. */
+  let target: { x: number; y: number; z: number } | undefined;
   let shot: BotShot | undefined;
   let shotChosen = false;
 
@@ -100,6 +113,7 @@ export function createBot(team: number, random: () => number = Math.random) {
       );
       return {
         x: bulb.x + ((me.x - bulb.x) / zap.gap) * stand,
+        y: 0,
         z: bulb.z + ((me.z - bulb.z) / zap.gap) * stand,
       };
     }
@@ -125,7 +139,9 @@ export function createBot(team: number, random: () => number = Math.random) {
       let cost =
         Math.hypot(lamp.anchor.x - me.x, lamp.anchor.z - me.z) +
         (lead > 0 ? 25 : lead === 0 ? 0 : 6) -
-        (lamp.hot ? BOT.hotPull : 0);
+        (lamp.hot ? BOT.hotPull : 0) +
+        // A climb costs a little; the hand and a hot lamp outweigh it.
+        lamp.base * BOT.climbCost;
       if (
         hand &&
         Math.hypot(lamp.anchor.x - hand.x, lamp.anchor.z - hand.z) <
@@ -143,6 +159,7 @@ export function createBot(team: number, random: () => number = Math.random) {
     const angle = (id % 4) * (Math.PI / 2);
     return {
       x: lamp.anchor.x + Math.cos(angle) * 1.6,
+      y: lamp.base,
       z: lamp.anchor.z + Math.sin(angle) * 1.6,
     };
   }
@@ -215,16 +232,24 @@ export function createBot(team: number, random: () => number = Math.random) {
           const dx = (target?.x ?? me?.x ?? 0) - (me?.x ?? 0);
           const dz = (target?.z ?? me?.z ?? 0) - (me?.z ?? 0);
           const gap = Math.hypot(dx, dz);
-          if (gap >= 0.5 && walking < BOT.walkSeconds && settling === 0) {
+          // Still below a raised target: it has to fly up.
+          const below =
+            !!me && !!target && me.y < target.y + ARENA.mothRadius - 0.4;
+          if (
+            (gap >= 0.5 || below) &&
+            walking < BOT.walkSeconds &&
+            settling === 0
+          ) {
             stuck = gap > lastGap - 0.01 ? stuck + 1 : 0;
             lastGap = gap;
+            const climb = below && gap < BOT.takeOff;
             return {
               type: 'walk',
-              x: dx / gap,
-              z: dz / gap,
-              // Hop and flutter over whatever is in the way.
-              jump: stuck > 6 && !!me?.grounded,
-              flutter: stuck > 6,
+              x: gap > 1e-3 ? dx / gap : 0,
+              z: gap > 1e-3 ? dz / gap : 0,
+              // Hop and flutter over whatever is in the way, or up to a tier.
+              jump: (climb || stuck > 6) && !!me?.grounded,
+              flutter: climb || stuck > 6,
             };
           }
           // Stand still for a moment so the shot is lined up from rest.

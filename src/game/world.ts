@@ -72,6 +72,8 @@ export type LampView = Position & {
   dark: boolean;
   /** This round's bonus lamp. */
   hot: boolean;
+  /** Height of the surface the lamp lights: 0 for the desk, more for a tier. */
+  base: number;
 };
 export type ProjectileView = Position & {
   id: number;
@@ -331,15 +333,15 @@ export function createWorld({
   let selectedMoth = 0;
   let events: WorldEvent[] = [];
   // Lamp settings are read once here; changing them rebuilds the world.
-  const lamps = LAMPS.positions.slice(0, LAMPS.count).map(({ x, z }) => {
+  const lamps = LAMPS.positions.slice(0, LAMPS.count).map(({ x, z, base }) => {
     const anchor = new Body({
       mass: 0,
-      position: new Vec3(x, LAMPS.anchorHeight, z),
+      position: new Vec3(x, base + LAMPS.anchorHeight, z),
     });
     const bulb = new Body({
       mass: 0.8,
       shape: new Sphere(ARENA.lampRadius),
-      position: new Vec3(x, LAMPS.anchorHeight - LAMPS.tetherLength, z),
+      position: new Vec3(x, base + LAMPS.anchorHeight - LAMPS.tetherLength, z),
       linearDamping: 0.12,
     });
     world.addBody(anchor);
@@ -347,7 +349,7 @@ export function createWorld({
     world.addConstraint(
       new DistanceConstraint(anchor, bulb, LAMPS.tetherLength),
     );
-    return { anchor, bulb, zapperTime: 0, dark: false, hot: false };
+    return { anchor, bulb, base, zapperTime: 0, dark: false, hot: false };
   });
   type Projectile = {
     id: number;
@@ -574,7 +576,10 @@ export function createWorld({
   /** Somewhere on the desk for a hand to land: often where moths gather. */
   function handSpot() {
     const { width, depth } = ARENA.desk;
-    const spots = LAMPS.positions.slice(0, LAMPS.count);
+    // Only the lamps over the desk: the tiers are out of reach.
+    const spots = LAMPS.positions
+      .slice(0, LAMPS.count)
+      .filter(({ base }) => base <= HAZARD.reach);
     const lamp = spots[Math.floor(random() * spots.length)];
     if (lamp && random() < HAZARD.lampBias) {
       const angle = random() * Math.PI * 2;
@@ -612,8 +617,14 @@ export function createWorld({
           ? Math.max(piece.width, piece.depth) / 2
           : piece.radius) +
         HAZARD.radius * 0.6;
-      if (piece.kind !== 'desk' && Math.hypot(piece.x - x, piece.z - z) < reach)
-        y = Math.max(y, piece.y + piece.height / 2);
+      const top = piece.y + piece.height / 2;
+      // The tiers are too tall to slap: the palm goes for the desk beside them.
+      if (
+        piece.kind !== 'desk' &&
+        top <= HAZARD.reach &&
+        Math.hypot(piece.x - x, piece.z - z) < reach
+      )
+        y = Math.max(y, top);
     }
     hand = {
       x,
@@ -632,7 +643,8 @@ export function createWorld({
 
   /** Something loud happened at `at`: the giants look that way. */
   function makeNoise(at: Position) {
-    if (!attention || (hand && !hand.held)) return;
+    // A racket up on the tiers is too far away to bother them.
+    if (!attention || at.y > HAZARD.reach || (hand && !hand.held)) return;
     events.push({ type: 'heard', position: at });
     raiseHand(at, attention === 'hold');
   }
@@ -642,6 +654,8 @@ export function createWorld({
     let hits = 0;
     for (const moth of moths) {
       if (!inPlay(moth)) continue;
+      // Anyone up on a tier is out of the hand's reach.
+      if (moth.body.position.y > HAZARD.reach + ARENA.mothRadius) continue;
       const dx = moth.body.position.x - at.x;
       const dz = moth.body.position.z - at.z;
       const gap = Math.hypot(dx, dz);
@@ -1125,9 +1139,10 @@ export function createWorld({
           return { x, z, heading, walked, smacking: hand?.person === index };
         }),
         teamZaps: [...teamZaps],
-        lamps: lamps.map(({ anchor, bulb, zapperTime, dark, hot }) => ({
+        lamps: lamps.map(({ anchor, bulb, base, zapperTime, dark, hot }) => ({
           ...positionOf(bulb),
           anchor: positionOf(anchor),
+          base,
           dark,
           hot,
           zapper: zapperTime > 0,

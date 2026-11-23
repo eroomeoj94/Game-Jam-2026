@@ -468,7 +468,7 @@ describe('match smoke tests', () => {
     expect(text('#status')).toContain('Mustard');
     expect(text('#status')).toContain('Dusty');
     expect(text('#banner')).toContain("Mustard's turn");
-    expect(document.querySelectorAll('#lamps span')).toHaveLength(7);
+    expect(document.querySelectorAll('#lamps span')).toHaveLength(8);
     expect(document.querySelector('#nudge')).toHaveProperty('hidden', true);
     // The other team's moth cannot be picked, by key or by button.
     key('Digit2');

@@ -2,7 +2,7 @@
 
 Updated 19 November 2026. Initial review: 13 November against `MOTH_FIGHT_CLUB.md`.
 Demo: Friday 27 November, afternoon. User availability: 15–25 hours for direction, playtesting, and demo preparation; AI handles implementation.
-Status (19 November): a full match is playable in code — rounds, one moth and one action per turn, a timed move, majority scoring per lamp, round-based zappers, resting moths, victory and restart — on the 250 × 134 desk with seven lamps and four moths per team. The free-play weapon playground is still available with `?playground`. Nobody has playtested the match yet; that is next. Recommendations below are provisional until playtested.
+Status (19 November): a full match is playable in code — rounds, one moth and one action per turn, a timed move, majority scoring per lamp, round-based zappers, resting moths, victory and restart — on a three-tier desk with eight lamps and four moths per team. The free-play weapon playground is still available with `?playground`. Nobody has playtested the match yet; that is next. Recommendations below are provisional until playtested.
 
 ## Where we left off (19 November)
 
@@ -48,6 +48,8 @@ Read this first when picking the project up in a new session.
 **Moth voices (23 November).** Every move and every action ends with a line from the moth that made it: seven pools (one per weapon, plus dancing and finishing a move), four voices shared out by moth number, 56 clips in `public/sounds/artlist/voice/moth/`. A moth waits for the announcer to finish. A Bosh is the exception: only the announcer speaks. Nobody has listened to them in play yet.
 
 **The smack as a set piece (23 November).** When the round's hand is let go it winds up for 2.4 seconds (`HAZARD.strikeSeconds`) with a 3–2–1 countdown and a tick for each number, the camera swings round to look down on the spot and holds there until the flung moths have settled, and the giant doing it shouts a line ("Bug off!"), followed by the announcer. The pause menu's sound button is now two: Music and Sound effects.
+
+**Three tiers (23 November).** The level is now vertical. Eight lamps: five over the desk, two over box lids in the back corners (3.4 units up) and one on the summit of a book tower between them (6.8 up). Each tier has book steps for hoppers, but fluttering is the quick way. The giants cannot reach above `HAZARD.reach` (2.6): the round's hand only picks desk lamps, noise up there draws nobody, and a hand landing beside a box flings nobody on it. The risk is the drop: the high platforms are small and the corner boxes jut out over the back of the desk, so a shove can put a moth off the desk and out for a round. Moths always start on the desk. The computer flies up when a high lamp is worth it. In 20 computer-versus-computer matches about 6 of the 20 points a match came from the high lamps and matches averaged 6.5 rounds. Layout: `LAMP_SPOTS`, `corner` and `summit` in `src/config.ts`. Nobody has played it by hand yet.
 
 **Menu and tips (23 November).** Esc opens a pause menu with the controls; first-match tips run for two rounds.
 

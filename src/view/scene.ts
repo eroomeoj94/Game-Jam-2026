@@ -918,11 +918,11 @@ export function createScene(host: HTMLElement) {
         light.position.set(lamp.x, lamp.y - 0.15, lamp.z);
         light.target.position.set(lamp.x, 0, lamp.z);
         const haloAtFloor = Math.sqrt(
-          Math.max(0, LAMPS.haloRadius ** 2 - lamp.y ** 2),
+          Math.max(0, LAMPS.haloRadius ** 2 - (lamp.y - lamp.base) ** 2),
         );
         halo.visible = haloAtFloor > 0;
         halo.scale.setScalar(haloAtFloor);
-        halo.position.set(lamp.x, 0.012, lamp.z);
+        halo.position.set(lamp.x, lamp.base + 0.012, lamp.z);
       });
       const frameDelta =
         lastSeconds === undefined ? 0 : Math.max(0, seconds - lastSeconds);

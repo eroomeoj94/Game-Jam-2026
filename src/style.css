@@ -982,3 +982,11 @@ kbd {
     transform: scale(0.85);
   }
 }
+
+/* Scoreboard chips: lamps up on the tiers wear a bar, thicker for the summit. */
+.lamp-bar span[data-tier='1'] {
+  border-top: 3px solid #f1e3c6;
+}
+.lamp-bar span[data-tier='2'] {
+  border-top: 5px double #fff6e0;
+}
