@@ -1357,3 +1357,75 @@ kbd.ps-triangle {
     border-radius: 14px;
   }
 }
+/* The scorecard shown once the winners have had their two dances. */
+.scorecard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  width: min(520px, 92vw);
+  padding: 26px 30px 24px;
+  border: 1px solid #c69d6255;
+  border-radius: 14px;
+  background: #101922f2;
+  box-shadow: 0 24px 60px #000a;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  animation: wheel-in 0.25s ease-out;
+}
+.scorecard[hidden] {
+  display: none;
+}
+.scorecard h2 {
+  margin: 6px 0 16px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 36px;
+  font-weight: 400;
+}
+.scorecard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.scorecard th,
+.scorecard td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #ffffff14;
+  text-align: right;
+}
+.scorecard tbody th {
+  color: #c9c6b3;
+  font-weight: 400;
+  text-align: left;
+}
+.scorecard thead th[data-team='0'],
+.scorecard td[data-team='0'] {
+  color: #e7c28b;
+}
+.scorecard thead th[data-team='1'],
+.scorecard td[data-team='1'] {
+  color: #7fd1c8;
+}
+.scorecard td[data-winner='true'] {
+  font-weight: 700;
+}
+.scorecard tbody tr:first-child td {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 26px;
+}
+.scorecard-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+/* Play again now lives in the scorecard, not floating over the desk. */
+.scorecard .again,
+.scorecard #again {
+  position: static;
+  transform: none;
+  padding: 12px 26px;
+  font-size: 16px;
+}
+.scorecard .eyebrow b {
+  font-weight: inherit;
+}

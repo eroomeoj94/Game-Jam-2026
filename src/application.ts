@@ -77,6 +77,8 @@ const WEAPON_ABOUT: Record<WeaponId, string> = {
 };
 /** What to call each giant while a Mind Control is choosing between them. */
 const GIANT_NAMES = ['the old man', 'the lad', 'Joe'];
+/** How many times the winners dance before the scorecard comes up. */
+const VICTORY_DANCES = 2;
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
 
 export function startApplication({
@@ -133,6 +135,12 @@ export function startApplication({
   const start = document.querySelector<HTMLButtonElement>('#start');
   const startSolo = document.querySelector<HTMLButtonElement>('#start-solo');
   const again = document.querySelector<HTMLButtonElement>('#again');
+  const scorecard = document.querySelector<HTMLElement>('#scorecard');
+  const scorecardTitle =
+    document.querySelector<HTMLElement>('#scorecard-title');
+  const scorecardRows = document.querySelector<HTMLElement>('#scorecard-rows');
+  const scorecardQuit =
+    document.querySelector<HTMLButtonElement>('#scorecard-quit');
   const scoreboard = document.querySelector<HTMLElement>('#scoreboard');
   const caption = document.querySelector<HTMLElement>('.caption');
   const demoTag = document.querySelector<HTMLElement>('#demo-tag');
@@ -326,6 +334,12 @@ export function startApplication({
   let started = false;
   /** Seconds until the winning team's next round of dancing. */
   let partyTimer = 0;
+  /** Victory dances done so far: two, then the scorecard. */
+  let partyRounds = 0;
+  /** What each team did this match, for the scorecard. */
+  const freshTally = () =>
+    TEAM_LABELS.map(() => ({ lamps: 0, hot: 0, falls: 0 }));
+  let tallies = freshTally();
   let wasRespawning = false;
   let pointerStart: { x: number; y: number; id: number } | undefined;
 
@@ -625,12 +639,76 @@ export function startApplication({
     world.step(NO_MOVEMENT);
     partyTimer -= PHYSICS_STEP_MS / 1000;
     if (partyTimer > 0) return;
+    // Two victory dances, then they stand still for the scorecard.
+    if (partyRounds >= VICTORY_DANCES) {
+      showScorecard();
+      return;
+    }
+    partyRounds += 1;
     partyTimer = DANCE.seconds + 0.3;
     const before = world.snapshot();
     for (const moth of before.moths)
       if (moth.team === winner && !moth.respawning && world.selectMoth(moth.id))
         world.dance();
     world.selectMoth(before.selectedMoth);
+  }
+  /** Lay the final score and each team's match over the desk. */
+  function showScorecard() {
+    const state = match?.view();
+    if (!scorecard || !state || !started || !scorecard.hidden) return;
+    const view = world.snapshot();
+    const winner = state.winner ?? 0;
+    setText(
+      scorecardTitle,
+      bot
+        ? winner === bot.team
+          ? 'The computer wins'
+          : 'You win!'
+        : `${teamLabel(winner)} wins`,
+    );
+    TEAM_LABELS.forEach((_, team) =>
+      setText(
+        document.querySelector(`#scorecard-team-${team}`),
+        teamLabel(team),
+      ),
+    );
+    const rows: [string, (team: number) => number | string][] = [
+      ['Points', (team) => state.scores[team] ?? 0],
+      ['Lamps banked', (team) => tallies[team]?.lamps ?? 0],
+      ['Hot lamps banked', (team) => tallies[team]?.hot ?? 0],
+      ['Moths zapped', (team) => view.teamZaps[team] ?? 0],
+      ['Moths knocked off', (team) => tallies[team]?.falls ?? 0],
+      [
+        'Zap Switches used',
+        (team) => MATCH.zapSwitches - (state.zapSwitches[team] ?? 0),
+      ],
+      [
+        'Mind Control',
+        (team) => ((state.mindControls[team] ?? 0) > 0 ? 'Saved' : 'Used'),
+      ],
+    ];
+    scorecardRows?.replaceChildren(
+      ...rows.map(([label, value]) => {
+        const row = document.createElement('tr');
+        const head = document.createElement('th');
+        head.textContent = label;
+        row.append(head);
+        TEAM_LABELS.forEach((_, team) => {
+          const cell = document.createElement('td');
+          cell.textContent = String(value(team));
+          cell.dataset.team = String(team);
+          if (team === winner) cell.dataset.winner = 'true';
+          row.append(cell);
+        });
+        return row;
+      }),
+    );
+    setText(
+      document.querySelector('#scorecard-rounds'),
+      `Final score · ${state.round} round${state.round === 1 ? '' : 's'}`,
+    );
+    scorecard.hidden = false;
+    again?.focus({ preventScroll: true });
   }
   /** Tell the match what the world just did. */
   function reportToMatch(view: WorldView, events: readonly WorldEvent[]) {
@@ -645,6 +723,8 @@ export function startApplication({
         match.mothOut(moth.id);
         // A zapped moth has had its line already; this one fell or was flung.
         if (!zappedOut.delete(moth.id) && started) {
+          const fallen = tallies[moth.team];
+          if (fallen) fallen.falls += 1;
           sfx.say('fall');
           // Say what it costs, where the moth went over the edge.
           const half = {
@@ -671,6 +751,12 @@ export function startApplication({
       else if (event.type === 'lamp-restored') world.restoreLamp(event.lamp);
       else if (event.type === 'strike') world.strike();
       else if (event.type === 'banked') {
+        event.awards.forEach((team, lamp) => {
+          const tally = team === undefined ? undefined : tallies[team];
+          if (!tally) return;
+          tally.lamps += 1;
+          if ((event.points[lamp] ?? 1) > 1) tally.hot += 1;
+        });
         scene.showScores(event.awards, world.snapshot(), event.points);
         sfx.chime(event.awards.filter((team) => team !== undefined).length);
         // One call of "Match point!" per team, when it gets within a hot lamp.
@@ -710,6 +796,7 @@ export function startApplication({
           { priority: 3 },
         );
         partyTimer = 0;
+        partyRounds = 0;
       } else if (event.type === 'threat') {
         // Round one is covered by the opening line.
         if (started && event.round > 1)
@@ -988,8 +1075,8 @@ export function startApplication({
     // The match behind the start screen plays on without announcements.
     const message = started ? bannerMessage(state) : '';
     setText(banner, message);
-    banner.hidden = message === '';
-    if (again) again.hidden = !started || state.phase !== 'won';
+    // The scorecard says who won; the banner behind it would only repeat it.
+    banner.hidden = message === '' || !!(scorecard && !scorecard.hidden);
     if (banner.dataset.phase !== state.phase)
       banner.dataset.phase = state.phase;
     weaponButtons.forEach((button, index) => {
@@ -1337,6 +1424,9 @@ export function startApplication({
     demoBots.forEach((demo) => demo.reset());
     demoWon = 0;
     hitstop = 0;
+    tallies = freshTally();
+    partyRounds = 0;
+    if (scorecard) scorecard.hidden = true;
     matchPointCalled.clear();
     settleWorld();
     resetClock();
@@ -1450,6 +1540,7 @@ export function startApplication({
   again?.addEventListener('click', onReset);
   resume?.addEventListener('click', onResume);
   quit?.addEventListener('click', onQuit);
+  scorecardQuit?.addEventListener('click', onQuit);
   coachHide?.addEventListener('click', stopCoaching);
   if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
@@ -1509,6 +1600,7 @@ export function startApplication({
     again?.removeEventListener('click', onReset);
     resume?.removeEventListener('click', onResume);
     quit?.removeEventListener('click', onQuit);
+    scorecardQuit?.removeEventListener('click', onQuit);
     coachHide?.removeEventListener('click', stopCoaching);
     if (menu) menu.hidden = true;
     if (countdown) countdown.hidden = true;

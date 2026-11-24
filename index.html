@@ -94,7 +94,34 @@
         <kbd>WASD</kbd> · change giant with <kbd>Q</kbd> <kbd>E</kbd> · press
         <kbd>F</kbd> again to slam
       </p>
-      <button id="again" type="button" class="again" hidden>Play again</button>
+      <div
+        id="scorecard"
+        class="scorecard"
+        role="dialog"
+        aria-labelledby="scorecard-title"
+        hidden
+      >
+        <p class="eyebrow">
+          <span></span> <b id="scorecard-rounds">Final score</b>
+        </p>
+        <h2 id="scorecard-title"></h2>
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th id="scorecard-team-0" data-team="0"></th>
+              <th id="scorecard-team-1" data-team="1"></th>
+            </tr>
+          </thead>
+          <tbody id="scorecard-rows"></tbody>
+        </table>
+        <div class="scorecard-buttons">
+          <button id="again" type="button">Play again</button>
+          <button id="scorecard-quit" type="button" class="secondary">
+            Quit to title
+          </button>
+        </div>
+      </div>
       <p id="coach" class="coach" role="status" hidden>
         <span id="coach-text"></span>
         <button id="coach-hide" type="button" class="secondary">

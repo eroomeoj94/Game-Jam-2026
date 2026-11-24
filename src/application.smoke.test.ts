@@ -783,6 +783,66 @@ describe('match smoke tests', () => {
   });
 });
 
+describe('winning', () => {
+  it('dances twice, then shows a scorecard with a way to play again', () => {
+    const saved = {
+      target: MATCH.targetScore,
+      banner: MATCH.bannerSeconds,
+      start: MATCH.headStart,
+    };
+    // Teal starts on the winning score, so the first bank ends the match.
+    MATCH.targetScore = 1;
+    MATCH.headStart = 1;
+    MATCH.bannerSeconds = 0.1;
+    try {
+      const { render } = mount('match');
+      const card = document.querySelector<HTMLElement>('#scorecard')!;
+      const won = () =>
+        /wins/.test(document.querySelector('#banner')!.textContent ?? '');
+      let now = 0;
+      // Mustard's moths dance their goes away, and the turn ends.
+      for (let step = 0; step < 4000 && !won(); step++) {
+        if (step % 30 === 0) {
+          key('KeyP');
+          key('KeyP', 'keyup');
+        }
+        frame((now += 20));
+      }
+      expect(won()).toBe(true);
+      expect(card.hidden).toBe(true);
+      let dances = 0;
+      let dancing = false;
+      for (let step = 0; step < 1500 && card.hidden; step++) {
+        frame((now += 20));
+        const busy = render.mock.lastCall![0].moths.some(
+          (moth: { dance: number }) => moth.dance > 0,
+        );
+        if (busy && !dancing) dances += 1;
+        dancing = busy;
+      }
+      expect(card.hidden).toBe(false);
+      expect(dances).toBe(2);
+      expect(document.querySelector('#scorecard-title')!.textContent).toMatch(
+        /wins/,
+      );
+      expect(document.querySelectorAll('#scorecard-rows tr').length).toBe(7);
+      // Nobody is still dancing behind the card a while later.
+      for (let step = 0; step < 300; step++) frame((now += 20));
+      expect(
+        render.mock.lastCall![0].moths.some(
+          (moth: { dance: number }) => moth.dance > 0,
+        ),
+      ).toBe(false);
+      document.querySelector<HTMLButtonElement>('#again')!.click();
+      expect(card.hidden).toBe(true);
+    } finally {
+      MATCH.targetScore = saved.target;
+      MATCH.bannerSeconds = saved.banner;
+      MATCH.headStart = saved.start;
+    }
+  });
+});
+
 describe('mind control', () => {
   it('takes control on a tap, and slams only on a second press', () => {
     const { render } = mount();
