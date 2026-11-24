@@ -272,7 +272,6 @@ export function startApplication({
     weaponHelp?.appendChild(item);
     return item;
   });
-  const helpButton = document.querySelector<HTMLButtonElement>('#help-button');
   let weaponIndex = 0;
   let wheelOpen = false;
   function setWheel(open: boolean) {
@@ -1294,7 +1293,6 @@ export function startApplication({
   window.addEventListener('keyup', onWheelKey);
   wheel?.addEventListener('click', onWheelClick);
   chip?.addEventListener('click', onChip);
-  helpButton?.addEventListener('click', onHelp);
   window.addEventListener('keydown', onHelpKey);
   pass.addEventListener('click', onPass);
   nudge.addEventListener('click', onNudge);
@@ -1357,7 +1355,6 @@ export function startApplication({
     window.removeEventListener('keyup', onWheelKey);
     wheel?.removeEventListener('click', onWheelClick);
     chip?.removeEventListener('click', onChip);
-    helpButton?.removeEventListener('click', onHelp);
     weaponHelpItems.forEach((item) => item.remove());
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();

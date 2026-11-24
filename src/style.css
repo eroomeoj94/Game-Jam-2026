@@ -1129,21 +1129,6 @@ kbd {
 .caption[data-team='1'] .badge-team {
   color: #9bf0e6;
 }
-.help-button {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 2px solid #efe4cc99;
-  border-radius: 50%;
-  color: #efe4cc;
-  background: #0d151ccc;
-  font-size: 18px;
-  font-weight: 700;
-}
-.help-button:hover {
-  border-color: #ffd98a;
-}
 .weapon-help {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
