@@ -132,6 +132,49 @@ function keepLeft(scene: Group, line: number) {
   });
 }
 
+const props = new Map<string, Promise<Group | undefined>>();
+
+/**
+ * Load a small prop (a projectile) once, centred and scaled so its longest
+ * side is `size`; undefined when the file is missing or broken.
+ */
+export function loadProp(name: string, size: number) {
+  let prop = props.get(name);
+  if (!prop) {
+    prop = new Promise<Group | undefined>((resolve) => {
+      try {
+        new GLTFLoader().load(
+          `models/artlist/${name}.glb`,
+          (gltf) => {
+            try {
+              const box = new Box3().setFromObject(gltf.scene);
+              const extent = box.getSize(new Vector3());
+              const longest = Math.max(extent.x, extent.y, extent.z);
+              if (!(longest > 0)) return resolve(undefined);
+              gltf.scene.position.sub(box.getCenter(new Vector3()));
+              gltf.scene.traverse((object) => {
+                if (object instanceof Mesh) object.castShadow = true;
+              });
+              const held = new Group();
+              held.add(gltf.scene);
+              held.scale.setScalar(size / longest);
+              resolve(held);
+            } catch {
+              resolve(undefined);
+            }
+          },
+          undefined,
+          () => resolve(undefined),
+        );
+      } catch {
+        resolve(undefined);
+      }
+    });
+    props.set(name, prop);
+  }
+  return prop;
+}
+
 /** Start every weapon loading, so the first switch does not pop in late. */
 export function preloadWeaponModels() {
   for (const { id } of WEAPONS) void loadWeaponModel(id);

@@ -742,6 +742,7 @@ export function createScene(host: HTMLElement) {
   const people = createPeople(materials);
   scene.add(warning.root, people.root);
   let heldWeapon: WeaponId | undefined;
+  let aimPreview: AimPreview | undefined;
   preloadWeaponModels();
   let disposed = false;
   function resize() {
@@ -837,13 +838,20 @@ export function createScene(host: HTMLElement) {
       heldWeapon = weapon;
     },
     setAim(preview: AimPreview | undefined) {
+      aimPreview = preview;
       weaponEffects.setAim(preview);
     },
     playEvents(events: WorldEvent[], view: WorldView) {
       if (!events.length) return;
       weaponEffects.play(events, view);
       for (const event of events)
-        if (event.type === 'bosh' && event.moth !== undefined)
+        if (
+          event.type === 'gust' ||
+          event.type === 'launch' ||
+          (event.type === 'lamp' && event.zapper)
+        )
+          moths[view.selectedMoth]?.recoil();
+        else if (event.type === 'bosh' && event.moth !== undefined)
           shake = Math.max(shake, BOSH.shake);
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
@@ -1051,7 +1059,9 @@ export function createScene(host: HTMLElement) {
         if (!moth) return;
         moth.root.visible = !position.respawning;
         moth.root.position.set(position.x, position.y, position.z);
-        moth.hold(index === view.selectedMoth ? heldWeapon : undefined);
+        const mine = index === view.selectedMoth;
+        moth.hold(mine ? heldWeapon : undefined);
+        moth.aim(mine ? aimPreview?.power : undefined);
         moth.animate(seconds, position);
         const ring = teamRings[index];
         if (!ring) return;

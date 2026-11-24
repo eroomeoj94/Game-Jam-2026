@@ -217,6 +217,10 @@ export function createMoth(
     hand.position.set(side * HAND.x, HAND.y, HAND.z);
     return hand;
   });
+  /** While the player is lining up a shot: how far it is charged, 0 to 1. */
+  let charge: number | undefined;
+  /** 1 at the instant of a shot, falling to 0 as the recoil settles. */
+  let kick = 0;
   let wanted: WeaponId | undefined;
   let holding: WeaponId | undefined;
   function hold(weapon: WeaponId | undefined) {
@@ -251,6 +255,14 @@ export function createMoth(
     root,
     /** Put a weapon in the moth's hand, or take it away. */
     hold,
+    /** Line up a shot charged this far (0 to 1), or stop aiming. */
+    aim(power: number | undefined) {
+      charge = power;
+    },
+    /** The weapon has just gone off: jolt the arm and lean back. */
+    recoil() {
+      kick = 1;
+    },
     animate(seconds: number, state: MothView) {
       const delta = Math.max(0, seconds - lastSeconds);
       lastSeconds = seconds;
@@ -403,11 +415,24 @@ export function createMoth(
         !state.zapped &&
         !state.punching;
       let rightLift = armLift;
+      kick = Math.max(0, kick - delta / 0.3);
+      const pull = carrying ? (charge ?? 0) : 0;
       if (carrying) {
         const bob = Math.sin(walking ? stride * 2 : seconds * 3 + phase) * 0.05;
-        armSwing[1] = -1.25 + bob;
-        rightLift = 0.3;
+        // Aiming brings the weapon up and in line; a shot jolts the arm up.
+        const aimed = charge !== undefined;
+        armSwing[1] = (aimed ? -1.5 : -1.25 + bob) - kick * 0.55;
+        rightLift = aimed ? 0.12 : 0.3;
+        puppet.rotation.x += (aimed ? 0.1 + pull * 0.08 : 0) - kick * 0.16;
       }
+      // Charging draws the weapon back, trembling as it nears full power;
+      // the recoil throws it back further still.
+      const tremble = Math.sin(seconds * 70) * 0.012 * pull * pull;
+      hands[1]!.position.set(
+        HAND.x + tremble,
+        HAND.y,
+        HAND.z - pull * 0.13 - kick * 0.1,
+      );
       arms.forEach((arm, side) => {
         arm.rotation.x = armSwing[side] ?? 0;
         arm.rotation.z = side === 0 ? -armLift : rightLift;

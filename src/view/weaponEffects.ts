@@ -1,5 +1,7 @@
 import {
   AdditiveBlending,
+  BufferGeometry,
+  Float32BufferAttribute,
   Camera,
   CylinderGeometry,
   DoubleSide,
@@ -28,6 +30,7 @@ import type { WeaponId } from '../config';
 import { horizontal, launchVelocity } from '../game/gadgets';
 import type { Aim } from '../game/gadgets';
 import type { WorldEvent, WorldView } from '../game/world';
+import { loadProp } from './weaponModels';
 
 export type AimPreview = {
   weapon: WeaponId;
@@ -132,6 +135,15 @@ export function createWeaponEffects(
     new MeshBasicMaterial({ color: 0xffd36b, blending: AdditiveBlending }),
   );
   const projectileMeshes = new Map<number, Group>();
+  // The modelled cap and firecracker replace the plain shapes once loaded.
+  const props: { cap?: Group; firecracker?: Group } = {};
+  void loadProp('projectile-cap', CAP.radius * 3.4).then((prop) => {
+    props.cap = prop;
+  });
+  void loadProp('projectile-firecracker', 0.62).then((prop) => {
+    props.firecracker = prop;
+  });
+  let trailTimer = 0;
 
   // --- Short-lived effects ---------------------------------------------
   type Effect = {
@@ -181,6 +193,112 @@ export function createWeaponEffects(
   const fade = (mesh: Mesh, from: number, t: number) => {
     (mesh.material as MeshBasicMaterial).opacity = from * (1 - t);
   };
+  /** Add a ready-made mesh as a short-lived effect, with its own material. */
+  function spawn(mesh: Mesh, life: number, update: Effect['update']) {
+    scene.add(mesh);
+    effects.push({ object: mesh, age: 0, life, update });
+    return mesh;
+  }
+  // A ribbon of wind: a flat strip that runs straight, then curls over.
+  const ribbonGeometry = keep(
+    (() => {
+      const steps = 28;
+      const positions: number[] = [];
+      const index: number[] = [];
+      for (let step = 0; step <= steps; step++) {
+        const t = step / steps;
+        let x = 0;
+        let z = t;
+        if (t > 0.6) {
+          const curl = (t - 0.6) / 0.4;
+          const radius = 0.2 * (1 - curl * 0.55);
+          const angle = curl * Math.PI * 1.75;
+          x = 0.2 - radius * Math.cos(angle);
+          z = 0.6 + radius * Math.sin(angle);
+        }
+        // Thin at both ends, widest in the middle.
+        const half = 0.035 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05));
+        positions.push(x, half, z, x, -half, z);
+        if (step < steps) {
+          const a = step * 2;
+          index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
+      const geometry = new BufferGeometry();
+      geometry.setAttribute(
+        'position',
+        new Float32BufferAttribute(positions, 3),
+      );
+      geometry.setIndex(index);
+      return geometry;
+    })(),
+  );
+  const boltGeometry = keep(new CylinderGeometry(1, 1, 1, 5, 1, true));
+  const UP = new Vector3(0, 1, 0);
+  /** One jagged stroke of lightning between two points, gone in a blink. */
+  function bolt(from: Vector3, to: Vector3, width: number, colour: number) {
+    const pieces = 9;
+    const along = to.clone().sub(from);
+    const side = new Vector3().crossVectors(along, UP).normalize();
+    const lift = new Vector3().crossVectors(side, along).normalize();
+    const reach = along.length() * 0.09;
+    let last = from.clone();
+    for (let piece = 1; piece <= pieces; piece++) {
+      const t = piece / pieces;
+      const sway = Math.sin(Math.PI * t) * reach;
+      const next = from
+        .clone()
+        .addScaledVector(along, t)
+        .addScaledVector(side, (Math.random() - 0.5) * 2 * sway)
+        .addScaledVector(lift, (Math.random() - 0.5) * 2 * sway);
+      if (piece === pieces) next.copy(to);
+      const span = next.clone().sub(last);
+      const mesh = new Mesh(
+        boltGeometry,
+        new MeshBasicMaterial({
+          color: colour,
+          transparent: true,
+          opacity: 1,
+          depthWrite: false,
+          blending: AdditiveBlending,
+        }),
+      );
+      mesh.position.copy(last).addScaledVector(span, 0.5);
+      mesh.scale.set(width, span.length(), width);
+      mesh.quaternion.setFromUnitVectors(UP, span.clone().normalize());
+      spawn(mesh, 0.14, (effect, life) => fade(effect.object, 1, life * life));
+      last = next;
+    }
+  }
+  /** Lightning from a lantern to a lamp: three quick strikes and sparks. */
+  function lightning(from: Vector3, to: Vector3) {
+    flash(from, 0x9ff3ff, 45);
+    for (let strike = 0; strike < 3; strike++)
+      window.setTimeout(() => {
+        bolt(from, to, 0.022, 0xeaffff);
+        bolt(from, to, 0.06, 0x53dfe8);
+      }, strike * 90);
+    for (let spark = 0; spark < 14; spark++) {
+      const angle = Math.random() * Math.PI * 2;
+      const rise = (Math.random() - 0.3) * 5;
+      const speed = 3 + Math.random() * 4;
+      puff(
+        to.clone(),
+        spark % 2 ? 0xeaffff : 0x53dfe8,
+        0.45,
+        (effect, t, delta) => {
+          const mesh = effect.object;
+          mesh.position.x += Math.cos(angle) * speed * delta;
+          mesh.position.z += Math.sin(angle) * speed * delta;
+          mesh.position.y += (rise - t * 9) * delta;
+          mesh.scale.setScalar(0.09 * (1 - t) + 0.02);
+          fade(mesh, 1, t);
+        },
+        1,
+        true,
+      );
+    }
+  }
   const toVector = ({ x, y, z }: { x: number; y: number; z: number }) =>
     new Vector3(x, y, z);
 
@@ -241,21 +359,58 @@ export function createWeaponEffects(
       for (const event of events) {
         if (event.type === 'gust') {
           const origin = toVector(event.origin);
-          for (let i = 0; i < 7; i++) {
-            const spread = (i / 6 - 0.5) * GUST.halfAngle * 1.6;
+          // Curling ribbons of wind fan out across the cone, like the
+          // swirls on the fan's icon, with a few soft puffs behind them.
+          const ribbons = 9;
+          for (let i = 0; i < ribbons; i++) {
+            const spread = (i / (ribbons - 1) - 0.5) * GUST.halfAngle * 1.7;
             const cos = Math.cos(spread);
             const sin = Math.sin(spread);
             const dx = event.direction.x * cos - event.direction.z * sin;
             const dz = event.direction.x * sin + event.direction.z * cos;
-            const speed = GUST.range / 0.45;
-            puff(origin.clone(), 0xf4ead6, 0.45, (effect, t, delta) => {
-              const mesh = effect.object as Mesh;
-              mesh.position.x += dx * speed * delta;
-              mesh.position.z += dz * speed * delta;
-              mesh.position.y += 0.4 * delta;
-              mesh.scale.setScalar(0.12 + t * 0.5);
-              fade(mesh, 0.45, t);
+            const speed = (GUST.range / 0.5) * (0.8 + Math.random() * 0.35);
+            const mesh = new Mesh(
+              ribbonGeometry,
+              new MeshBasicMaterial({
+                color: i % 2 ? 0xfff3d6 : 0xbfe9f2,
+                transparent: true,
+                opacity: 0.9,
+                side: DoubleSide,
+                depthWrite: false,
+              }),
+            );
+            mesh.position
+              .copy(origin)
+              .add(new Vector3(dx * 0.5, 0.15 + (i % 3) * 0.18, dz * 0.5));
+            mesh.rotation.order = 'YXZ';
+            mesh.rotation.y = Math.atan2(dx, dz);
+            // Half of them curl the other way.
+            const hand = i % 2 ? 1 : -1;
+            const roll = (Math.random() - 0.5) * 2;
+            spawn(mesh, 0.55, (effect, t, delta) => {
+              const ribbon = effect.object;
+              ribbon.position.x += dx * speed * (1 - t * 0.6) * delta;
+              ribbon.position.z += dz * speed * (1 - t * 0.6) * delta;
+              ribbon.position.y += 0.5 * delta;
+              const length = 0.5 + t * 1.5;
+              ribbon.scale.set(hand * (0.8 + t), 1.2 + t, length);
+              ribbon.rotation.z = roll + t * 2.5 * hand;
+              fade(ribbon, 0.9, t * t);
             });
+            if (i % 3) continue;
+            puff(
+              origin.clone(),
+              0xf4ead6,
+              0.4,
+              (effect, t, delta) => {
+                const cloud = effect.object;
+                cloud.position.x += dx * speed * 0.8 * delta;
+                cloud.position.z += dz * speed * 0.8 * delta;
+                cloud.scale.setScalar(0.12 + t * 0.45);
+                fade(cloud, 0.3, t);
+              },
+              0.3,
+            );
           }
         } else if (event.type === 'bosh') {
           const at = toVector(event.position);
@@ -367,6 +522,53 @@ export function createWeaponEffects(
             at.clone().setY(at.y + 1.2),
             TEAM_COLOURS[event.team] ?? '#ffffff',
           );
+        } else if (event.type === 'launch') {
+          const at = toVector(event.position);
+          if (event.kind === 'firecracker') {
+            // Muzzle flash and a cough of smoke from the cannon.
+            flash(at, 0xffb347, 40);
+            puff(
+              at.clone(),
+              0xffe9a8,
+              0.18,
+              (effect, t) => {
+                effect.object.scale.setScalar(0.15 + t * 0.6);
+                fade(effect.object, 0.95, t);
+              },
+              0.95,
+              true,
+            );
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * Math.PI * 2;
+              puff(
+                at.clone(),
+                0x5a524c,
+                0.7,
+                (effect, t, delta) => {
+                  const smoke = effect.object;
+                  smoke.position.x += Math.cos(angle) * 0.9 * (1 - t) * delta;
+                  smoke.position.z += Math.sin(angle) * 0.9 * (1 - t) * delta;
+                  smoke.position.y += 0.7 * delta;
+                  smoke.scale.setScalar(0.14 + t * 0.4);
+                  fade(smoke, 0.5, t);
+                },
+                0.5,
+              );
+            }
+          } else {
+            // The band snaps: a quick ring and a glint.
+            puff(
+              at.clone(),
+              0xfff1cf,
+              0.2,
+              (effect, t) => {
+                effect.object.scale.set(0.1 + t * 0.7, 0.1 + t * 0.7, 0.04);
+                fade(effect.object, 0.8, t);
+              },
+              0.8,
+              true,
+            );
+          }
         } else if (event.type === 'heard') {
           const at = toVector(event.position);
           popup('OI!', at.setY(at.y + 4), '#ff8a6b');
@@ -415,6 +617,10 @@ export function createWeaponEffects(
           if (!lamp) continue;
           const at = toVector(lamp);
           flash(at, event.zapper ? ZAP_VIOLET : 0xffc987, 50);
+          // The switch is thrown from the lantern in the active moth's hand.
+          const zapper = view.moths[view.selectedMoth];
+          if (event.zapper && zapper)
+            lightning(toVector(zapper).setY(zapper.y + 0.15), at.clone());
           popup(
             event.zapper ? 'BUG ZAPPER!' : 'Lamp restored',
             at.clone().setY(at.y + 1),
@@ -492,7 +698,17 @@ export function createWeaponEffects(
         let mesh = projectileMeshes.get(projectile.id);
         if (!mesh) {
           mesh = new Group();
-          if (projectile.kind === 'cap') {
+          const prop = props[projectile.kind];
+          if (prop) {
+            mesh.add(prop.clone());
+            if (projectile.kind === 'firecracker') {
+              const spark = new Mesh(dotGeometry, sparkMaterial);
+              // The modelled cracker's fuse is at its -x end.
+              spark.position.x = -0.33;
+              spark.name = 'spark';
+              mesh.add(spark);
+            }
+          } else if (projectile.kind === 'cap') {
             const cap = new Mesh(capGeometry, capMaterial);
             cap.castShadow = true;
             mesh.add(cap);
@@ -516,6 +732,57 @@ export function createWeaponEffects(
           spark.scale.setScalar(
             0.8 + Math.random() * 1.4 + (1 - projectile.fuse) * 1.5,
           );
+      }
+      // Trails: glints behind a cap, smoke and sparks behind a firecracker.
+      trailTimer -= delta;
+      if (trailTimer <= 0) {
+        trailTimer = 0.035;
+        for (const projectile of view.projectiles) {
+          const at = toVector(projectile);
+          if (projectile.kind === 'cap')
+            puff(
+              at,
+              0xffe08a,
+              0.22,
+              (effect, t) => {
+                effect.object.scale.setScalar(0.1 * (1 - t) + 0.01);
+                fade(effect.object, 0.8, t);
+              },
+              0.8,
+              true,
+            );
+          else {
+            puff(
+              at.clone(),
+              0x6a625c,
+              0.6,
+              (effect, t, step) => {
+                effect.object.position.y += 0.4 * step;
+                effect.object.scale.setScalar(0.08 + t * 0.26);
+                fade(effect.object, 0.4, t);
+              },
+              0.4,
+            );
+            const drift = new Vector3(
+              Math.random() - 0.5,
+              Math.random() * 0.5,
+              Math.random() - 0.5,
+            );
+            puff(
+              at,
+              0xffc24a,
+              0.3,
+              (effect, t, step) => {
+                effect.object.position.addScaledVector(drift, 2.5 * step);
+                effect.object.position.y -= t * 3 * step;
+                effect.object.scale.setScalar(0.05 * (1 - t) + 0.01);
+                fade(effect.object, 1, t);
+              },
+              1,
+              true,
+            );
+          }
+        }
       }
       for (const [id, mesh] of projectileMeshes)
         if (!live.has(id)) {
