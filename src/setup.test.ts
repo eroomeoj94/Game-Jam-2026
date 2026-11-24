@@ -15,7 +15,9 @@ it('reads the saved line-up, keeping it within what the game supports', () => {
   sessionStorage.setItem(SETUP_KEY, JSON.stringify({ teams: 9, humans: 7 }));
   expect(readSetup()).toMatchObject({ teams: 4, humans: 4 });
   sessionStorage.setItem(SETUP_KEY, JSON.stringify({ teams: 1, humans: 0 }));
-  expect(readSetup()).toMatchObject({ teams: 2, humans: 1 });
+  expect(readSetup()).toMatchObject({ teams: 2, humans: 0 });
+  sessionStorage.setItem(SETUP_KEY, JSON.stringify({ teams: 3, humans: -4 }));
+  expect(readSetup()).toMatchObject({ teams: 3, humans: 0 });
   sessionStorage.setItem(SETUP_KEY, 'not json');
   expect(readSetup()).toMatchObject({ teams: 2, humans: 2 });
 });

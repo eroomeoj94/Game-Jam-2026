@@ -235,7 +235,7 @@ export const SETUP_KEY = 'moth-fight-club:setup';
 export type Setup = {
   /** Teams round the desk, 2 to 4. */
   teams: number;
-  /** How many of them people play; the computer plays the rest. */
+  /** How many of them people play, from none; the computer plays the rest. */
   humans: number;
   /** True for the one load that follows a change of line-up: skip the title. */
   autostart?: boolean;
@@ -247,7 +247,8 @@ export function readSetup(): Setup {
       globalThis.sessionStorage?.getItem(SETUP_KEY) ?? 'null',
     ) as Partial<Setup> | null;
     const teams = Math.min(4, Math.max(2, Math.round(saved?.teams ?? 2)));
-    const humans = Math.min(teams, Math.max(1, Math.round(saved?.humans ?? 2)));
+    // None at all is allowed: the computer plays every team, to watch.
+    const humans = Math.min(teams, Math.max(0, Math.round(saved?.humans ?? 2)));
     return { teams, humans, autostart: !!saved?.autostart };
   } catch {
     return { teams: 2, humans: 2 };

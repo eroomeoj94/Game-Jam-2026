@@ -884,7 +884,9 @@ export function startApplication({
   }
   /** What to do next, for someone playing their first match. */
   function coachMessage(state: MatchView, view: WorldView) {
-    if (!coaching || !started || state.phase === 'won') return '';
+    // Nobody to coach when the computer is playing every team.
+    if (!coaching || !started || state.phase === 'won' || humans === 0)
+      return '';
     if (state.round > 2) {
       stopCoaching();
       return '';
@@ -1525,7 +1527,8 @@ export function startApplication({
           button.type = 'button';
           button.id = `${prefix}-${value}`;
           button.className = 'secondary';
-          button.textContent = String(value);
+          // No people at all: the computer plays itself and you watch.
+          button.textContent = value === 0 ? 'Watch' : String(value);
           button.setAttribute('aria-pressed', String(value === chosen));
           button.addEventListener('click', () => {
             pick(value);
@@ -1539,7 +1542,7 @@ export function startApplication({
     segments(teamChoices, 'teams', 2, 4, wantTeams, (value) => {
       wantTeams = value;
     });
-    segments(humanChoices, 'humans', 1, wantTeams, wantHumans, (value) => {
+    segments(humanChoices, 'humans', 0, wantTeams, wantHumans, (value) => {
       wantHumans = value;
     });
     const names = ['Mustard', 'Teal', 'Purple', 'Ivory'].slice(0, wantTeams);
@@ -1552,11 +1555,13 @@ export function startApplication({
     const size = [4, 4, 4, 3, 2][wantTeams] ?? 4;
     setText(
       lineupNote,
-      `${size} moths a team. ${
-        wantHumans === 1 ? 'You play' : 'People play'
-      } ${list(people)}${
-        computer.length ? `; the computer plays ${list(computer)}.` : '.'
-      }`,
+      wantHumans === 0
+        ? `${size} moths a team. The computer plays every team: sit back and watch.`
+        : `${size} moths a team. ${
+            wantHumans === 1 ? 'You play' : 'People play'
+          } ${list(people)}${
+            computer.length ? `; the computer plays ${list(computer)}.` : '.'
+          }`,
     );
   }
   const saveSetup = (autostart: boolean) => {

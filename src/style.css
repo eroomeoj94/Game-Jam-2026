@@ -1530,7 +1530,7 @@ kbd.ps-triangle {
 }
 .segments button {
   min-width: 46px;
-  padding: 10px 0;
+  padding: 10px 12px;
   font-size: 16px;
 }
 .segments button[aria-pressed='true'] {
