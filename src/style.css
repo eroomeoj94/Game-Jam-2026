@@ -1538,3 +1538,113 @@ kbd.ps-triangle {
   background: #e7c28b;
   border-color: #e7c28b;
 }
+/* The title screen is one column down the left: the animated sign, the
+   rules, the line-up and Start. It is solid and near black, the colour of
+   the sign's own backdrop, so the video has no visible edge. */
+#intro {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(430px, 100%);
+  padding: 0 28px 20px;
+  overflow-y: auto;
+  background: #050506;
+  box-shadow: 24px 0 60px #050506;
+  text-shadow: none;
+}
+/* The desk beside it is left clear to watch the demo match. */
+#intro::before {
+  display: none;
+}
+.title-video {
+  display: block;
+  flex: none;
+  width: calc(100% + 56px);
+  max-height: 33vh;
+  margin: 0 -28px;
+  border: 0;
+  outline: 0;
+  object-fit: contain;
+  background: #050506;
+  /* The sign's own dark backdrop fades out towards the edges, so there is
+     no square to see against the column. */
+  -webkit-mask-image: radial-gradient(
+    ellipse 58% 60% at 50% 46%,
+    #000 62%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 58% 60% at 50% 46%,
+    #000 62%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+#intro .subtitle {
+  margin: -10px 0 0;
+  text-align: center;
+}
+#intro .how {
+  max-width: none;
+  margin: 12px 0 0;
+}
+#intro .how li {
+  margin-bottom: 7px;
+  padding-left: 34px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+#intro .how li::before {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+#intro .first-to {
+  margin: 0 0 10px 34px;
+  font-size: 15px;
+}
+/* The three choices stack, each a label with its buttons beside it. */
+#intro .lineup {
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+#intro .choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+#intro .choice span {
+  margin: 0;
+}
+#intro .segments button {
+  min-width: 40px;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+#intro .start-buttons {
+  display: block;
+}
+#intro #start {
+  width: 100%;
+  padding: 13px 0;
+}
+#intro .intro-rules.small {
+  max-width: none;
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+/* The keys are in the menu's controls table; the column has no room. */
+#intro .keys {
+  display: none;
+}
+/* The demo note sits over the desk, not inside the column. */
+#intro .demo-tag {
+  position: fixed;
+  right: 4.5%;
+  bottom: 76px;
+}
