@@ -61,8 +61,9 @@ when it loads the model, so they can flap and swing.
 
 The weapons are models too (`public/models/artlist/weapon-*.glb`), generated
 with Meshy v7 in Artlist from the weapon icons and shrunk to about 0.6 MB each.
-The moth whose go it is carries the selected weapon over its head, where it
-shows above the wings; without the files its hands stay empty.
+The moth whose go it is holds the selected weapon in its right hand, and
+wears the boxing gloves one on each hand; without the files its hands stay
+empty.
 
 ## Sound
 

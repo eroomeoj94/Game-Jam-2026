@@ -13,11 +13,11 @@ import { FUR, MOTH_LOOK } from '../config';
 import type { MothView } from '../game/world';
 import { createFurShells } from './fur';
 import { loadMothModel } from './mothModel';
-import { loadWeaponModel } from './weaponModels';
+import { loadWeaponModel, WEAPON_GRIP } from './weaponModels';
 import type { WeaponId } from '../config';
 import type { createMaterials } from './materials';
 
-/** The right hand, measured from the right shoulder joint. */
+/** The right hand, measured from the right shoulder; the left mirrors it. */
 const HAND = { x: 0.07, y: -0.34, z: 0.02 };
 
 export function createMoth(
@@ -207,29 +207,40 @@ export function createMoth(
         limbs.push(limb);
       });
     modelled = true;
-    arms[1]?.add(hand);
+    hands.forEach((hand, side) => arms[side]?.add(hand));
     rememberColours();
   });
-  // The weapon in hand: it rides on the right arm, at the hand, and is
-  // placed from there to sit midway between the two raised hands.
-  const hand = new Group();
-  hand.position.set(HAND.x, HAND.y, HAND.z);
+  // A grip on each arm, at the hand, left then right. A weapon is held in
+  // the right; boxing gloves are worn, one on each.
+  const hands = [-1, 1].map((side) => {
+    const hand = new Group();
+    hand.position.set(side * HAND.x, HAND.y, HAND.z);
+    return hand;
+  });
   let wanted: WeaponId | undefined;
   let holding: WeaponId | undefined;
   function hold(weapon: WeaponId | undefined) {
     if (weapon === wanted) return;
     wanted = weapon;
     if (!weapon) {
-      hand.clear();
+      hands.forEach((hand) => hand.clear());
       holding = undefined;
       return;
     }
     void loadWeaponModel(weapon).then((model) => {
       // Skip a model that arrives after the moth has moved on to another.
       if (wanted !== weapon || holding === weapon) return;
-      hand.clear();
+      hands.forEach((hand) => hand.clear());
       holding = weapon;
-      if (model) hand.add(model.clone());
+      if (!model) return;
+      hands[1]!.add(model.clone());
+      if (WEAPON_GRIP[weapon].worn) {
+        // The other glove is the same one, mirrored.
+        const mirror = new Group();
+        mirror.scale.x = -1;
+        mirror.add(model.clone());
+        hands[0]!.add(mirror);
+      }
     });
   }
   const soot = new Color(0x1c1714);
@@ -381,27 +392,34 @@ export function createMoth(
           armSwing = [-2.6, -2.6];
         }
       }
-      // An armed moth carries its weapon over its head in both hands, where
-      // it shows above the wings from behind, unless it is mid-punch,
-      // dancing or tumbling.
+      // An armed moth holds its weapon out in front in its right hand,
+      // unless it is dancing or tumbling. Gloves are worn, so those arms
+      // swing and punch as usual.
+      const worn = holding !== undefined && WEAPON_GRIP[holding].worn;
       const carrying =
         holding !== undefined &&
+        !worn &&
         !state.dance &&
         !state.zapped &&
         !state.punching;
+      let rightLift = armLift;
       if (carrying) {
         const bob = Math.sin(walking ? stride * 2 : seconds * 3 + phase) * 0.05;
-        armSwing = [-2.85 + bob, -2.85 + bob];
-        armLift = -0.08;
+        armSwing[1] = -1.25 + bob;
+        rightLift = 0.3;
       }
       arms.forEach((arm, side) => {
         arm.rotation.x = armSwing[side] ?? 0;
-        arm.rotation.z = (side === 0 ? -1 : 1) * armLift;
+        arm.rotation.z = side === 0 ? -armLift : rightLift;
       });
-      // Keep the weapon level whatever the arms are doing.
+      // A held weapon stays level whatever the arm does; a glove turns with
+      // the arm it is on.
       const arm = arms[1];
-      if (arm) hand.rotation.set(-arm.rotation.x, 0, -arm.rotation.z);
-      hand.visible = carrying;
+      if (arm && !worn)
+        hands[1]!.rotation.set(-arm.rotation.x, 0, -arm.rotation.z);
+      else hands[1]!.rotation.set(0, 0, 0);
+      const shown = worn ? !state.zapped : carrying;
+      hands.forEach((hand) => (hand.visible = shown));
       legs.forEach((leg, side) => {
         leg.rotation.x = legSwing[side] ?? 0;
         leg.rotation.z = (side === 0 ? -1 : 1) * legSplay;
