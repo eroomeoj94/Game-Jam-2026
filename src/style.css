@@ -1301,3 +1301,59 @@ kbd.ps-square {
 kbd.ps-triangle {
   color: #7fe3c2;
 }
+/* Shown while a Mind Control is being aimed. */
+.aim-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 150px;
+  z-index: 4;
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid #b48cff88;
+  border-radius: 999px;
+  color: #efe4cc;
+  background: #1a1330e6;
+  font-size: 13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.aim-hint b {
+  margin-right: 8px;
+  color: #c9b0ff;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+}
+.aim-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid #78827b88;
+  border-radius: 3px;
+  font: inherit;
+}
+/* Six weapons need a slightly wider wheel, and a tidier middle. */
+.wheel-ring {
+  --radius: 168px;
+}
+.wheel-centre {
+  padding: 0 150px;
+}
+.wheel-centre strong {
+  font-size: 22px;
+}
+#aim-giant {
+  color: #e9dcff;
+  font-weight: 700;
+}
+@media (max-width: 760px) {
+  .wheel-ring {
+    --radius: 118px;
+  }
+  .wheel-centre {
+    padding: 0 96px;
+  }
+  .aim-hint {
+    white-space: normal;
+    width: 90%;
+    border-radius: 14px;
+  }
+}

@@ -4,6 +4,7 @@ import {
   DANCE,
   FIRECRACKER,
   HAZARD,
+  MIND,
   PEOPLE,
   LAMPS,
   PLAYGROUND,
@@ -337,6 +338,40 @@ describe('giant hands', () => {
     expect(after[0]!.staggered).toBe(true);
     // Moth 1 stood outside the ring.
     expect(after[1]!.x).toBeCloseTo(before[1]!.x, 1);
+  });
+
+  it('are brought down by a chosen giant, where a Mind Control says', () => {
+    const world = setup();
+    world.placeMoth(1, { x: 3, y: 0.5, z: FRONT });
+    advance(world, 30);
+    const before = world.snapshot().moths[1]!;
+    world.drainEvents();
+    const people = world.snapshot().people.length;
+    // Each giant can be picked, wherever they happen to be standing.
+    for (let person = 0; person < people; person++) {
+      // Wait out the playground's pause between uses; too short to land.
+      cooldown(world);
+      expect(world.commandSmack({ x: 2, z: FRONT }, person)).toBe(true);
+      expect(world.snapshot().hazards[0]).toMatchObject({
+        x: 2,
+        z: FRONT,
+        person,
+        held: false,
+      });
+    }
+    expect(world.drainEvents()).toContainEqual(
+      expect.objectContaining({ type: 'mind', person: people - 1 }),
+    );
+    cooldown(world);
+    // No such giant, no spell.
+    expect(world.commandSmack({ x: 2, z: FRONT }, people)).toBe(false);
+    advance(world, Math.ceil(MIND.warnSeconds * 60) + 2);
+    expect(world.drainEvents()).toContainEqual(
+      expect.objectContaining({ type: 'smack', moths: 1 }),
+    );
+    expect(MIND.warnSeconds).toBeGreaterThan(PLAYGROUND.cooldown * 2);
+    advance(world, 30);
+    expect(world.snapshot().moths[1]!.x - before.x).toBeGreaterThan(2);
   });
 
   it('can be dodged during the warning', () => {

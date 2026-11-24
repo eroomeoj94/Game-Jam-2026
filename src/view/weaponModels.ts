@@ -39,6 +39,12 @@ export const WEAPON_GRIP: Record<
   zap: { size: 0.4, turn: [0, 0, 0], offset: [0, -0.2, 0] },
   // The slingshot is held by the bottom of its fork.
   cap: { size: 0.46, turn: [0, Math.PI, 0], offset: [0, 0.14, 0] },
+  // The barrel ray gun is held by its pistol grip, like the cannon.
+  mind: {
+    size: 0.6,
+    turn: [0, Math.PI / 2, 0],
+    offset: [0, 0.12, 0.12],
+  },
   // The cannon's pistol grip is under the back of the barrel.
   firecracker: {
     size: 0.56,

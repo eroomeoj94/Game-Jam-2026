@@ -389,7 +389,7 @@ export const GUST = {
   stagger: 0.6,
 };
 
-export type WeaponId = 'gust' | 'bosh' | 'zap' | 'cap' | 'firecracker';
+export type WeaponId = 'gust' | 'bosh' | 'zap' | 'cap' | 'firecracker' | 'mind';
 /** The weapon menu, in order. `charge` weapons fire harder the longer held. */
 export const WEAPONS: readonly {
   id: WeaponId;
@@ -401,7 +401,23 @@ export const WEAPONS: readonly {
   { id: 'zap', name: 'Zap Switch', charge: false },
   { id: 'cap', name: 'Bottle-Cap Flick', charge: true },
   { id: 'firecracker', name: 'Firecracker', charge: true },
+  { id: 'mind', name: 'Mind Control', charge: false },
 ];
+
+/**
+ * Mind Control: a moth takes over a giant of its choosing and brings that
+ * giant's hand down wherever it likes on the desk. Once a match for each team.
+ */
+export const MIND = {
+  /** How fast the target moves across the desk while aiming. */
+  aimSpeed: 16,
+  /** How far in front of the moth the target starts. */
+  startAhead: 7,
+  /** Seconds between the order and the hand landing. */
+  warnSeconds: 1.9,
+  /** Seconds the giant stays glowing under the spell. */
+  spellSeconds: 3.2,
+};
 
 /** Bosh: a big close-range punch on the single nearest moth in front. */
 export const BOSH = {
@@ -459,6 +475,8 @@ export const MATCH = {
   maxSmackSeconds: 8,
   /** Zap Switches each team may use in a match. */
   zapSwitches: 2,
+  /** Mind Controls each team may use in a match. */
+  mindControls: 1,
   /** Turns a zapper stays live after the turn it was flipped in. */
   zapperTurns: 1,
   /** Points a team loses when one of its moths is zapped. */

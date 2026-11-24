@@ -834,6 +834,8 @@ export function createScene(host: HTMLElement) {
     ) {
       spotlight = spot;
     },
+    /** Whether the camera is over the moth's shoulder or above the board. */
+    viewMode: () => cameraMode,
     /** Where the splat cam is drawn, for the frame laid over it. */
     insetRect,
     /** The weapon the moth whose go it is carries; none hides it. */
@@ -851,10 +853,12 @@ export function createScene(host: HTMLElement) {
         if (
           event.type === 'gust' ||
           event.type === 'launch' ||
+          event.type === 'mind' ||
           (event.type === 'lamp' && event.zapper)
-        )
+        ) {
           moths[view.selectedMoth]?.recoil();
-        else if (event.type === 'bosh' && event.moth !== undefined)
+          if (event.type === 'mind') people.enthral(event.person);
+        } else if (event.type === 'bosh' && event.moth !== undefined)
           shake = Math.max(shake, BOSH.shake);
         else if (event.type === 'smack') shake = Math.max(shake, HAZARD.shake);
     },
@@ -1077,6 +1081,9 @@ export function createScene(host: HTMLElement) {
         );
       });
       warning.animate(seconds, view.hazards[0]);
+      people.highlight(
+        aimPreview?.weapon === 'mind' ? aimPreview.giant : undefined,
+      );
       people.animate(
         seconds,
         frameDelta,

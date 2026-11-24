@@ -454,7 +454,8 @@ describe('movement control smoke tests', () => {
       frame(4640);
       const wheel = document.querySelector<HTMLElement>('#wheel')!;
       const before = render.mock.lastCall![0].moths[1]!.x;
-      pads = [makePad([1, 0, 0, 0], [6])];
+      // Bosh is the second of six round the wheel: up and to the right.
+      pads = [makePad([0.866, -0.5, 0, 0], [6])];
       frames(4660, 10);
       expect(wheel.hidden).toBe(false);
       expect(

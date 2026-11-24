@@ -63,6 +63,12 @@ Sonic 2 and its "Angry" emotion, using the Gravity and Professor voices; the
 third giant is the cloned "Joe Moore" voice on MiniMax Speech 02 HD, also set
 to angry, with seven extra silly slam lines (`2-slam-4` to `2-slam-10`). They are saved in the Artlist project "Moth Fight Club", folder "Giants".
 
+Each giant also has three lines for being taken over by a Mind Control
+(`0-mind-1` and so on), generated on 24 November 2026: the first two giants on
+Cartesia Sonic 2 without the anger, and the Joe Moore voice saying "Go go Power
+Rangers!", "Claude, give me an overview of how to smash these bugs." and "I am
+being controlled by a moth. This is not in my job description."
+
 ## Optional recording
 
 - `bosh.mp3` — the shout when a moth throws a Bosh. Without it, the browser's

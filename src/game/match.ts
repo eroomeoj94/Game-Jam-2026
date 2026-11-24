@@ -152,6 +152,8 @@ export type MatchView = {
   active: number | undefined;
   scores: number[];
   zapSwitches: number[];
+  /** Mind Controls each team has left this match. */
+  mindControls: number[];
   /** Fraction of the movement allowance left, 0 to 1. */
   moveLeft: number;
   /** True while physics should run. */
@@ -202,6 +204,10 @@ export function createMatch(
   const zapSwitches = Array.from(
     { length: teamCount },
     () => MATCH.zapSwitches,
+  );
+  const mindControls = Array.from(
+    { length: teamCount },
+    () => MATCH.mindControls,
   );
   /** Moth id → the round it may return in. */
   const out = new Map<number, number>();
@@ -420,7 +426,8 @@ export function createMatch(
   const canUse = (weapon: WeaponId) =>
     CAN_ACT.includes(phase) &&
     active !== undefined &&
-    (weapon !== 'zap' || zapSwitches[team]! > 0);
+    (weapon !== 'zap' || zapSwitches[team]! > 0) &&
+    (weapon !== 'mind' || mindControls[team]! > 0);
 
   beginTurn();
 
@@ -456,6 +463,7 @@ export function createMatch(
     /** A weapon was used. `lamp` is the lamp a Zap Switch flipped. */
     fired(weapon: WeaponId, lamp?: number) {
       if (!canUse(weapon)) return false;
+      if (weapon === 'mind') mindControls[team] = mindControls[team]! - 1;
       if (weapon === 'zap') {
         zapSwitches[team] = zapSwitches[team]! - 1;
         // Counted down at the end of every turn, including this one.
@@ -532,6 +540,7 @@ export function createMatch(
         active,
         scores: [...scores],
         zapSwitches: [...zapSwitches],
+        mindControls: [...mindControls],
         moveLeft: MATCH.moveSeconds > 0 ? moveLeft / MATCH.moveSeconds : 1,
         stepping: STEPPING.includes(phase),
         resting: [...out.keys()],

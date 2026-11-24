@@ -72,6 +72,15 @@ arms and legs away at load: the legs swing as they walk and an arm swings up
 from the shoulder and stretches to smack the desk. Without the files the felt
 giants are drawn instead.
 
+## Mind Control
+
+Each team has one Mind Control a match: a barrel ray gun (`weapon-mind.glb`)
+that takes over a giant. Hold fire to aim: the view lifts to the whole desk,
+the movement keys steer a purple target, and the weapon keys pick which giant
+does it. Let go and that giant, glowing purple, slams the spot, replacing any
+hand already hanging over the desk. Its own moths are flung too if they are
+under it.
+
 ## Sound
 
 The licensed Artlist sound files are not in this repository (see

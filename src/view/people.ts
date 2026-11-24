@@ -1,5 +1,6 @@
 import {
   CapsuleGeometry,
+  Color,
   CylinderGeometry,
   DoubleSide,
   Euler,
@@ -10,7 +11,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import { ARENA, HAZARD, PEOPLE, ROOM } from '../config';
+import { ARENA, HAZARD, MIND, PEOPLE, ROOM } from '../config';
 import type { WorldView } from '../game/world';
 import { WRIST, createHandMesh, handPose } from './hand';
 import type { createMaterials } from './materials';
@@ -165,6 +166,8 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
       setback: 0,
       /** The furthest they bend over the desk, in radians. */
       maxLean: 1.15,
+      /** Seconds left under a Mind Control spell. */
+      spell: 0,
     };
     // When this giant's wooden figure is available it replaces the felt
     // one: the same walk, lean and smack, with the figure's own limbs.
@@ -242,8 +245,20 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
     mesh.scale.set(radius, length, radius);
   }
 
+  /** The giant a Mind Control is being aimed at, if any. */
+  let picked: number | undefined;
+  const PURPLE = new Color(0xb48cff);
   return {
     root,
+    /** Mark the giant a Mind Control would take over; undefined clears it. */
+    highlight(index: number | undefined) {
+      picked = index;
+    },
+    /** A Mind Control has taken hold of this giant: glow until it wears off. */
+    enthral(index: number) {
+      const person = people[index];
+      if (person) person.spell = MIND.spellSeconds;
+    },
     /**
      * Make every giant solid for a second view of the same frame; call the
      * function it returns to put their see-through fade back.
@@ -431,6 +446,24 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
           );
           opacity = Math.min(opacity, smooth((off - person.bulk) / 14));
         }
+        // Purple and glowing while picked for, or under, a Mind Control.
+        person.spell = Math.max(0, person.spell - delta);
+        const glow =
+          person.spell > 0
+            ? 1
+            : picked === index
+              ? 0.55 + 0.25 * Math.sin(seconds * 9)
+              : 0;
+        for (const material of person.materials) {
+          const base = (material.userData.base ??= {
+            colour: material.emissive.clone(),
+            strength: material.emissiveIntensity,
+          }) as { colour: Color; strength: number };
+          material.emissive.copy(base.colour).lerp(PURPLE, Math.min(1, glow));
+          material.emissiveIntensity = base.strength + glow * 0.9;
+        }
+        // Whoever is picked or enthralled is never faded out of view.
+        if (glow > 0) opacity = Math.max(opacity, 0.85);
         opacity = Math.max(0.16, Math.min(1, opacity));
         for (const material of person.materials) {
           material.transparent = opacity < 1;

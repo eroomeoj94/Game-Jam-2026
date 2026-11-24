@@ -7,6 +7,7 @@ import {
   LAMPS,
   MATCH,
   MAX_FRAME_MS,
+  MIND,
   PHYSICS_STEP_MS,
   TEAM_LABELS,
   WEAPONS,
@@ -72,7 +73,10 @@ const WEAPON_ABOUT: Record<WeaponId, string> = {
   zap: 'Turns a lamp into a bug zapper',
   cap: 'Hold to charge, release to flick',
   firecracker: 'Hold to charge, lob it and run',
+  mind: 'Once a match: make a giant slam where you choose',
 };
+/** What to call each giant while a Mind Control is choosing between them. */
+const GIANT_NAMES = ['the lad', 'the old man', 'Joe'];
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
 
 export function startApplication({
@@ -200,7 +204,7 @@ export function startApplication({
   const keyboard = createPlayerInput(
     selectMoth,
     toggleView,
-    (step) => selectWeapon(weaponIndex + step),
+    (step) => stepWeapon(step),
     passTurn,
   );
   // One button per moth, in team colours; keys 1–8 match the numbers.
@@ -216,6 +220,8 @@ export function startApplication({
     return button;
   });
   // The character badge, the weapon chip beside it and the weapon wheel.
+  const aimHint = document.querySelector<HTMLElement>('#aim-hint');
+  const aimGiant = document.querySelector<HTMLElement>('#aim-giant');
   const badge = document.querySelector<HTMLElement>('#badge');
   const badgeFace = document.querySelector<HTMLImageElement>('#badge-face');
   const badgeNumber = document.querySelector<HTMLElement>('#badge-number');
@@ -360,7 +366,8 @@ export function startApplication({
       const moth = world.snapshot().selectedMoth;
       if (match.canUse(weapon) && world.useWeapon(weapon, aim)) {
         match.fired(weapon, lamp);
-        if (weapon !== 'bosh') pendingQuip = { moth, cue: weapon };
+        if (weapon !== 'bosh' && weapon !== 'mind')
+          pendingQuip = { moth, cue: weapon };
       } else if (match.pass()) {
         world.dance();
         pendingQuip = { moth, cue: 'dance' };
@@ -380,6 +387,13 @@ export function startApplication({
     cancelAim();
   }
   function cancelAim() {
+    if (mindRaisedView) {
+      mindRaisedView = false;
+      if (scene.viewMode?.() === 'board') toggleView();
+    }
+    if (aimHint) aimHint.hidden = true;
+    mindSpot = undefined;
+    mindGiant = undefined;
     aiming = false;
     power = 0;
     scene.setAim(undefined);
@@ -397,6 +411,87 @@ export function startApplication({
     const icon = asset(`weapon-${weapon.id}`);
     if (chipIcon && !chipIcon.src.endsWith(icon)) chipIcon.src = icon;
     power = 0;
+  }
+  /** Where a Mind Control slam is aimed, and which giant will do it. */
+  let mindSpot: { x: number; z: number } | undefined;
+  let mindGiant: number | undefined;
+  /** True while the board view is up only for aiming a Mind Control. */
+  let mindRaisedView = false;
+  /** The way the player is steering, in desk directions, from the last step. */
+  let steering = { x: 0, z: 0 };
+  /** Q / E and the D-pad pick the giant while a Mind Control is aimed. */
+  function stepWeapon(step: number) {
+    const people = world.snapshot().people.length;
+    if (aiming && WEAPONS[weaponIndex]?.id === 'mind' && people) {
+      mindGiant =
+        ((mindGiant ?? nearestGiant(world.snapshot())) + step + people) %
+        people;
+      return;
+    }
+    selectWeapon(weaponIndex + step);
+  }
+  /** The giant standing nearest the spot being aimed at. */
+  function nearestGiant(view: WorldView) {
+    let best = 0;
+    let gap = Infinity;
+    view.people.forEach((person, index) => {
+      const far = Math.hypot(
+        person.x - (mindSpot?.x ?? 0),
+        person.z - (mindSpot?.z ?? 0),
+      );
+      if (far < gap) {
+        gap = far;
+        best = index;
+      }
+    });
+    return best;
+  }
+  /** Aim a Mind Control: steer the target, pick a giant, release to slam. */
+  function aimMind(view: WorldView, fireHeld: boolean, deltaSeconds: number) {
+    const active = view.moths[view.selectedMoth]!;
+    const halfWide = ARENA.desk.width / 2 - HAZARD.radius * 0.5;
+    const halfDeep = ARENA.desk.depth / 2 - HAZARD.radius * 0.5;
+    if (!mindSpot) {
+      // Choosing a spot on the desk needs the whole desk in view.
+      if (scene.viewMode?.() === 'follow') {
+        toggleView();
+        mindRaisedView = true;
+      }
+      const aim = scene.aimDirection(view);
+      const flat = Math.hypot(aim.x, aim.z) || 1;
+      mindSpot = {
+        x: active.x + (aim.x / flat) * MIND.startAhead,
+        z: active.z + (aim.z / flat) * MIND.startAhead,
+      };
+    }
+    mindSpot.x = Math.max(
+      -halfWide,
+      Math.min(
+        halfWide,
+        mindSpot.x + steering.x * MIND.aimSpeed * deltaSeconds,
+      ),
+    );
+    mindSpot.z = Math.max(
+      -halfDeep,
+      Math.min(
+        halfDeep,
+        mindSpot.z + steering.z * MIND.aimSpeed * deltaSeconds,
+      ),
+    );
+    const giant = mindGiant ?? nearestGiant(view);
+    const aim = {
+      x: mindSpot.x - active.x,
+      y: 0,
+      z: mindSpot.z - active.z,
+    };
+    if (fireHeld) {
+      if (aimHint) aimHint.hidden = false;
+      setText(aimGiant, `Controlling ${GIANT_NAMES[giant] ?? 'a giant'}`);
+      scene.setAim({ weapon: 'mind', aim, power: 0, spot: mindSpot, giant });
+      return;
+    }
+    if (world.commandSmack(mindSpot, giant)) match?.fired('mind');
+    cancelAim();
   }
   /** Hold to aim (and charge), release to fire. */
   function updateWeapon(fireHeld: boolean, deltaSeconds: number) {
@@ -422,6 +517,10 @@ export function startApplication({
       power = 0;
     }
     if (!aiming) return;
+    if (weapon.id === 'mind') {
+      aimMind(view, fireHeld, deltaSeconds);
+      return;
+    }
     const aim = scene.aimDirection(view);
     if (fireHeld) {
       if (weapon.charge)
@@ -615,6 +714,8 @@ export function startApplication({
       // The go ends once nothing is flying, tumbling, sliding or dancing.
       busy:
         view.projectiles.length > 0 ||
+        // A hand ordered down by Mind Control is still on its way.
+        view.hazards.some((hazard) => !hazard.held) ||
         view.moths.some(
           (moth) =>
             !moth.respawning &&
@@ -856,8 +957,11 @@ export function startApplication({
     if (banner.dataset.phase !== state.phase)
       banner.dataset.phase = state.phase;
     weaponButtons.forEach((button, index) => {
-      if (WEAPONS[index]?.id !== 'zap') return;
-      const left = state.zapSwitches[state.team] ?? 0;
+      const id = WEAPONS[index]?.id;
+      if (id !== 'zap' && id !== 'mind') return;
+      const left =
+        (id === 'zap' ? state.zapSwitches : state.mindControls)[state.team] ??
+        0;
       const count = weaponCounts[index];
       if (count) {
         count.hidden = false;
@@ -1057,7 +1161,7 @@ export function startApplication({
         if (pad.toggleView) toggleView();
         if (pad.resetView) scene.resetCamera();
         scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
-        if (pad.weaponStep) selectWeapon(weaponIndex + pad.weaponStep);
+        if (pad.weaponStep) stepWeapon(pad.weaponStep);
         // L2 holds the weapon wheel open; the left stick points at a weapon
         // and letting go of L2 keeps it.
         if (pad.wheel !== padWheel) {
@@ -1088,8 +1192,9 @@ export function startApplication({
         const controller = gamepad.read();
         const movement = controller.x || controller.z ? controller : keys;
         const jump = keys.jump || controller.jump;
+        steering = scene.movementDirection(movement.x, movement.z);
         const command = {
-          ...scene.movementDirection(movement.x, movement.z),
+          ...steering,
           jump,
           flutter: keys.flutter || controller.flutter,
         };

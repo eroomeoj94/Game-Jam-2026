@@ -89,8 +89,15 @@ const mothTakes = (moth: number, cue: MothCue) => {
 export const GIANT_VOICES = 3;
 /** Slam lines each giant has; the third has a longer, sillier list. */
 const GIANT_SLAMS = [3, 3, 10];
-const giantTakes = (person: number, cue: 'slam' | 'loom') => {
+/** Lines each giant has for being taken over by a Mind Control. */
+const GIANT_MINDS = 3;
+const giantTakes = (person: number, cue: 'slam' | 'loom' | 'mind') => {
   const voice = person % GIANT_VOICES;
+  if (cue === 'mind')
+    return Array.from(
+      { length: GIANT_MINDS },
+      (_, take) => `giant/${voice}-mind-${take + 1}`,
+    );
   return cue === 'slam'
     ? Array.from(
         { length: GIANT_SLAMS[voice] ?? 3 },
@@ -317,6 +324,7 @@ export function createSfx({
     const giantFiles = Array.from({ length: GIANT_VOICES }, (_, person) => [
       ...giantTakes(person, 'slam'),
       ...giantTakes(person, 'loom'),
+      ...giantTakes(person, 'mind'),
     ]).flat();
     for (const file of [
       ...Object.values(VOICE_LINES).flat(),
@@ -752,6 +760,17 @@ export function createSfx({
         const volume = attenuation(listener, at);
         // The announcer reacts to the big moments, and now and then to the
         // small ones.
+        if (event.type === 'mind') {
+          // The spell crackles out, then the giant says what it feels like.
+          play('zap', { volume: 0.5 * volume, rate: 0.55 });
+          play('whoosh', { volume: 0.7 * volume, rate: 0.7, delay: 0.1 });
+          speak(
+            giantTakes(event.person, 'mind'),
+            `giant-${event.person % GIANT_VOICES}-mind`,
+            AUDIO.giantVoice,
+            { priority: 3, delay: 0.45 },
+          );
+        }
         if (event.type === 'zap') say('zap', { priority: 2 });
         else if (event.type === 'smack') {
           // The giant has the first word, then the announcer.

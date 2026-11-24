@@ -264,6 +264,25 @@ describe('scoring', () => {
   });
 });
 
+describe('mind control', () => {
+  it('can be used once a match by each team', () => {
+    const match = createMatch(TEAMS);
+    expect(match.view().mindControls).toEqual([1, 1]);
+    expect(match.canUse('mind')).toBe(true);
+    expect(match.fired('mind')).toBe(true);
+    resolve(match);
+    expect(match.view().mindControls).toEqual([0, 1]);
+    // Mustard's next moth cannot use it again; Teal still has its own.
+    expect(match.canUse('mind')).toBe(false);
+    expect(match.fired('mind')).toBe(false);
+    while (match.view().team !== 1 || match.view().phase !== 'plan') {
+      if (match.view().phase === 'scored') match.nextRound();
+      else passTurn(match);
+    }
+    expect(match.canUse('mind')).toBe(true);
+  });
+});
+
 describe('zappers', () => {
   it('limits Zap Switches per team', () => {
     const match = createMatch(TEAMS);

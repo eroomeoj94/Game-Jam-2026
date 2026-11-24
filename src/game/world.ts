@@ -17,6 +17,7 @@ import {
   FIRECRACKER,
   GUST,
   HAZARD,
+  MIND,
   PEOPLE,
   LAMPS,
   MOVEMENT,
@@ -109,7 +110,9 @@ export type WorldEvent =
   /** A giant hand hit the desk, flinging `moths` moths. */
   | { type: 'smack'; position: Position; moths: number }
   | { type: 'explode'; position: Position }
-  | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position };
+  | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position }
+  /** A moth took over giant `person`, who will smack `position`. */
+  | { type: 'mind'; person: number; origin: Position; position: Position };
 /** A giant pacing round the desk; (x, z) is where they stand. */
 export type PersonView = {
   x: number;
@@ -596,11 +599,19 @@ export function createWorld({
   }
 
   /** Start a hand's shadow looming over (x, z). */
-  function raiseHand({ x, z }: { x: number; z: number }, held = false) {
-    // Whoever is standing nearest does it.
+  function raiseHand(
+    { x, z }: { x: number; z: number },
+    held = false,
+    chosen?: number,
+  ) {
+    // Whoever is standing nearest does it, unless someone is picked.
     let person = 0;
     let nearest = Infinity;
     people.forEach(({ at }, index) => {
+      if (chosen !== undefined && people[chosen]) {
+        person = chosen;
+        return;
+      }
       const spot = lanePoint(at);
       const gap = Math.hypot(spot.x - x, spot.z - z);
       if (gap < nearest) {
@@ -1026,6 +1037,8 @@ export function createWorld({
       if (weapon === 'gust') used = useGust(attacker, aim);
       else if (weapon === 'bosh') used = useBosh(attacker, aim);
       else if (weapon === 'zap') used = useZapSwitch(attacker, aim);
+      // Mind Control needs a target on the desk: see `commandSmack`.
+      else if (weapon === 'mind') used = false;
       else if (flat || aim.y > 0) {
         launch(weapon, origin, aim, power);
         used = true;
@@ -1106,6 +1119,30 @@ export function createWorld({
      */
     smack(at: { x: number; z: number }) {
       raiseHand(at);
+    },
+    /**
+     * Mind Control: the selected moth makes giant `person` (or whoever is
+     * nearest) smack (x, z), replacing any hand already in play. Returns
+     * false when the moth cannot act.
+     */
+    commandSmack(at: { x: number; z: number }, person?: number) {
+      const attacker = moths[selectedMoth];
+      if (!attacker || !inPlay(attacker) || weaponCooldown > 0) return false;
+      if (![at.x, at.z].every(Number.isFinite)) return false;
+      if (person !== undefined && !people[person]) return false;
+      const origin = positionOf(attacker.body);
+      attacker.heading = Math.atan2(at.x - origin.x, at.z - origin.z);
+      raiseHand(at, false, person);
+      if (!hand) return false;
+      hand.warn = MIND.warnSeconds;
+      events.push({
+        type: 'mind',
+        person: hand.person,
+        origin,
+        position: { x: hand.x, y: hand.y, z: hand.z },
+      });
+      if (!match) weaponCooldown = PLAYGROUND.cooldown;
+      return true;
     },
     /**
      * Hang a giant hand over (x, z), replacing any hand already in play. It

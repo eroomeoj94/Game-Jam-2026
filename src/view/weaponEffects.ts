@@ -1,5 +1,7 @@
 import {
   AdditiveBlending,
+  CircleGeometry,
+  TorusGeometry,
   BufferGeometry,
   Float32BufferAttribute,
   Camera,
@@ -39,9 +41,13 @@ export type AimPreview = {
   power: number;
   /** For Zap Switch: the lamp that would flip. */
   lamp?: number;
+  /** For Mind Control: where the hand will land, and whose hand. */
+  spot?: { x: number; z: number };
+  giant?: number;
 };
 
 const ZAP_VIOLET = 0xa77bff;
+const MIND_PURPLE = 0xb48cff;
 const GRAVITY = 9.82;
 const TEAM_COLOURS = ['#ffcf73', '#7fe3d8'];
 
@@ -112,6 +118,37 @@ export function createWeaponEffects(
   );
   targetRing.rotation.x = -Math.PI / 2;
   scene.add(targetRing);
+  // Mind Control: the patch of desk the commanded hand will hit.
+  const mindMark = new Group();
+  const mindDisc = new Mesh(
+    keep(new CircleGeometry(HAZARD.radius, 48)),
+    keep(
+      new MeshBasicMaterial({
+        color: MIND_PURPLE,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+      }),
+    ),
+  );
+  const mindEdge = new Mesh(
+    keep(new RingGeometry(HAZARD.radius - 0.22, HAZARD.radius, 64)),
+    keep(
+      new MeshBasicMaterial({
+        color: 0xe9dcff,
+        transparent: true,
+        opacity: 0.95,
+        side: DoubleSide,
+        depthWrite: false,
+      }),
+    ),
+  );
+  mindDisc.rotation.x = mindEdge.rotation.x = -Math.PI / 2;
+  mindEdge.position.y = 0.01;
+  mindMark.add(mindDisc, mindEdge);
+  mindMark.visible = false;
+  scene.add(mindMark);
+  const hoopGeometry = keep(new TorusGeometry(1, 0.07, 8, 40));
   let preview: AimPreview | undefined;
 
   // --- Projectiles -------------------------------------------------------
@@ -522,6 +559,46 @@ export function createWeaponEffects(
             at.clone().setY(at.y + 1.2),
             TEAM_COLOURS[event.team] ?? '#ffffff',
           );
+        } else if (event.type === 'mind') {
+          // Hoops of purple thought spiral from the gun to the giant's head,
+          // which lights up as the spell takes hold.
+          const from = toVector(event.origin).setY(event.origin.y + 0.2);
+          const giant = view.people[event.person];
+          const head = giant
+            ? new Vector3(giant.x, 26, giant.z)
+            : toVector(event.position).setY(20);
+          const path = head.clone().sub(from);
+          flash(from, MIND_PURPLE, 70);
+          for (let hoop = 0; hoop < 12; hoop++) {
+            const start = hoop * 0.05;
+            const mesh = new Mesh(
+              hoopGeometry,
+              new MeshBasicMaterial({
+                color: hoop % 2 ? 0xe9dcff : MIND_PURPLE,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                blending: AdditiveBlending,
+              }),
+            );
+            mesh.position.copy(from);
+            mesh.lookAt(head);
+            spawn(mesh, 0.9 + start, (effect, t) => {
+              const life = Math.max(0, (t * (0.9 + start) - start) / 0.9);
+              const hoopMesh = effect.object;
+              hoopMesh.position.copy(from).addScaledVector(path, life);
+              hoopMesh.scale.setScalar(0.25 + life * 3.2);
+              hoopMesh.rotation.z = life * 6 + hoop;
+              fade(hoopMesh, life > 0 ? 0.95 : 0, life * life);
+            });
+          }
+          window.setTimeout(() => flash(head, MIND_PURPLE, 120), 600);
+          popup(
+            'MIND CONTROL!',
+            from.clone().setY(from.y + 1.4),
+            '#c9b0ff',
+            'big',
+          );
         } else if (event.type === 'launch') {
           const at = toVector(event.position);
           if (event.kind === 'firecracker') {
@@ -680,6 +757,14 @@ export function createWeaponEffects(
         show && preview?.weapon === 'zap' && preview.lamp !== undefined
           ? view.lamps[preview.lamp]
           : undefined;
+      // Mind Control's target pulses on the desk while it is aimed.
+      const spot =
+        show && preview?.weapon === 'mind' ? preview.spot : undefined;
+      mindMark.visible = !!spot;
+      if (spot) {
+        mindMark.position.set(spot.x, 0.05, spot.z);
+        mindEdge.scale.setScalar(1 + Math.sin(performance.now() / 110) * 0.04);
+      }
       targetRing.visible = !!target;
       if (target) {
         const radius = Math.sqrt(
