@@ -1014,47 +1014,59 @@ kbd {
   text-transform: uppercase;
 }
 
-/* The character badge: a portrait with flutter and power as arcs round it. */
+/* The character badge: a portrait whose ring drains as the moth flutters,
+   and the weapon's icon beside it, whose ring is the shot's power. */
 .caption {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   max-width: none;
-  padding: 12px 18px 12px 12px;
-  border: 1px solid #c69d6233;
-  border-radius: 999px 18px 18px 999px;
-  background: linear-gradient(90deg, #0d151cf2, #101922d9);
-  box-shadow: 0 10px 30px #0008;
-  backdrop-filter: blur(6px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   pointer-events: auto;
 }
 .caption[data-team='0'],
 .caption[data-team='1'] {
-  border-left-width: 1px;
+  border-left: 0;
 }
-.badge {
+.badge,
+.weapon-chip {
   position: relative;
   flex: none;
   width: 108px;
   height: 108px;
+  filter: drop-shadow(0 6px 14px #000a);
+}
+.weapon-chip {
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
 }
 .badge-rings {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  /* Start at the top and drain anticlockwise. */
+  transform: rotate(-90deg);
 }
-.badge-rings path {
+.badge-rings circle {
+  fill: #0d151ccc;
+  stroke-width: 9;
+}
+.badge-rings .ring-fill {
   fill: none;
-  stroke-width: 7;
   stroke-linecap: round;
-}
-.ring-track {
-  stroke: #ffffff1f;
-}
-.ring-fill {
   stroke-dasharray: 100 100;
   transition: stroke-dasharray 0.12s linear;
+}
+.ring-track {
+  stroke: #0d151ccc;
 }
 .ring-flutter {
   stroke: #8fd8ff;
@@ -1066,24 +1078,26 @@ kbd {
   stroke: #ff5c3a;
   filter: drop-shadow(0 0 4px #ff5c3a);
 }
-.badge-face {
+.badge-face,
+.weapon-chip img {
   position: absolute;
-  inset: 13px;
-  width: calc(100% - 26px);
-  height: calc(100% - 26px);
+  inset: 12%;
+  width: 76%;
+  height: 76%;
   border-radius: 50%;
-  border: 3px solid #e7c28b;
   object-fit: cover;
   background: #172128;
 }
-.badge[data-team='1'] .badge-face {
-  border-color: #7fd1c8;
+.weapon-chip:hover img {
+  inset: 10%;
+  width: 80%;
+  height: 80%;
 }
 .badge-number {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
-  min-width: 26px;
+  right: 2px;
+  bottom: 2px;
+  min-width: 28px;
   padding: 3px 0;
   border-radius: 999px;
   border: 2px solid #0d151c;
@@ -1098,72 +1112,63 @@ kbd {
 }
 .badge-text {
   min-width: 0;
-  max-width: 300px;
+  text-shadow:
+    0 1px 2px #000,
+    0 0 12px #000c;
 }
 .badge-name {
-  margin: 4px 0 0;
+  margin: 0 0 4px;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.1;
 }
-.badge-text #status {
-  margin: 4px 0 0;
-  color: #c9c6b3;
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.35;
-}
-.gauges {
-  display: flex;
-  gap: 14px;
-  margin: 8px 0 0;
-  color: #a3aca8;
+.badge-team {
+  color: #ffd98a;
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
-.gauge i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
+.caption[data-team='1'] .badge-team {
+  color: #9bf0e6;
+}
+.help-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 2px solid #efe4cc99;
   border-radius: 50%;
-  background: #8fd8ff;
-}
-.gauge-power i {
-  background: #ff9d4a;
-}
-.gauge b {
   color: #efe4cc;
+  background: #0d151ccc;
+  font-size: 18px;
+  font-weight: 700;
 }
-.weapon-chip {
+.help-button:hover {
+  border-color: #ffd98a;
+}
+.weapon-help {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  color: #c9c6b3;
+  font-size: 12px;
+}
+.weapon-help li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 6px;
-  border: 1px solid #c69d6255;
-  border-radius: 999px;
-  color: #efe4cc;
-  background: #172128;
-  text-align: left;
+  gap: 8px;
 }
-.weapon-chip:hover {
-  border-color: #e7c28b;
-}
-.weapon-chip img {
-  width: 54px;
-  height: 54px;
+.weapon-help img {
+  flex: none;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
 }
-.weapon-chip-text b {
-  display: block;
-  font-size: 14px;
+.weapon-help b {
+  color: #efe4cc;
+  white-space: nowrap;
 }
-.weapon-chip-text small {
-  color: #a3aca8;
-  font-size: 10px;
-}
-.weapon-chip kbd,
 .wheel kbd {
   padding: 1px 5px;
   border: 1px solid #78827b88;
@@ -1267,16 +1272,13 @@ kbd {
   font-size: 13px;
 }
 @media (max-width: 760px) {
-  .caption {
-    gap: 10px;
-    border-radius: 18px;
-  }
   .badge {
     width: 84px;
     height: 84px;
   }
-  .weapon-chip-text small {
-    display: none;
+  .weapon-chip {
+    width: 68px;
+    height: 68px;
   }
   .wheel-ring {
     --radius: 110px;
@@ -1285,11 +1287,4 @@ kbd {
     width: 76px;
     height: 76px;
   }
-}
-.badge-team {
-  margin-left: 10px;
-  color: #e7c28b;
-}
-.caption[data-team='1'] .badge-team {
-  color: #7fd1c8;
 }

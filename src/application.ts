@@ -259,6 +259,20 @@ export function startApplication({
     weaponBar.appendChild(button);
     return button;
   });
+  // The help panel lists every weapon with its icon and what it does.
+  const weaponHelp = document.querySelector<HTMLElement>('#weapon-help');
+  const weaponHelpItems = WEAPONS.map((weapon) => {
+    const item = document.createElement('li');
+    const icon = document.createElement('img');
+    icon.src = asset(`weapon-${weapon.id}`);
+    icon.alt = '';
+    const name = document.createElement('b');
+    name.textContent = weapon.name;
+    item.append(icon, name, ` ${WEAPON_ABOUT[weapon.id]}`);
+    weaponHelp?.appendChild(item);
+    return item;
+  });
+  const helpButton = document.querySelector<HTMLButtonElement>('#help-button');
   let weaponIndex = 0;
   let wheelOpen = false;
   function setWheel(open: boolean) {
@@ -903,16 +917,14 @@ export function startApplication({
     if (badge && badge.dataset.team !== String(side))
       badge.dataset.team = String(side);
     const dash = (value: number) =>
-      `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)} 100`;
+      `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)}, 100`;
     const flutterDash = dash(active.flutter);
-    if (
-      flutterArc &&
-      flutterArc.getAttribute('stroke-dasharray') !== flutterDash
-    )
-      flutterArc.setAttribute('stroke-dasharray', flutterDash);
+    // Set as a style: the stylesheet's dash pattern would beat an attribute.
+    if (flutterArc && flutterArc.style.strokeDasharray !== flutterDash)
+      flutterArc.style.strokeDasharray = flutterDash;
     const powerDash = dash(aiming ? power : 1 - view.weaponCooldown);
-    if (powerArc && powerArc.getAttribute('stroke-dasharray') !== powerDash)
-      powerArc.setAttribute('stroke-dasharray', powerDash);
+    if (powerArc && powerArc.style.strokeDasharray !== powerDash)
+      powerArc.style.strokeDasharray = powerDash;
     const mood = aiming ? 'aiming' : '';
     if (powerArc && powerArc.dataset.mood !== mood)
       powerArc.dataset.mood = mood;
@@ -1282,6 +1294,7 @@ export function startApplication({
   window.addEventListener('keyup', onWheelKey);
   wheel?.addEventListener('click', onWheelClick);
   chip?.addEventListener('click', onChip);
+  helpButton?.addEventListener('click', onHelp);
   window.addEventListener('keydown', onHelpKey);
   pass.addEventListener('click', onPass);
   nudge.addEventListener('click', onNudge);
@@ -1344,6 +1357,8 @@ export function startApplication({
     window.removeEventListener('keyup', onWheelKey);
     wheel?.removeEventListener('click', onWheelClick);
     chip?.removeEventListener('click', onChip);
+    helpButton?.removeEventListener('click', onHelp);
+    weaponHelpItems.forEach((item) => item.remove());
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();
     if (scoreboard) scoreboard.hidden = true;

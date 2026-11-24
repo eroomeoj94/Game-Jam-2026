@@ -138,6 +138,8 @@
             </button>
           </div>
           <div id="help">
+            <h3>Weapons</h3>
+            <ul class="weapon-help" id="weapon-help"></ul>
             <h3>Controls</h3>
             <table class="controls">
               <thead>
@@ -222,37 +224,22 @@
         <div class="caption">
           <div class="badge" id="badge">
             <svg class="badge-rings" viewBox="0 0 120 120" aria-hidden="true">
-              <path class="ring-track" d="M 52 113.5 A 54 54 0 0 1 52 6.5" />
-              <path
+              <circle class="ring-track" cx="60" cy="60" r="54" />
+              <circle
                 class="ring-fill ring-flutter"
                 id="flutter-arc"
                 pathLength="100"
-                d="M 52 113.5 A 54 54 0 0 1 52 6.5"
-              />
-              <path class="ring-track" d="M 68 113.5 A 54 54 0 0 0 68 6.5" />
-              <path
-                class="ring-fill ring-power"
-                id="power-arc"
-                pathLength="100"
-                d="M 68 113.5 A 54 54 0 0 0 68 6.5"
+                cx="60"
+                cy="60"
+                r="54"
               />
             </svg>
             <img id="badge-face" class="badge-face" alt="" />
             <span class="badge-number" id="badge-number"></span>
           </div>
           <div class="badge-text">
-            <span class="tag" id="mode">Match</span>
-            <span class="tag badge-team" id="badge-team"></span>
             <p class="badge-name" id="badge-name"></p>
-            <p id="status" role="status">Warming up the light…</p>
-            <p class="gauges">
-              <span class="gauge gauge-flutter"
-                ><i></i>Flutter <b id="flutter-value">100%</b></span
-              >
-              <span class="gauge gauge-power"
-                ><i></i>Power <b id="charge-value">Ready</b></span
-              >
-            </p>
+            <span class="tag badge-team" id="badge-team"></span>
           </div>
           <button
             id="weapon-chip"
@@ -261,13 +248,37 @@
             aria-haspopup="dialog"
             aria-controls="wheel"
             aria-expanded="false"
+            title="Weapon wheel (hold Tab)"
           >
+            <svg class="badge-rings" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="54" />
+              <circle
+                class="ring-fill ring-power"
+                id="power-arc"
+                pathLength="100"
+                cx="60"
+                cy="60"
+                r="54"
+              />
+            </svg>
             <img id="weapon-chip-icon" alt="" />
-            <span class="weapon-chip-text"
-              ><b id="weapon-chip-name"></b
-              ><small>Hold <kbd>Tab</kbd> for the wheel</small></span
-            >
+            <span class="visually-hidden" id="weapon-chip-name"></span>
           </button>
+          <button
+            id="help-button"
+            type="button"
+            class="help-button"
+            aria-controls="menu"
+            title="How to play"
+          >
+            ?
+          </button>
+          <div class="visually-hidden">
+            <span class="tag" id="mode">Match</span>
+            <p id="status" role="status">Warming up the light…</p>
+            <span id="flutter-value">100%</span>
+            <span id="charge-value">Ready</span>
+          </div>
           <p id="score" class="score visually-hidden" role="status"></p>
           <!-- Moths take their goes in order; picking one is by key or click. -->
           <div
