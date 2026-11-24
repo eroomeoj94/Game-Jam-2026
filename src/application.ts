@@ -416,7 +416,8 @@ export function startApplication({
       // In a match, starting to aim ends movement and freezes the world.
       const moved = match?.view().phase === 'move';
       if (match && !match.beginAim()) return;
-      if (moved) sfx.quip(view.selectedMoth, 'move');
+      // Winding up a Bosh is left to the announcer: no moth talks over him.
+      if (moved && weapon.id !== 'bosh') sfx.quip(view.selectedMoth, 'move');
       aiming = true;
       power = 0;
     }

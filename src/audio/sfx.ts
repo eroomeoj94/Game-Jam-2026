@@ -623,11 +623,12 @@ export function createSfx({
         noise(ctx, 0.22, 900, 0.35 * volume);
     }
     // The announcer calls it when his clips are loaded; otherwise the old
-    // spoken "Bosh!" does.
+    // spoken "Bosh!" does. A punch is over in an instant, so his call cuts
+    // across whatever a moth is saying rather than queueing behind it.
     if (
       !(connected
-        ? say('bosh', { priority: 2 })
-        : say('miss', { priority: 1 })) &&
+        ? say('bosh', { priority: 3 })
+        : say('miss', { priority: 3 })) &&
       !voices.size
     )
       shout();

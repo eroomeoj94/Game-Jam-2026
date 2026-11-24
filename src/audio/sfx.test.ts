@@ -383,6 +383,20 @@ describe('moth voices', () => {
     expect(spoken()).toEqual(['bosh-1', 'moth/c-bosh-1']);
     sfx.destroy();
   });
+
+  it('lets the announcer call a Bosh even when lines are already queued', async () => {
+    for (const connected of [true, false]) {
+      const { sfx, spoken } = await talkers();
+      // He is mid-call and a moth is waiting its turn to speak: any other
+      // line would be dropped, but the punch cuts in.
+      expect(sfx.say('zap', { priority: 2 })).toBe(true);
+      expect(sfx.quip(0, 'move')).toBe(true);
+      expect(sfx.say('hot', { priority: 2 })).toBe(false);
+      sfx.bosh(connected);
+      expect(spoken().at(-1)).toMatch(connected ? /^bosh-/ : /^miss$/);
+      sfx.destroy();
+    }
+  });
 });
 
 describe('music and sound-effect switches', () => {
