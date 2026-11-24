@@ -97,6 +97,9 @@ function round(
  */
 const START_A = scaled({ x: -110, z: 0 });
 const START_B = scaled({ x: 110, z: 0 });
+// The third and fourth teams start mid-desk, towards the front and the back.
+const START_C = { x: START_A.x * 0.35, z: DESK.depth * 0.3 };
+const START_D = { x: START_B.x * 0.35, z: -DESK.depth * 0.3 };
 
 /** Height of the first tier above the desk; the summit is twice this. */
 const TIER = 3.4;
@@ -227,7 +230,38 @@ function scatter(count: number, seed: number): TerrainPiece[] {
   return pieces;
 }
 
-/** Four moths per team, with names and slightly different wing colours. */
+/** Where the title screen keeps the chosen line-up between page loads. */
+export const SETUP_KEY = 'moth-fight-club:setup';
+export type Setup = {
+  /** Teams round the desk, 2 to 4. */
+  teams: number;
+  /** How many of them people play; the computer plays the rest. */
+  humans: number;
+  /** True for the one load that follows a change of line-up: skip the title. */
+  autostart?: boolean;
+};
+/** The line-up chosen on the title screen, or two human teams. */
+export function readSetup(): Setup {
+  try {
+    const saved = JSON.parse(
+      globalThis.sessionStorage?.getItem(SETUP_KEY) ?? 'null',
+    ) as Partial<Setup> | null;
+    const teams = Math.min(4, Math.max(2, Math.round(saved?.teams ?? 2)));
+    const humans = Math.min(teams, Math.max(1, Math.round(saved?.humans ?? 2)));
+    return { teams, humans, autostart: !!saved?.autostart };
+  } catch {
+    return { teams: 2, humans: 2 };
+  }
+}
+/**
+ * How many teams this page was loaded for. The moths, their colours and the
+ * scoreboard are all laid out once from this, so changing it reloads the page.
+ */
+export const TEAM_COUNT = readSetup().teams;
+/** Moths in each team: fewer each as more teams share the desk. */
+export const TEAM_SIZE = [4, 4, 4, 3, 2][TEAM_COUNT] ?? 4;
+
+/** Up to four moths per team, with names and slightly different wing colours. */
 const TEAMS = [
   {
     start: START_A,
@@ -239,7 +273,17 @@ const TEAMS = [
     names: ['Mothhew', 'Wingston', 'Nibbles', 'Tatters'],
     colours: [0x599e98, 0x4f948e, 0x66aaa2, 0x5a8f9e],
   },
-] as const;
+  {
+    start: START_C,
+    names: ['Velvet', 'Plum', 'Thistle', 'Dusk'],
+    colours: [0x8a5fc4, 0x9a6fd0, 0x7a52b3, 0xa07ad6],
+  },
+  {
+    start: START_D,
+    names: ['Moonbeam', 'Chalky', 'Pearl', 'Wisp'],
+    colours: [0xe9dfc6, 0xf2e9d2, 0xdcd0b4, 0xefe3cc],
+  },
+].slice(0, TEAM_COUNT);
 /** Fixed slots around each start point, clear of the first moth's book perch. */
 const SLOTS = [
   { x: 0, z: 0 },
@@ -282,10 +326,10 @@ export const ARENA = {
    * Moth 0 and moth 1 lead each team, so key 1 is Dusty and key 2 is
    * Mothhew; the rest alternate teams.
    */
-  spawns: [0, 1, 2, 3].flatMap((slot) =>
+  spawns: Array.from({ length: TEAM_SIZE }, (_, slot) => slot).flatMap((slot) =>
     TEAMS.map((team, teamIndex) => {
-      // Team B starts at the other end, so mirror its slots.
-      const side = teamIndex === 0 ? 1 : -1;
+      // Every other team faces the other way, so mirror its slots.
+      const side = teamIndex % 2 === 0 ? 1 : -1;
       return {
         name: team.names[slot]!,
         team: teamIndex,
@@ -348,7 +392,7 @@ export const MOTH_LOOK = {
   boardLight: 2.4,
 };
 /** Ring and HUD colour for each team. */
-export const TEAM_COLOURS = [0xffc65c, 0x5fe6d6] as const;
+export const TEAM_COLOURS = [0xffc65c, 0x5fe6d6, 0xb98cff, 0xf4ecd8] as const;
 
 export const MAX_FUR_LAYERS = 32;
 
@@ -442,11 +486,13 @@ export const BOSH = {
   loudness: 5,
 };
 
-/** The two teams, told apart by an icon and a name as well as colour. */
+/** The teams in play, told apart by an icon and a name as well as colour. */
 export const TEAM_LABELS = [
   { name: 'Mustard', icon: '▲' },
   { name: 'Teal', icon: '●' },
-] as const;
+  { name: 'Purple', icon: '■' },
+  { name: 'Ivory', icon: '◆' },
+].slice(0, TEAM_COUNT);
 
 /** Match rules: rounds, turns, scoring and zappers. All values are tunable. */
 export const MATCH = {

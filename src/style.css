@@ -1429,3 +1429,112 @@ kbd.ps-triangle {
 .scorecard .eyebrow b {
   font-weight: inherit;
 }
+/* The third and fourth teams: Purple and Ivory. */
+.moth-pin[data-team='2'] {
+  background: #c9a8ff;
+}
+.moth-pin[data-team='3'] {
+  background: #f4ecd8;
+}
+.lamp-bar span[data-state='team-2'] {
+  color: #1d1430;
+  background: #c9a8ff;
+  border-color: #c9a8ff;
+}
+.lamp-bar span[data-state='team-3'] {
+  color: #29261f;
+  background: #f4ecd8;
+  border-color: #f4ecd8;
+}
+/* Purple sits on the left with Mustard, Ivory on the right with Teal. */
+.scoreboard .team[data-team='2'] {
+  border-radius: 8px 0 0 8px;
+  order: -1;
+}
+.scoreboard .team[data-team='3'] {
+  border-radius: 0 8px 8px 0;
+  order: 1;
+}
+.scoreboard .team[data-team='2'] ~ .team[data-team='0'],
+.scoreboard .team[data-team='3'] ~ .team[data-team='1'] {
+  border-radius: 0;
+}
+.scoreboard .team[data-team='2'][data-turn='true'] {
+  border-top-color: #c9a8ff;
+}
+.scoreboard .team[data-team='3'][data-turn='true'] {
+  border-top-color: #f4ecd8;
+}
+.scoreboard .team[data-team='3'] .team-name {
+  order: 2;
+  text-align: right;
+}
+.scoreboard .team[data-team='2'] .team-score {
+  color: #c9a8ff;
+}
+.scoreboard .team[data-team='3'] .team-score {
+  color: #f4ecd8;
+  text-align: left;
+}
+.scoreboard .team[data-team='2'] .team-bar i {
+  background: #c9a8ff;
+}
+.scoreboard .team[data-team='3'] .team-bar i {
+  margin-left: auto;
+  background: #f4ecd8;
+}
+/* With three or four teams each block is narrower, to fit across the top. */
+.scoreboard[data-teams='3'] .team,
+.scoreboard[data-teams='4'] .team {
+  min-width: 128px;
+}
+.badge[data-team='2'] .badge-number {
+  background: #c9a8ff;
+}
+.badge[data-team='3'] .badge-number {
+  background: #f4ecd8;
+}
+.caption[data-team='2'] .badge-team {
+  color: #d9c2ff;
+}
+.caption[data-team='3'] .badge-team {
+  color: #f4ecd8;
+}
+.scorecard thead th[data-team='2'],
+.scorecard td[data-team='2'] {
+  color: #c9a8ff;
+}
+.scorecard thead th[data-team='3'],
+.scorecard td[data-team='3'] {
+  color: #f4ecd8;
+}
+/* The title screen's line-up choices. */
+.lineup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  margin: 0 0 16px;
+}
+.choice span {
+  display: block;
+  margin-bottom: 6px;
+  color: #d9b57c;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.segments {
+  display: flex;
+  gap: 6px;
+}
+.segments button {
+  min-width: 46px;
+  padding: 10px 0;
+  font-size: 16px;
+}
+.segments button[aria-pressed='true'] {
+  color: #29261f;
+  background: #e7c28b;
+  border-color: #e7c28b;
+}

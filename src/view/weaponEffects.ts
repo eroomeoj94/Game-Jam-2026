@@ -49,7 +49,7 @@ export type AimPreview = {
 const ZAP_VIOLET = 0xa77bff;
 const MIND_PURPLE = 0xb48cff;
 const GRAVITY = 9.82;
-const TEAM_COLOURS = ['#ffcf73', '#7fe3d8'];
+const TEAM_COLOURS = ['#ffcf73', '#7fe3d8', '#c9a8ff', '#f4ecd8'];
 
 /**
  * Weapon visuals: the aiming preview, projectile models, and short-lived
@@ -361,7 +361,11 @@ export function createWeaponEffects(
 
   /** A lamp just paid out: a glow and a "+1" in the team's colour. */
   function showScore(position: Vector3, team: number, points = 1) {
-    flash(position, team === 0 ? 0xffcf73 : 0x7fe3d8, 60);
+    flash(
+      position,
+      [0xffcf73, 0x7fe3d8, 0xc9a8ff, 0xf4ecd8][team] ?? 0xffffff,
+      60,
+    );
     popup(`+${points}`, position, TEAM_COLOURS[team] ?? '#ffffff', 'big');
   }
 

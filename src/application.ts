@@ -9,7 +9,10 @@ import {
   MAX_FRAME_MS,
   MIND,
   PHYSICS_STEP_MS,
+  SETUP_KEY,
+  TEAM_COUNT,
   TEAM_LABELS,
+  readSetup,
   WEAPONS,
   ZAP,
 } from './config';
@@ -24,7 +27,7 @@ import { createGamepadInput } from './input/gamepad';
 import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
 import { createSfx } from './audio/sfx';
-import type { MothCue } from './audio/sfx';
+import type { MothCue, VoiceCue } from './audio/sfx';
 import type { WeaponId } from './config';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
@@ -62,7 +65,6 @@ function remember(key: string) {
 }
 
 /** The team the computer plays in a one-player match: Teal, who goes second. */
-const BOT_TEAM = 1;
 
 const teamLabel = (team: number) =>
   `${TEAM_LABELS[team]?.icon ?? '?'} ${TEAM_LABELS[team]?.name ?? `Team ${team + 1}`}`;
@@ -133,7 +135,9 @@ export function startApplication({
   const banner = document.querySelector<HTMLElement>('#banner');
   const intro = document.querySelector<HTMLElement>('#intro');
   const start = document.querySelector<HTMLButtonElement>('#start');
-  const startSolo = document.querySelector<HTMLButtonElement>('#start-solo');
+  const teamChoices = document.querySelector<HTMLElement>('#team-choices');
+  const humanChoices = document.querySelector<HTMLElement>('#human-choices');
+  const lineupNote = document.querySelector<HTMLElement>('#lineup-note');
   const again = document.querySelector<HTMLButtonElement>('#again');
   const scorecard = document.querySelector<HTMLElement>('#scorecard');
   const scorecardTitle =
@@ -191,9 +195,32 @@ export function startApplication({
   const sfx = createSfx();
   let world = newWorld();
   let match = newMatch();
-  let bot: Bot | undefined = playing && solo ? createBot(BOT_TEAM) : undefined;
+  // The line-up: how many teams, and how many of them people play. The
+  // people take the first teams and the computer plays the rest.
+  const setup = readSetup();
+  let wantTeams = TEAM_COUNT;
+  let wantHumans = solo ? 1 : Math.min(setup.humans, TEAM_COUNT);
+  let humans = wantHumans;
+  const makeBots = (people: number) =>
+    playing
+      ? TEAM_LABELS.flatMap((_, team) =>
+          team >= people ? [createBot(team)] : [],
+        )
+      : [];
+  let bots: Bot[] = solo ? makeBots(1) : [];
+  const isBot = (team: number | undefined) =>
+    bots.some((each) => each.team === team);
+  /** "You" only makes sense when one person is playing the computer. */
+  const alone = () => bots.length > 0 && humans === 1;
+  const winLine = (winner: number) =>
+    alone()
+      ? isBot(winner)
+        ? `${teamLabel(winner)} wins · the computer takes it`
+        : 'You win!'
+      : `${teamLabel(winner)} wins${isBot(winner) ? ' · computer' : ''}`;
   // Until Start is pressed, two computers play each other behind the title.
-  const demoBots = playing && attract ? [createBot(0), createBot(1)] : [];
+  const demoBots =
+    playing && attract ? TEAM_LABELS.map((_, team) => createBot(team)) : [];
   let demoWon = 0;
   /** Teams the announcer has already called match point for. */
   const matchPointCalled = new Set<number>();
@@ -349,7 +376,7 @@ export function startApplication({
     if (!turn || !['plan', 'move', 'settle', 'aim'].includes(turn.phase))
       return undefined;
     if (!started) return demoBots[turn.team];
-    return bot?.team === turn.team ? bot : undefined;
+    return bots.find((each) => each.team === turn.team);
   }
   const botTurn = () => !!pilot();
   /** Carry out the computer's order; returns how its moth should move. */
@@ -658,14 +685,7 @@ export function startApplication({
     if (!scorecard || !state || !started || !scorecard.hidden) return;
     const view = world.snapshot();
     const winner = state.winner ?? 0;
-    setText(
-      scorecardTitle,
-      bot
-        ? winner === bot.team
-          ? 'The computer wins'
-          : 'You win!'
-        : `${teamLabel(winner)} wins`,
-    );
+    setText(scorecardTitle, winLine(winner));
     TEAM_LABELS.forEach((_, team) =>
       setText(
         document.querySelector(`#scorecard-team-${team}`),
@@ -788,11 +808,9 @@ export function startApplication({
       } else if (event.type === 'won') {
         sfx.fanfare();
         sfx.say(
-          bot?.team === event.team
+          isBot(event.team) && alone()
             ? 'winEnd'
-            : event.team === 0
-              ? 'win0'
-              : 'win1',
+            : (`win${event.team}` as VoiceCue),
           { priority: 3 },
         );
         partyTimer = 0;
@@ -820,7 +838,7 @@ export function startApplication({
         if (event.moth !== undefined) world.selectMoth(event.moth);
         // The first go of a team's turn: call them up, some of the time.
         if (started && match.view().acted.length === 0)
-          sfx.say(event.team === 0 ? 'turn0' : 'turn1', { chance: 0.6 });
+          sfx.say(`turn${event.team}` as VoiceCue, { chance: 0.6 });
         // Keys still held by the last player must not move the next moth.
         clearInput();
         wasRespawning = false;
@@ -882,7 +900,7 @@ export function startApplication({
         ? 'A lamp that pays you twice running burns out for a round (✕). Keep moving.'
         : 'A lamp only pays out if you still hold it after your rival has replied.';
     if (state.phase === 'resolve') return '';
-    if (bot && state.team === bot.team)
+    if (isBot(state.team))
       return 'The computer replies. Lamps you still hold when it finishes score for you.';
     const active =
       state.active === undefined ? undefined : view.moths[state.active];
@@ -913,10 +931,8 @@ export function startApplication({
   }
   function turnMessage(state: MatchView, mothName: string) {
     const team = teamLabel(state.team);
-    if (state.phase === 'won' && bot)
-      return state.winner === bot.team
-        ? 'The computer wins · press Play again for a rematch'
-        : 'You win! · press Play again';
+    if (state.phase === 'won')
+      return `${winLine(state.winner ?? 0)} · press Play again for a rematch`;
     if (botTurn()) return `${team} · ${mothName} · the computer is playing…`;
     const zapOut =
       WEAPONS[weaponIndex]?.id === 'zap' && state.zapSwitches[state.team] === 0;
@@ -941,8 +957,6 @@ export function startApplication({
         return MATCH.scoring === 'incoming'
           ? `${teamLabel((state.team + 1) % TEAM_LABELS.length)} banks the lamps it held · ${teamLabel(state.team)} has played`
           : `Round ${state.round} scored · next round coming up`;
-      case 'won':
-        return `${teamLabel(state.winner ?? 0)} wins · press New match`;
     }
   }
   function bannerMessage(state: MatchView) {
@@ -971,10 +985,8 @@ export function startApplication({
     }
     if (state.phase === 'scored')
       return `Round ${state.round} · ${tally(state.awards)}`;
-    if (state.phase === 'won' && bot)
-      return `${state.winner === bot.team ? 'The computer wins' : 'You win!'} · ${state.scores.join(' – ')}`;
     if (state.phase === 'won')
-      return `${teamLabel(state.winner ?? 0)} wins ${state.scores.join(' – ')}`;
+      return `${winLine(state.winner ?? 0)} · ${state.scores.join(' – ')}`;
     return '';
   }
   function lampChip(lamp: LampControl) {
@@ -1002,7 +1014,13 @@ export function startApplication({
       `First to ${MATCH.targetScore}`,
     );
     TEAM_LABELS.forEach((_, team) => {
-      const who = !bot ? '' : team === bot.team ? ' · computer' : ' · you';
+      const who = !bots.length
+        ? ''
+        : isBot(team)
+          ? ' · computer'
+          : alone()
+            ? ' · you'
+            : '';
       setText(
         document.querySelector(`#team-name-${team}`),
         `${teamLabel(team)}${who}`,
@@ -1420,7 +1438,7 @@ export function startApplication({
     world.destroy();
     world = newWorld();
     match = newMatch();
-    bot?.reset();
+    bots.forEach((each) => each.reset());
     demoBots.forEach((demo) => demo.reset());
     demoWon = 0;
     hitstop = 0;
@@ -1489,11 +1507,81 @@ export function startApplication({
     },
   });
   const onPass = () => passTurn();
-  const onStartSolo = () => {
-    bot = playing ? createBot(BOT_TEAM) : undefined;
-    onStart();
+  /** Draw the title screen's two rows of choices and say what they mean. */
+  function showLineup() {
+    const segments = (
+      host: HTMLElement | null,
+      prefix: string,
+      from: number,
+      to: number,
+      chosen: number,
+      pick: (value: number) => void,
+    ) => {
+      if (!host) return;
+      host.replaceChildren(
+        ...Array.from({ length: to - from + 1 }, (_, step) => {
+          const value = from + step;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.id = `${prefix}-${value}`;
+          button.className = 'secondary';
+          button.textContent = String(value);
+          button.setAttribute('aria-pressed', String(value === chosen));
+          button.addEventListener('click', () => {
+            pick(value);
+            showLineup();
+          });
+          return button;
+        }),
+      );
+    };
+    wantHumans = Math.min(wantHumans, wantTeams);
+    segments(teamChoices, 'teams', 2, 4, wantTeams, (value) => {
+      wantTeams = value;
+    });
+    segments(humanChoices, 'humans', 1, wantTeams, wantHumans, (value) => {
+      wantHumans = value;
+    });
+    const names = ['Mustard', 'Teal', 'Purple', 'Ivory'].slice(0, wantTeams);
+    const people = names.slice(0, wantHumans);
+    const computer = names.slice(wantHumans);
+    const list = (items: string[]) =>
+      items.length > 1
+        ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
+        : (items[0] ?? '');
+    const size = [4, 4, 4, 3, 2][wantTeams] ?? 4;
+    setText(
+      lineupNote,
+      `${size} moths a team. ${
+        wantHumans === 1 ? 'You play' : 'People play'
+      } ${list(people)}${
+        computer.length ? `; the computer plays ${list(computer)}.` : '.'
+      }`,
+    );
+  }
+  const saveSetup = (autostart: boolean) => {
+    try {
+      sessionStorage.setItem(
+        SETUP_KEY,
+        JSON.stringify({ teams: wantTeams, humans: wantHumans, autostart }),
+      );
+    } catch {
+      // Without storage the line-up simply is not remembered.
+    }
   };
   const onStart = () => {
+    // The desk is laid out for a set number of teams: a different number
+    // means loading the page again, and starting straight away once it has.
+    if (playing && wantTeams !== TEAM_COUNT) {
+      saveSetup(true);
+      location.reload();
+      return;
+    }
+    if (playing) {
+      saveSetup(false);
+      humans = wantHumans;
+      bots = makeBots(humans);
+    }
     started = true;
     // Clear away the demo match and deal a fresh one.
     if (demoBots.length) restart();
@@ -1521,7 +1609,7 @@ export function startApplication({
   const onQuit = () => {
     setMenu(false);
     started = false;
-    bot = undefined;
+    bots = [];
     intro.hidden = false;
     paused.hidden = true;
     restart();
@@ -1536,13 +1624,11 @@ export function startApplication({
       setMenu(!menuOpen);
   };
   start.addEventListener('click', onStart);
-  startSolo?.addEventListener('click', onStartSolo);
   again?.addEventListener('click', onReset);
   resume?.addEventListener('click', onResume);
   quit?.addEventListener('click', onQuit);
   scorecardQuit?.addEventListener('click', onQuit);
   coachHide?.addEventListener('click', stopCoaching);
-  if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
   window.addEventListener('keydown', onWheelKey);
   window.addEventListener('keyup', onWheelKey);
@@ -1572,6 +1658,44 @@ export function startApplication({
   start.disabled = helpToggle.disabled = false;
   // The match has its own HUD; the playground keeps its debug controls.
   if (demoTag) demoTag.hidden = !demoBots.length;
+  // The page is written for two teams: the others' scoreboard blocks and
+  // scorecard columns are copies, Purple beside Mustard and Ivory beside Teal.
+  const extraTeams: Element[] = [];
+  if (scoreboard) scoreboard.dataset.teams = String(TEAM_COUNT);
+  TEAM_LABELS.forEach((_, team) => {
+    if (team < 2) return;
+    const like = team % 2;
+    const block = scoreboard?.querySelector<HTMLElement>(
+      `.team[data-team="${like}"]`,
+    );
+    if (block) {
+      const copy = block.cloneNode(true) as HTMLElement;
+      copy.dataset.team = String(team);
+      copy
+        .querySelectorAll<HTMLElement>('[id]')
+        .forEach((part) => (part.id = part.id.replace(/\d+$/, String(team))));
+      // Before Mustard on the left, after Teal on the right.
+      if (like === 0) block.before(copy);
+      else block.after(copy);
+      extraTeams.push(copy);
+    }
+    const column = document.querySelector<HTMLElement>(
+      `#scorecard-team-${team - 1}`,
+    );
+    if (column) {
+      const copy = column.cloneNode(true) as HTMLElement;
+      copy.id = `scorecard-team-${team}`;
+      copy.dataset.team = String(team);
+      column.after(copy);
+      extraTeams.push(copy);
+    }
+  });
+  showLineup();
+  // The page was reloaded for a new line-up: go straight into the match.
+  if (playing && setup.autostart) {
+    saveSetup(false);
+    onStart();
+  }
   // The tuning panel is for free play and for anyone who asks with ?tune.
   document.body.classList.toggle(
     'show-tuning',
@@ -1596,11 +1720,11 @@ export function startApplication({
     gamepad.clear();
     pass.removeEventListener('click', onPass);
     start.removeEventListener('click', onStart);
-    startSolo?.removeEventListener('click', onStartSolo);
     again?.removeEventListener('click', onReset);
     resume?.removeEventListener('click', onResume);
     quit?.removeEventListener('click', onQuit);
     scorecardQuit?.removeEventListener('click', onQuit);
+    extraTeams.forEach((copy) => copy.remove());
     coachHide?.removeEventListener('click', stopCoaching);
     if (menu) menu.hidden = true;
     if (countdown) countdown.hidden = true;

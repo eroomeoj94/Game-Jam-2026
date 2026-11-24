@@ -663,7 +663,8 @@ describe('match smoke tests', () => {
       hands: false,
     });
     cleanups.push(cleanup);
-    click('start-solo');
+    click('humans-1');
+    click('start');
     let now = 0;
     frame(now);
     // Mustard dances with each moth in turn to hand over.
@@ -905,7 +906,8 @@ describe('ending a go hands over to the next moth', () => {
       cleanups.push(cleanup);
       const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
       const render = vi.mocked(scene.render);
-      click(solo ? 'start-solo' : 'start');
+      if (solo) click('humans-1');
+      click('start');
       let now = 0;
       frame(now);
       const mustard = [0, 2, 4, 6];

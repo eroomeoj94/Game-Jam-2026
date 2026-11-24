@@ -18,6 +18,7 @@ import {
   GUST,
   HAZARD,
   MIND,
+  TEAM_LABELS,
   PEOPLE,
   LAMPS,
   MOVEMENT,
@@ -284,7 +285,7 @@ export function createWorld({
   });
   type Moth = (typeof moths)[number];
   const mothByBody = new Map(moths.map((moth) => [moth.body, moth]));
-  const teamZaps = [0, 0];
+  const teamZaps = TEAM_LABELS.map(() => 0);
   let lastDance = 0;
   // The giant hand in play, if any, and the wait before the next one.
   type Hand = Position & {

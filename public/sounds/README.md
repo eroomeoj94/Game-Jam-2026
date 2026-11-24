@@ -33,7 +33,8 @@ Artlist licence covers use in a game.
 
 ## Announcer voice lines (not in the repository)
 
-`artlist/voice/` holds 35 short announcer clips ("Bosh!", "Zapped!", "Hot lamp!
+`artlist/voice/` holds 39 short announcer clips (four of them, the turn and win calls for
+Purple and Ivory, added on 24 November 2026) ("Bosh!", "Zapped!", "Hot lamp!
 Double points!", "Mustard wins!" and so on), generated on 23 November 2026 with
 Artlist's voice-over tool: the "Hype" voice, British accent, with the
 "Announcer" voice effect. They are saved in

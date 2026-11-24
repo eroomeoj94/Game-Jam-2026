@@ -38,15 +38,20 @@
           </li>
         </ol>
         <p class="first-to">First to ten wins.</p>
-        <div class="start-buttons">
-          <button id="start-solo" type="button" disabled>1 player</button>
-          <button id="start" type="button" class="secondary" disabled>
-            2 players
-          </button>
+        <div class="lineup">
+          <div class="choice" role="group" aria-labelledby="teams-label">
+            <span id="teams-label">Teams</span>
+            <div id="team-choices" class="segments"></div>
+          </div>
+          <div class="choice" role="group" aria-labelledby="humans-label">
+            <span id="humans-label">People playing</span>
+            <div id="human-choices" class="segments"></div>
+          </div>
         </div>
-        <p class="intro-rules small">
-          One player: you are Mustard and the computer plays Teal.
-        </p>
+        <div class="start-buttons">
+          <button id="start" type="button" disabled>Start match</button>
+        </div>
+        <p class="intro-rules small" id="lineup-note"></p>
         <p class="keys">
           <kbd>WASD</kbd> move <kbd>Space</kbd> hop <kbd>F</kbd> hold to aim,
           release to fire <kbd>Tab</kbd> weapon wheel <kbd>P</kbd> dance

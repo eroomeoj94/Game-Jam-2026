@@ -72,6 +72,15 @@ arms and legs away at load: the legs swing as they walk and an arm swings up
 from the shoulder and stretches to smack the desk. Without the files the felt
 giants are drawn instead.
 
+## Two, three or four teams
+
+The title screen asks how many teams are playing and how many of them people
+play; the computer plays the rest. People take the first teams: Mustard, Teal,
+then Purple and Ivory. Teams have four moths each with two teams, three with
+three and two with four. The desk is laid out once for a set number of teams,
+so starting with a different number reloads the page and goes straight into
+the match.
+
 ## Mind Control
 
 Each team has one Mind Control a match: a barrel ray gun (`weapon-mind.glb`)

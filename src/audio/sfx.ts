@@ -43,6 +43,8 @@ export const VOICE_LINES = {
   round: ['round-next'],
   turn0: ['turn-0'],
   turn1: ['turn-1'],
+  turn2: ['turn-2'],
+  turn3: ['turn-3'],
   bosh: ['bosh-1', 'bosh-2', 'bosh-3'],
   miss: ['miss'],
   zap: ['zap-1', 'zap-2', 'zap-3'],
@@ -59,6 +61,8 @@ export const VOICE_LINES = {
   matchpoint: ['matchpoint'],
   win0: ['win-0'],
   win1: ['win-1'],
+  win2: ['win-2'],
+  win3: ['win-3'],
   winEnd: ['win-end'],
 } as const;
 export type VoiceCue = keyof typeof VOICE_LINES;
