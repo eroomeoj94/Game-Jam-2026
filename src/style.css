@@ -1539,8 +1539,8 @@ kbd.ps-triangle {
   border-color: #e7c28b;
 }
 /* The title screen is one column down the left: the animated sign, the
-   rules, the line-up and Start. It is solid and near black, the colour of
-   the sign's own backdrop, so the video has no visible edge. */
+   rules, the line-up and Start. It is solid and the colour of the sign's
+   own backdrop, so the video has no visible edge. */
 #intro {
   top: 0;
   right: auto;
@@ -1551,8 +1551,9 @@ kbd.ps-triangle {
   width: min(430px, 100%);
   padding: 0 28px 20px;
   overflow-y: auto;
-  background: #050506;
-  box-shadow: 24px 0 60px #050506;
+  /* Sampled from the film's own backdrop, which is not quite black. */
+  background: #0d0d0d;
+  box-shadow: 24px 0 60px #0d0d0d;
   text-shadow: none;
 }
 /* The desk beside it is left clear to watch the demo match. */
@@ -1562,25 +1563,37 @@ kbd.ps-triangle {
 .title-video {
   display: block;
   flex: none;
-  width: calc(100% + 56px);
-  max-height: 33vh;
-  margin: 0 -28px;
+  /* Square, like the film itself, so the fades below line up with its frame. */
+  width: min(33vh, 100%);
+  aspect-ratio: 1;
+  margin: 0 auto;
   border: 0;
   outline: 0;
-  object-fit: contain;
-  background: #050506;
-  /* The sign's own dark backdrop fades out towards the edges, so there is
-     no square to see against the column. */
-  -webkit-mask-image: radial-gradient(
-    ellipse 58% 60% at 50% 46%,
-    #000 62%,
-    transparent 100%
-  );
-  mask-image: radial-gradient(
-    ellipse 58% 60% at 50% 46%,
-    #000 62%,
-    transparent 100%
-  );
+  object-fit: cover;
+  background: #0d0d0d;
+  /* The film's backdrop is the column's colour down to the ring, then a
+     grey floor. The floor fades out at the sides and the bottom, so no edge
+     of the frame can be seen. */
+  -webkit-mask-image:
+    linear-gradient(to bottom, #000 76%, transparent 97%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 11%,
+      #000 89%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, #000 76%, transparent 97%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 11%,
+      #000 89%,
+      transparent 100%
+    );
+  mask-composite: intersect;
   pointer-events: none;
 }
 #intro .subtitle {
