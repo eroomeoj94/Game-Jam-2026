@@ -13,7 +13,12 @@ import { FUR, MOTH_LOOK } from '../config';
 import type { MothView } from '../game/world';
 import { createFurShells } from './fur';
 import { loadMothModel } from './mothModel';
+import { loadWeaponModel } from './weaponModels';
+import type { WeaponId } from '../config';
 import type { createMaterials } from './materials';
+
+/** The right hand, measured from the right shoulder joint. */
+const HAND = { x: 0.07, y: -0.34, z: 0.02 };
 
 export function createMoth(
   materials: ReturnType<typeof createMaterials>,
@@ -202,14 +207,39 @@ export function createMoth(
         limbs.push(limb);
       });
     modelled = true;
+    arms[1]?.add(hand);
     rememberColours();
   });
+  // The weapon in hand: it rides on the right arm, at the hand, and is
+  // placed from there to sit midway between the two raised hands.
+  const hand = new Group();
+  hand.position.set(HAND.x, HAND.y, HAND.z);
+  let wanted: WeaponId | undefined;
+  let holding: WeaponId | undefined;
+  function hold(weapon: WeaponId | undefined) {
+    if (weapon === wanted) return;
+    wanted = weapon;
+    if (!weapon) {
+      hand.clear();
+      holding = undefined;
+      return;
+    }
+    void loadWeaponModel(weapon).then((model) => {
+      // Skip a model that arrives after the moth has moved on to another.
+      if (wanted !== weapon || holding === weapon) return;
+      hand.clear();
+      holding = weapon;
+      if (model) hand.add(model.clone());
+    });
+  }
   const soot = new Color(0x1c1714);
   let char = 0;
   let lastSeconds = 0;
   let tumble = 0;
   return {
     root,
+    /** Put a weapon in the moth's hand, or take it away. */
+    hold,
     animate(seconds: number, state: MothView) {
       const delta = Math.max(0, seconds - lastSeconds);
       lastSeconds = seconds;
@@ -351,10 +381,27 @@ export function createMoth(
           armSwing = [-2.6, -2.6];
         }
       }
+      // An armed moth carries its weapon over its head in both hands, where
+      // it shows above the wings from behind, unless it is mid-punch,
+      // dancing or tumbling.
+      const carrying =
+        holding !== undefined &&
+        !state.dance &&
+        !state.zapped &&
+        !state.punching;
+      if (carrying) {
+        const bob = Math.sin(walking ? stride * 2 : seconds * 3 + phase) * 0.05;
+        armSwing = [-2.85 + bob, -2.85 + bob];
+        armLift = -0.08;
+      }
       arms.forEach((arm, side) => {
         arm.rotation.x = armSwing[side] ?? 0;
         arm.rotation.z = (side === 0 ? -1 : 1) * armLift;
       });
+      // Keep the weapon level whatever the arms are doing.
+      const arm = arms[1];
+      if (arm) hand.rotation.set(-arm.rotation.x, 0, -arm.rotation.z);
+      hand.visible = carrying;
       legs.forEach((leg, side) => {
         leg.rotation.x = legSwing[side] ?? 0;
         leg.rotation.z = (side === 0 ? -1 : 1) * legSplay;

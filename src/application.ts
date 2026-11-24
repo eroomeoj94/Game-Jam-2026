@@ -388,6 +388,7 @@ export function startApplication({
       button.setAttribute('aria-pressed', String(i === weaponIndex)),
     );
     const weapon = WEAPONS[weaponIndex]!;
+    scene.setWeapon?.(weapon.id);
     setText(wheelName, weapon.name);
     setText(wheelAbout, WEAPON_ABOUT[weapon.id]);
     setText(chipName, weapon.name);

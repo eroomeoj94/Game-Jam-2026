@@ -56,6 +56,8 @@ import type { MothView, WorldView } from '../game/world';
 export type CameraMode = 'follow' | 'board';
 import { createMaterials } from './materials';
 import { createMoth } from './moth';
+import { preloadWeaponModels } from './weaponModels';
+import type { WeaponId } from '../config';
 import { createWarning } from './hand';
 import { createPeople } from './people';
 
@@ -739,6 +741,8 @@ export function createScene(host: HTMLElement) {
   const warning = createWarning();
   const people = createPeople(materials);
   scene.add(warning.root, people.root);
+  let heldWeapon: WeaponId | undefined;
+  preloadWeaponModels();
   let disposed = false;
   function resize() {
     const width = Math.max(host.clientWidth, 1);
@@ -828,6 +832,10 @@ export function createScene(host: HTMLElement) {
     },
     /** Where the splat cam is drawn, for the frame laid over it. */
     insetRect,
+    /** The weapon the moth whose go it is carries; none hides it. */
+    setWeapon(weapon: WeaponId | undefined) {
+      heldWeapon = weapon;
+    },
     setAim(preview: AimPreview | undefined) {
       weaponEffects.setAim(preview);
     },
@@ -1043,6 +1051,7 @@ export function createScene(host: HTMLElement) {
         if (!moth) return;
         moth.root.visible = !position.respawning;
         moth.root.position.set(position.x, position.y, position.z);
+        moth.hold(index === view.selectedMoth ? heldWeapon : undefined);
         moth.animate(seconds, position);
         const ring = teamRings[index];
         if (!ring) return;

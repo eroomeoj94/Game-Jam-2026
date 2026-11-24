@@ -59,6 +59,11 @@ The moths are a wooden figure generated with Artlist's 3D tool, loaded from
 built-in felt moths. The game cuts the wings, arms and legs away from the body
 when it loads the model, so they can flap and swing.
 
+The weapons are models too (`public/models/artlist/weapon-*.glb`), generated
+with Meshy v7 in Artlist from the weapon icons and shrunk to about 0.6 MB each.
+The moth whose go it is carries the selected weapon over its head, where it
+shows above the wings; without the files its hands stay empty.
+
 ## Sound
 
 The licensed Artlist sound files are not in this repository (see
