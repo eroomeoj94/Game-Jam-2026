@@ -345,7 +345,19 @@ export function createSfx({
     files: readonly string[],
     key: string,
     volume: number,
-    { priority = 1, chance = 1 }: { priority?: number; chance?: number } = {},
+    {
+      priority = 1,
+      chance = 1,
+      delay = 0,
+      boost = 1,
+    }: {
+      priority?: number;
+      chance?: number;
+      /** Seconds to hold the line back, to let a loud effect land first. */
+      delay?: number;
+      /** How much louder than usual to say it. */
+      boost?: number;
+    } = {},
   ) {
     const ctx = context;
     if (!ctx || !effects || !effectsOn) return undefined;
@@ -354,8 +366,8 @@ export function createSfx({
     const now = ctx.currentTime;
     const busy = !!speaking && now < speaking.until;
     const outranks = !busy || priority > speaking!.priority;
-    const wait = busy && !outranks ? speaking!.until - now : 0;
-    if (!outranks && (priority < 2 || wait > 2)) return undefined;
+    const wait = (busy && !outranks ? speaking!.until - now : 0) + delay;
+    if (!outranks && (priority < 2 || wait - delay > 2)) return undefined;
     if (random() >= chance) return undefined;
     const fresh = takes.filter((file) => file !== lastTake.get(key));
     const pool = fresh.length ? fresh : takes;
@@ -372,15 +384,15 @@ export function createSfx({
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const gain = ctx.createGain();
-    gain.gain.value = volume * (voiceMakeup.get(file) ?? 1);
+    gain.gain.value = volume * boost * (voiceMakeup.get(file) ?? 1);
     source.connect(gain).connect(effects);
     source.start(now + wait);
     lastTake.set(key, file);
     const length = voiceLength.get(file) ?? buffer.duration;
     speaking = {
-      sources: wait ? [...speaking!.sources, source] : [source],
+      sources: busy && !outranks ? [...speaking!.sources, source] : [source],
       until: now + wait + length + 0.2,
-      priority: wait ? speaking!.priority : priority,
+      priority: busy && !outranks ? speaking!.priority : priority,
     };
     // The music steps back while anyone is talking.
     dip(0.4, wait + length);
@@ -390,7 +402,12 @@ export function createSfx({
   /** Have the announcer speak a line. `chance` makes common cues occasional. */
   function say(
     cue: VoiceCue,
-    options: { priority?: number; chance?: number } = {},
+    options: {
+      priority?: number;
+      chance?: number;
+      delay?: number;
+      boost?: number;
+    } = {},
   ) {
     const spoke = speak(VOICE_LINES[cue], cue, AUDIO.voice, options);
     // Still loading: keep the most important line for a few seconds.
@@ -627,8 +644,10 @@ export function createSfx({
     // across whatever a moth is saying rather than queueing behind it.
     if (
       !(connected
-        ? say('bosh', { priority: 3 })
-        : say('miss', { priority: 3 })) &&
+        ? // Held back until the punch and its boom have landed, and said
+          // louder, so the effect does not bury him.
+          say('bosh', { priority: 3, delay: 0.55, boost: 1.5 })
+        : say('miss', { priority: 3, delay: 0.25 })) &&
       !voices.size
     )
       shout();
