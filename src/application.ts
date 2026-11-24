@@ -24,6 +24,7 @@ import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
 import { createSfx } from './audio/sfx';
 import type { MothCue } from './audio/sfx';
+import type { WeaponId } from './config';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
 export type ApplicationOptions = {
@@ -64,6 +65,14 @@ const BOT_TEAM = 1;
 
 const teamLabel = (team: number) =>
   `${TEAM_LABELS[team]?.icon ?? '?'} ${TEAM_LABELS[team]?.name ?? `Team ${team + 1}`}`;
+/** One line on each weapon, shown in the middle of the weapon wheel. */
+const WEAPON_ABOUT: Record<WeaponId, string> = {
+  gust: 'Shoves every rival in front of you',
+  bosh: 'One big punch, close up',
+  zap: 'Turns a lamp into a bug zapper',
+  cap: 'Hold to charge, release to flick',
+  firecracker: 'Hold to charge, lob it and run',
+};
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
 
 export function startApplication({
@@ -206,19 +215,78 @@ export function startApplication({
     mothBar.appendChild(button);
     return button;
   });
+  // The character badge, the weapon chip beside it and the weapon wheel.
+  const badge = document.querySelector<HTMLElement>('#badge');
+  const badgeFace = document.querySelector<HTMLImageElement>('#badge-face');
+  const badgeNumber = document.querySelector<HTMLElement>('#badge-number');
+  const badgeTeam = document.querySelector<HTMLElement>('#badge-team');
+  const badgeName = document.querySelector<HTMLElement>('#badge-name');
+  const flutterArc = document.querySelector<SVGPathElement>('#flutter-arc');
+  const powerArc = document.querySelector<SVGPathElement>('#power-arc');
+  const wheel = document.querySelector<HTMLElement>('#wheel');
+  const wheelName = document.querySelector<HTMLElement>('#wheel-name');
+  const wheelAbout = document.querySelector<HTMLElement>('#wheel-about');
+  const chip = document.querySelector<HTMLButtonElement>('#weapon-chip');
+  const chipIcon =
+    document.querySelector<HTMLImageElement>('#weapon-chip-icon');
+  const chipName = document.querySelector<HTMLElement>('#weapon-chip-name');
+  const asset = (name: string) => `${import.meta.env.BASE_URL}ui/${name}.webp`;
+  // The wheel's buttons sit evenly round a circle, the first at the top.
+  const weaponCounts: HTMLElement[] = [];
   const weaponButtons = WEAPONS.map((weapon, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.weapon = weapon.id;
-    button.textContent = weapon.name;
+    button.setAttribute('aria-label', weapon.name);
+    const angle = (index / WEAPONS.length) * Math.PI * 2 - Math.PI / 2;
+    button.style.setProperty('--x', Math.cos(angle).toFixed(4));
+    button.style.setProperty('--y', Math.sin(angle).toFixed(4));
+    const icon = document.createElement('img');
+    icon.src = asset(`weapon-${weapon.id}`);
+    icon.alt = '';
+    const count = document.createElement('span');
+    count.className = 'wheel-count';
+    count.hidden = true;
+    button.append(icon, count);
+    weaponCounts.push(count);
+    button.addEventListener('pointerenter', () => {
+      if (!button.disabled) selectWeapon(index);
+    });
     button.addEventListener('click', () => {
       selectWeapon(index);
-      focusCanvas();
+      setWheel(false);
     });
     weaponBar.appendChild(button);
     return button;
   });
   let weaponIndex = 0;
+  let wheelOpen = false;
+  function setWheel(open: boolean) {
+    const next = open && started && !menuOpen && !botTurn();
+    if (!wheel || wheelOpen === next) return;
+    wheelOpen = next;
+    wheel.hidden = !next;
+    chip?.setAttribute('aria-expanded', String(next));
+    if (next) cancelAim();
+    else focusCanvas();
+  }
+  const onWheelKey = (event: KeyboardEvent) => {
+    if (event.code === 'Escape' && wheelOpen && event.type === 'keydown') {
+      // Esc shuts the wheel rather than opening the menu behind it.
+      event.stopImmediatePropagation();
+      setWheel(false);
+      return;
+    }
+    if (event.code !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey)
+      return;
+    if (!started) return;
+    event.preventDefault();
+    if (!event.repeat) setWheel(event.type === 'keydown');
+  };
+  const onWheelClick = (event: MouseEvent) => {
+    if (event.target === wheel) setWheel(false);
+  };
+  const onChip = () => setWheel(!wheelOpen);
   // Aiming starts when fire is pressed and fires when it is released.
   let aiming = false;
   let power = 0;
@@ -306,6 +374,12 @@ export function startApplication({
     weaponButtons.forEach((button, i) =>
       button.setAttribute('aria-pressed', String(i === weaponIndex)),
     );
+    const weapon = WEAPONS[weaponIndex]!;
+    setText(wheelName, weapon.name);
+    setText(wheelAbout, WEAPON_ABOUT[weapon.id]);
+    setText(chipName, weapon.name);
+    const icon = asset(`weapon-${weapon.id}`);
+    if (chipIcon && !chipIcon.src.endsWith(icon)) chipIcon.src = icon;
     power = 0;
   }
   /** Hold to aim (and charge), release to fire. */
@@ -767,7 +841,11 @@ export function startApplication({
     weaponButtons.forEach((button, index) => {
       if (WEAPONS[index]?.id !== 'zap') return;
       const left = state.zapSwitches[state.team] ?? 0;
-      setText(button, `${WEAPONS[index].name} ×${left}`);
+      const count = weaponCounts[index];
+      if (count) {
+        count.hidden = false;
+        setText(count, `×${left}`);
+      }
       button.disabled = left === 0;
     });
   }
@@ -799,12 +877,46 @@ export function startApplication({
     setText(coachText, tip);
     if (coach) coach.hidden = tip === '';
     const mothName = ARENA.spawns[active.id]?.name ?? 'Moth';
+    const side = ARENA.spawns[active.id]?.team ?? 0;
     const message = turn
       ? turnMessage(turn, mothName)
       : `${mothName} · ${state}`;
-    if (status.textContent !== message) status.textContent = message;
+    if (status.textContent !== message) {
+      // The badge already names the team and the moth, so that lead-in is
+      // kept for screen readers and only the instruction is shown.
+      const lead = `${teamLabel(side)} · ${mothName} · `;
+      if (turn && message.startsWith(lead)) {
+        const hidden = document.createElement('span');
+        hidden.className = 'visually-hidden';
+        hidden.textContent = lead;
+        status.replaceChildren(hidden, message.slice(lead.length));
+      } else status.textContent = message;
+    }
     fuel.value = active.flutter;
-    fuelText.textContent = `${Math.round(active.flutter * 100)}%`;
+    setText(fuelText, `${Math.round(active.flutter * 100)}%`);
+    // The badge: whose go it is, with flutter and power as arcs round it.
+    const face = asset(`face-${side}`);
+    if (badgeFace && !badgeFace.src.endsWith(face)) badgeFace.src = face;
+    setText(badgeNumber, String(active.id + 1));
+    setText(badgeName, mothName);
+    setText(badgeTeam, teamLabel(side));
+    if (badge && badge.dataset.team !== String(side))
+      badge.dataset.team = String(side);
+    const dash = (value: number) =>
+      `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)} 100`;
+    const flutterDash = dash(active.flutter);
+    if (
+      flutterArc &&
+      flutterArc.getAttribute('stroke-dasharray') !== flutterDash
+    )
+      flutterArc.setAttribute('stroke-dasharray', flutterDash);
+    const powerDash = dash(aiming ? power : 1 - view.weaponCooldown);
+    if (powerArc && powerArc.getAttribute('stroke-dasharray') !== powerDash)
+      powerArc.setAttribute('stroke-dasharray', powerDash);
+    const mood = aiming ? 'aiming' : '';
+    if (powerArc && powerArc.dataset.mood !== mood)
+      powerArc.dataset.mood = mood;
+    if (wheelOpen && (botTurn() || menuOpen)) setWheel(false);
     selectors.forEach((button, id) => {
       button.setAttribute('aria-pressed', String(id === view.selectedMoth));
       // A moth knocked off the desk or zapped is marked as sitting out.
@@ -1166,6 +1278,10 @@ export function startApplication({
   coachHide?.addEventListener('click', stopCoaching);
   if (startSolo) startSolo.disabled = false;
   helpToggle.addEventListener('click', onHelp);
+  window.addEventListener('keydown', onWheelKey);
+  window.addEventListener('keyup', onWheelKey);
+  wheel?.addEventListener('click', onWheelClick);
+  chip?.addEventListener('click', onChip);
   window.addEventListener('keydown', onHelpKey);
   pass.addEventListener('click', onPass);
   nudge.addEventListener('click', onNudge);
@@ -1197,9 +1313,9 @@ export function startApplication({
   );
   modeTag.textContent = playing ? 'Match' : 'Weapon playground';
   reset.textContent = playing ? 'New match' : 'Reset scene';
+  moveMeter.hidden = !playing || MATCH.moveSeconds <= 0;
   nudge.hidden = zaps.hidden = playing;
   score.hidden = lampBar.hidden = !playing;
-  moveMeter.hidden = !playing || MATCH.moveSeconds <= 0;
   banner.hidden = true;
   settleWorld();
   selectWeapon(0);
@@ -1224,6 +1340,10 @@ export function startApplication({
     if (splatcam) splatcam.hidden = true;
     if (coach) coach.hidden = true;
     helpToggle.removeEventListener('click', onHelp);
+    window.removeEventListener('keydown', onWheelKey);
+    window.removeEventListener('keyup', onWheelKey);
+    wheel?.removeEventListener('click', onWheelClick);
+    chip?.removeEventListener('click', onChip);
     window.removeEventListener('keydown', onHelpKey);
     lampBar.replaceChildren();
     if (scoreboard) scoreboard.hidden = true;

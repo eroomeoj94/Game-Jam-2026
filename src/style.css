@@ -1013,3 +1013,283 @@ kbd {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+
+/* The character badge: a portrait with flutter and power as arcs round it. */
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: none;
+  padding: 12px 18px 12px 12px;
+  border: 1px solid #c69d6233;
+  border-radius: 999px 18px 18px 999px;
+  background: linear-gradient(90deg, #0d151cf2, #101922d9);
+  box-shadow: 0 10px 30px #0008;
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+.caption[data-team='0'],
+.caption[data-team='1'] {
+  border-left-width: 1px;
+}
+.badge {
+  position: relative;
+  flex: none;
+  width: 108px;
+  height: 108px;
+}
+.badge-rings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.badge-rings path {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.ring-track {
+  stroke: #ffffff1f;
+}
+.ring-fill {
+  stroke-dasharray: 100 100;
+  transition: stroke-dasharray 0.12s linear;
+}
+.ring-flutter {
+  stroke: #8fd8ff;
+}
+.ring-power {
+  stroke: #ff9d4a;
+}
+.ring-power[data-mood='aiming'] {
+  stroke: #ff5c3a;
+  filter: drop-shadow(0 0 4px #ff5c3a);
+}
+.badge-face {
+  position: absolute;
+  inset: 13px;
+  width: calc(100% - 26px);
+  height: calc(100% - 26px);
+  border-radius: 50%;
+  border: 3px solid #e7c28b;
+  object-fit: cover;
+  background: #172128;
+}
+.badge[data-team='1'] .badge-face {
+  border-color: #7fd1c8;
+}
+.badge-number {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  min-width: 26px;
+  padding: 3px 0;
+  border-radius: 999px;
+  border: 2px solid #0d151c;
+  color: #29261f;
+  background: #e7c28b;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.badge[data-team='1'] .badge-number {
+  background: #7fd1c8;
+}
+.badge-text {
+  min-width: 0;
+  max-width: 300px;
+}
+.badge-name {
+  margin: 4px 0 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  line-height: 1.1;
+}
+.badge-text #status {
+  margin: 4px 0 0;
+  color: #c9c6b3;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.gauges {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 0;
+  color: #a3aca8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.gauge i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #8fd8ff;
+}
+.gauge-power i {
+  background: #ff9d4a;
+}
+.gauge b {
+  color: #efe4cc;
+}
+.weapon-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border: 1px solid #c69d6255;
+  border-radius: 999px;
+  color: #efe4cc;
+  background: #172128;
+  text-align: left;
+}
+.weapon-chip:hover {
+  border-color: #e7c28b;
+}
+.weapon-chip img {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+}
+.weapon-chip-text b {
+  display: block;
+  font-size: 14px;
+}
+.weapon-chip-text small {
+  color: #a3aca8;
+  font-size: 10px;
+}
+.weapon-chip kbd,
+.wheel kbd {
+  padding: 1px 5px;
+  border: 1px solid #78827b88;
+  border-radius: 3px;
+  font: inherit;
+}
+/* The weapon wheel: held open with Tab, pick by pointing. */
+.wheel {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    circle,
+    #0d151cd9 0,
+    #0d151c99 38%,
+    #0d151c33 70%
+  );
+  pointer-events: auto;
+}
+.wheel[hidden] {
+  display: none;
+}
+.wheel-ring {
+  --radius: 150px;
+  position: relative;
+  width: calc(var(--radius) * 2 + 110px);
+  height: calc(var(--radius) * 2 + 110px);
+  border-radius: 50%;
+  border: 1px solid #c69d6233;
+  background: radial-gradient(circle, #10192200 46%, #101922cc 47%);
+  animation: wheel-in 0.14s ease-out;
+}
+@keyframes wheel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.wheel-ring button {
+  position: absolute;
+  left: calc(50% + var(--x) * var(--radius));
+  top: calc(50% + var(--y) * var(--radius));
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  border: 3px solid #78827b88;
+  border-radius: 50%;
+  background: #172128;
+  transform: translate(-50%, -50%);
+  transition:
+    transform 0.1s,
+    border-color 0.1s;
+}
+.wheel-ring button img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.wheel-ring button[aria-pressed='true'] {
+  border-color: #ffd98a;
+  box-shadow:
+    0 0 0 4px #ffd98a44,
+    0 0 26px #ffd98a88;
+  transform: translate(-50%, -50%) scale(1.18);
+}
+.wheel-ring button:disabled {
+  filter: grayscale(1) brightness(0.6);
+}
+.wheel-count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #1d1430;
+  background: #b9a3ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.wheel-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 120px;
+  text-align: center;
+  pointer-events: none;
+}
+.wheel-centre strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+}
+.wheel-centre span {
+  color: #c9c6b3;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .caption {
+    gap: 10px;
+    border-radius: 18px;
+  }
+  .badge {
+    width: 84px;
+    height: 84px;
+  }
+  .weapon-chip-text small {
+    display: none;
+  }
+  .wheel-ring {
+    --radius: 110px;
+  }
+  .wheel-ring button {
+    width: 76px;
+    height: 76px;
+  }
+}
+.badge-team {
+  margin-left: 10px;
+  color: #e7c28b;
+}
+.caption[data-team='1'] .badge-team {
+  color: #7fd1c8;
+}
