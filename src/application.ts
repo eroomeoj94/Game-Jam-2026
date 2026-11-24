@@ -9,8 +9,11 @@ import {
   MAX_FRAME_MS,
   MIND,
   PHYSICS_STEP_MS,
+  MAX_TEAM_SIZE,
   SETUP_KEY,
   TEAM_COUNT,
+  TEAM_SIZE,
+  defaultTeamSize,
   TEAM_LABELS,
   readSetup,
   WEAPONS,
@@ -136,6 +139,7 @@ export function startApplication({
   const intro = document.querySelector<HTMLElement>('#intro');
   const start = document.querySelector<HTMLButtonElement>('#start');
   const teamChoices = document.querySelector<HTMLElement>('#team-choices');
+  const mothChoices = document.querySelector<HTMLElement>('#moth-choices');
   const humanChoices = document.querySelector<HTMLElement>('#human-choices');
   const lineupNote = document.querySelector<HTMLElement>('#lineup-note');
   const again = document.querySelector<HTMLButtonElement>('#again');
@@ -199,6 +203,7 @@ export function startApplication({
   // people take the first teams and the computer plays the rest.
   const setup = readSetup();
   let wantTeams = TEAM_COUNT;
+  let wantMoths = TEAM_SIZE;
   let wantHumans = solo ? 1 : Math.min(setup.humans, TEAM_COUNT);
   let humans = wantHumans;
   const makeBots = (people: number) =>
@@ -1540,7 +1545,12 @@ export function startApplication({
     };
     wantHumans = Math.min(wantHumans, wantTeams);
     segments(teamChoices, 'teams', 2, 4, wantTeams, (value) => {
+      // A new number of teams brings its own usual team size with it.
+      if (value !== wantTeams) wantMoths = defaultTeamSize(value);
       wantTeams = value;
+    });
+    segments(mothChoices, 'moths', 1, MAX_TEAM_SIZE, wantMoths, (value) => {
+      wantMoths = value;
     });
     segments(humanChoices, 'humans', 0, wantTeams, wantHumans, (value) => {
       wantHumans = value;
@@ -1552,14 +1562,11 @@ export function startApplication({
       items.length > 1
         ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
         : (items[0] ?? '');
-    const size = [4, 4, 4, 3, 2][wantTeams] ?? 4;
     setText(
       lineupNote,
       wantHumans === 0
-        ? `${size} moths a team. The computer plays every team: sit back and watch.`
-        : `${size} moths a team. ${
-            wantHumans === 1 ? 'You play' : 'People play'
-          } ${list(people)}${
+        ? 'The computer plays every team: sit back and watch.'
+        : `${wantHumans === 1 ? 'You play' : 'People play'} ${list(people)}${
             computer.length ? `; the computer plays ${list(computer)}.` : '.'
           }`,
     );
@@ -1568,16 +1575,21 @@ export function startApplication({
     try {
       sessionStorage.setItem(
         SETUP_KEY,
-        JSON.stringify({ teams: wantTeams, humans: wantHumans, autostart }),
+        JSON.stringify({
+          teams: wantTeams,
+          humans: wantHumans,
+          moths: wantMoths,
+          autostart,
+        }),
       );
     } catch {
       // Without storage the line-up simply is not remembered.
     }
   };
   const onStart = () => {
-    // The desk is laid out for a set number of teams: a different number
-    // means loading the page again, and starting straight away once it has.
-    if (playing && wantTeams !== TEAM_COUNT) {
+    // The desk is laid out for a set number of teams and moths: a different
+    // number means loading the page again, and starting straight away.
+    if (playing && (wantTeams !== TEAM_COUNT || wantMoths !== TEAM_SIZE)) {
       saveSetup(true);
       location.reload();
       return;

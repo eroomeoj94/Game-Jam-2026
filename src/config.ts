@@ -237,9 +237,15 @@ export type Setup = {
   teams: number;
   /** How many of them people play, from none; the computer plays the rest. */
   humans: number;
+  /** Moths in each team, 1 to 5; left out, it follows the number of teams. */
+  moths?: number;
   /** True for the one load that follows a change of line-up: skip the title. */
   autostart?: boolean;
 };
+/** The most moths a team can have. */
+export const MAX_TEAM_SIZE = 5;
+/** Moths a team has unless told otherwise: fewer as more teams share the desk. */
+export const defaultTeamSize = (teams: number) => [4, 4, 4, 3, 2][teams] ?? 4;
 /** The line-up chosen on the title screen, or two human teams. */
 export function readSetup(): Setup {
   try {
@@ -249,9 +255,13 @@ export function readSetup(): Setup {
     const teams = Math.min(4, Math.max(2, Math.round(saved?.teams ?? 2)));
     // None at all is allowed: the computer plays every team, to watch.
     const humans = Math.min(teams, Math.max(0, Math.round(saved?.humans ?? 2)));
-    return { teams, humans, autostart: !!saved?.autostart };
+    const moths = Math.min(
+      MAX_TEAM_SIZE,
+      Math.max(1, Math.round(saved?.moths ?? defaultTeamSize(teams))),
+    );
+    return { teams, humans, moths, autostart: !!saved?.autostart };
   } catch {
-    return { teams: 2, humans: 2 };
+    return { teams: 2, humans: 2, moths: defaultTeamSize(2) };
   }
 }
 /**
@@ -259,30 +269,30 @@ export function readSetup(): Setup {
  * scoreboard are all laid out once from this, so changing it reloads the page.
  */
 export const TEAM_COUNT = readSetup().teams;
-/** Moths in each team: fewer each as more teams share the desk. */
-export const TEAM_SIZE = [4, 4, 4, 3, 2][TEAM_COUNT] ?? 4;
+/** Moths in each team for this page load. */
+export const TEAM_SIZE = readSetup().moths ?? defaultTeamSize(TEAM_COUNT);
 
-/** Up to four moths per team, with names and slightly different wing colours. */
+/** Up to five moths per team, with names and slightly different wing colours. */
 const TEAMS = [
   {
     start: START_A,
-    names: ['Dusty', 'Big Flap', 'Lampwick', 'Fuzzby'],
-    colours: [0xc89743, 0xd4a24f, 0xb8853a, 0xcf9a5c],
+    names: ['Dusty', 'Big Flap', 'Lampwick', 'Fuzzby', 'Crumbs'],
+    colours: [0xc89743, 0xd4a24f, 0xb8853a, 0xcf9a5c, 0xc08f4a],
   },
   {
     start: START_B,
-    names: ['Mothhew', 'Wingston', 'Nibbles', 'Tatters'],
-    colours: [0x599e98, 0x4f948e, 0x66aaa2, 0x5a8f9e],
+    names: ['Mothhew', 'Wingston', 'Nibbles', 'Tatters', 'Flit'],
+    colours: [0x599e98, 0x4f948e, 0x66aaa2, 0x5a8f9e, 0x5ea39a],
   },
   {
     start: START_C,
-    names: ['Velvet', 'Plum', 'Thistle', 'Dusk'],
-    colours: [0x8a5fc4, 0x9a6fd0, 0x7a52b3, 0xa07ad6],
+    names: ['Velvet', 'Plum', 'Thistle', 'Dusk', 'Fig'],
+    colours: [0x8a5fc4, 0x9a6fd0, 0x7a52b3, 0xa07ad6, 0x9163c9],
   },
   {
     start: START_D,
-    names: ['Moonbeam', 'Chalky', 'Pearl', 'Wisp'],
-    colours: [0xe9dfc6, 0xf2e9d2, 0xdcd0b4, 0xefe3cc],
+    names: ['Moonbeam', 'Chalky', 'Pearl', 'Wisp', 'Dandy'],
+    colours: [0xe9dfc6, 0xf2e9d2, 0xdcd0b4, 0xefe3cc, 0xe4d8bc],
   },
 ].slice(0, TEAM_COUNT);
 /** Fixed slots around each start point, clear of the first moth's book perch. */
@@ -291,6 +301,7 @@ const SLOTS = [
   { x: 0, z: 5 },
   { x: 0, z: -6 },
   { x: 4, z: 3 },
+  { x: 4, z: -4 },
 ] as const;
 
 export const ARENA = {
