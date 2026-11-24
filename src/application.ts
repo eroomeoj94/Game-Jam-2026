@@ -386,12 +386,18 @@ export function startApplication({
     gamepad.clear();
     cancelAim();
   }
+  /** Put the shoulder view back if Mind Control was what raised it. */
+  function lowerMindView() {
+    mindWatching = false;
+    if (!mindRaisedView) return;
+    mindRaisedView = false;
+    if (scene.viewMode?.() === 'board') toggleView();
+  }
   function cancelAim() {
-    if (mindRaisedView) {
-      mindRaisedView = false;
-      if (scene.viewMode?.() === 'board') toggleView();
-    }
+    // After a slam is ordered the desk stays in view until the hand lands.
+    if (!mindWatching) lowerMindView();
     if (aimHint) aimHint.hidden = true;
+    mindArmed = false;
     mindSpot = undefined;
     mindGiant = undefined;
     aiming = false;
@@ -417,6 +423,10 @@ export function startApplication({
   let mindGiant: number | undefined;
   /** True while the board view is up only for aiming a Mind Control. */
   let mindRaisedView = false;
+  /** True once fire has been let go, so the next press is the order. */
+  let mindArmed = false;
+  /** True from the order until the commanded hand has come and gone. */
+  let mindWatching = false;
   /** The way the player is steering, in desk directions, from the last step. */
   let steering = { x: 0, z: 0 };
   /** Q / E and the D-pad pick the giant while a Mind Control is aimed. */
@@ -457,12 +467,31 @@ export function startApplication({
         toggleView();
         mindRaisedView = true;
       }
+      // The target starts on the nearest rival the hand can reach, so a
+      // slam ordered straight away lands on them rather than on the caster.
+      let rival: { x: number; z: number } | undefined;
+      let gap = Infinity;
+      for (const moth of view.moths) {
+        if (
+          moth.team === active.team ||
+          moth.respawning ||
+          moth.y > HAZARD.reach
+        )
+          continue;
+        const far = Math.hypot(moth.x - active.x, moth.z - active.z);
+        if (far < gap) {
+          gap = far;
+          rival = moth;
+        }
+      }
       const aim = scene.aimDirection(view);
       const flat = Math.hypot(aim.x, aim.z) || 1;
-      mindSpot = {
-        x: active.x + (aim.x / flat) * MIND.startAhead,
-        z: active.z + (aim.z / flat) * MIND.startAhead,
-      };
+      mindSpot = rival
+        ? { x: rival.x, z: rival.z }
+        : {
+            x: active.x + (aim.x / flat) * MIND.startAhead,
+            z: active.z + (aim.z / flat) * MIND.startAhead,
+          };
     }
     mindSpot.x = Math.max(
       -halfWide,
@@ -484,13 +513,20 @@ export function startApplication({
       y: 0,
       z: mindSpot.z - active.z,
     };
-    if (fireHeld) {
+    // Unlike the other weapons this is not hold-and-release: the first
+    // press takes control, and stays in control with fire let go, until a
+    // second press gives the order.
+    if (!fireHeld) mindArmed = true;
+    if (!fireHeld || !mindArmed) {
       if (aimHint) aimHint.hidden = false;
       setText(aimGiant, `Controlling ${GIANT_NAMES[giant] ?? 'a giant'}`);
       scene.setAim({ weapon: 'mind', aim, power: 0, spot: mindSpot, giant });
       return;
     }
-    if (world.commandSmack(mindSpot, giant)) match?.fired('mind');
+    if (world.commandSmack(mindSpot, giant)) {
+      match?.fired('mind');
+      mindWatching = true;
+    }
     cancelAim();
   }
   /** Hold to aim (and charge), release to fire. */
@@ -1273,6 +1309,8 @@ export function startApplication({
         }
         if (count && started) sfx.count(count);
       }
+      // The commanded hand has come and gone: back to the shoulder view.
+      if (mindWatching && !view.hazards.length) lowerMindView();
       const listener = scene.listenerPosition();
       if (started) {
         sfx.playEvents(events, listener);

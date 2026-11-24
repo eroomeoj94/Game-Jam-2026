@@ -783,6 +783,40 @@ describe('match smoke tests', () => {
   });
 });
 
+describe('mind control', () => {
+  it('takes control on a tap, and slams only on a second press', () => {
+    const { render } = mount();
+    frames(0, 30);
+    // Q steps back from the first weapon to the last: Mind Control.
+    key('KeyQ');
+    key('KeyQ', 'keyup');
+    expect(
+      document
+        .querySelector('[data-weapon="mind"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    const hint = document.querySelector<HTMLElement>('#aim-hint')!;
+    key('KeyF');
+    frames(600, 5);
+    key('KeyF', 'keyup');
+    frames(700, 30);
+    // Letting go does not fire: the moth is still in control of a giant.
+    expect(hint.hidden).toBe(false);
+    expect(render.mock.lastCall![0].hazards).toHaveLength(0);
+    const first = document.querySelector('#aim-giant')!.textContent;
+    key('KeyE');
+    key('KeyE', 'keyup');
+    frames(1300, 3);
+    expect(document.querySelector('#aim-giant')!.textContent).not.toBe(first);
+    // The second press gives the order: one giant hand, already falling.
+    key('KeyF');
+    frames(1400, 5);
+    key('KeyF', 'keyup');
+    expect(hint.hidden).toBe(true);
+    expect(render.mock.lastCall![0].hazards[0]).toMatchObject({ held: false });
+  });
+});
+
 describe('ending a go hands over to the next moth', () => {
   const text = (selector: string) =>
     document.querySelector(selector)?.textContent ?? '';

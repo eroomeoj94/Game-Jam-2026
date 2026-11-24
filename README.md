@@ -75,9 +75,9 @@ giants are drawn instead.
 ## Mind Control
 
 Each team has one Mind Control a match: a barrel ray gun (`weapon-mind.glb`)
-that takes over a giant. Hold fire to aim: the view lifts to the whole desk,
+that takes over a giant. Press fire to take control: the view lifts to the whole desk,
 the movement keys steer a purple target, and the weapon keys pick which giant
-does it. Let go and that giant, glowing purple, slams the spot, replacing any
+does it. Press fire again and that giant, glowing purple, slams the spot, replacing any
 hand already hanging over the desk. Its own moths are flung too if they are
 under it.
 
