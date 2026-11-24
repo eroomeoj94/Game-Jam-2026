@@ -1273,3 +1273,31 @@ kbd {
     height: 76px;
   }
 }
+/* PlayStation buttons in the controls table: round, with the face buttons
+   in their own colours. */
+kbd.ps {
+  display: inline-block;
+  min-width: 24px;
+  padding: 2px 6px;
+  border: 1px solid #8f9aa8;
+  border-radius: 999px;
+  color: #e6ebf2;
+  background: #1c2733;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+kbd.ps-cross {
+  color: #8fb4ff;
+}
+kbd.ps-circle {
+  color: #ff8f8f;
+}
+kbd.ps-square {
+  color: #f2a6e0;
+}
+kbd.ps-triangle {
+  color: #7fe3c2;
+}

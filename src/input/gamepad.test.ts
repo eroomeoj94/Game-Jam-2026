@@ -117,4 +117,22 @@ describe('standard-mapped PS5 controls', () => {
     const sparse = createGamepadInput(() => [null, pad({ index: 1 })]);
     expect(sparse.poll().text).toContain('ready');
   });
+
+  it('opens the weapon wheel on L2, where the left stick picks instead of walking', () => {
+    let state = pad();
+    const input = createGamepadInput(() => [state]);
+    input.poll();
+    state = pad({ axes: [1, 0, 0, 0], buttons: buttons(6, 7) });
+    const held = input.poll();
+    expect(held.wheel).toBe(true);
+    expect(held.wheelAim).toMatchObject({ x: 1, z: 0 });
+    // The moth stands still and does not fire while a weapon is chosen.
+    expect(held.fire).toBe(false);
+    expect(input.read()).toMatchObject({ x: 0, z: 0 });
+    state = pad({ axes: [1, 0, 0, 0] });
+    const released = input.poll();
+    expect(released.wheel).toBe(false);
+    expect(released.wheelAim).toBeUndefined();
+    expect(input.read().x).toBeCloseTo(1);
+  });
 });

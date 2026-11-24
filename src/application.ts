@@ -274,6 +274,8 @@ export function startApplication({
   });
   let weaponIndex = 0;
   let wheelOpen = false;
+  /** Whether the controller's L2 was holding the wheel open last frame. */
+  let padWheel = false;
   function setWheel(open: boolean) {
     const next = open && started && !menuOpen && !botTurn();
     if (!wheel || wheelOpen === next) return;
@@ -1055,6 +1057,23 @@ export function startApplication({
         if (pad.resetView) scene.resetCamera();
         scene.orbitCamera(pad.lookX, pad.lookY, elapsed / 1000);
         if (pad.weaponStep) selectWeapon(weaponIndex + pad.weaponStep);
+        // L2 holds the weapon wheel open; the left stick points at a weapon
+        // and letting go of L2 keeps it.
+        if (pad.wheel !== padWheel) {
+          padWheel = pad.wheel;
+          setWheel(pad.wheel);
+        }
+        if (pad.wheel && wheelOpen && pad.wheelAim) {
+          const turn =
+            (Math.atan2(pad.wheelAim.z, pad.wheelAim.x) + Math.PI / 2) /
+            (Math.PI * 2);
+          const pick =
+            ((Math.round(turn * WEAPONS.length) % WEAPONS.length) +
+              WEAPONS.length) %
+            WEAPONS.length;
+          if (pick !== weaponIndex && !weaponButtons[pick]?.disabled)
+            selectWeapon(pick);
+        }
       }
       if (!botTurn())
         updateWeapon(keyboard.fireHeld() || pad.fire, elapsed / 1000);

@@ -70,6 +70,10 @@ export function createGamepadInput(
         fire: false,
         /** True when Circle is pressed this frame: pass the turn. */
         pass: false,
+        /** True while L2 is held: the weapon wheel is open. */
+        wheel: false,
+        /** Where the left stick points while the wheel is open, if anywhere. */
+        wheelAim: undefined as { x: number; z: number } | undefined,
       };
       if (!pad) {
         identity = '';
@@ -97,18 +101,26 @@ export function createGamepadInput(
       }
       const justPressed = (button: number) =>
         pressed.has(button) && !previous.has(button);
-      queuedJump ||= justPressed(0); // Cross on a standard-mapped DualSense.
-      movement = { ...move, jump: false, flutter: pressed.has(0) };
+      queuedJump ||= justPressed(0) && !pressed.has(6); // Cross on a standard-mapped DualSense.
+      // L2 opens the weapon wheel: the left stick then picks from it, and
+      // the moth stands still.
+      status.wheel = pressed.has(6);
+      if (status.wheel && Math.hypot(move.x, move.z) > 0.5)
+        status.wheelAim = move;
+      movement = status.wheel
+        ? idle()
+        : { ...move, jump: false, flutter: pressed.has(0) };
       status.lookX = look.x;
       status.lookY = look.z;
       status.switchMoth = justPressed(5) ? 1 : justPressed(4) ? -1 : 0;
       status.toggleView = justPressed(3); // Triangle: shoulder ⇄ board view.
       status.resetView = justPressed(11); // R3: re-centre the camera.
       status.weaponStep = justPressed(15) ? 1 : justPressed(14) ? -1 : 0;
-      status.fire = pressed.has(7) || pressed.has(2); // R2 or Square.
+      // R2 or Square, but not while choosing a weapon.
+      status.fire = !status.wheel && (pressed.has(7) || pressed.has(2));
       status.pass = justPressed(1); // Circle.
       status.text =
-        'Controller ready · Cross: hop / flutter · R2: aim, release to fire';
+        'Controller ready · Cross: hop / flutter · R2: aim, release to fire · L2: weapon wheel';
       previous = pressed;
       return status;
     },

@@ -449,6 +449,29 @@ describe('movement control smoke tests', () => {
       pads = [makePad([0, 0, 0, 0], [11])];
       frame(4620);
       expect(scene.resetCamera).toHaveBeenCalledOnce();
+      // L2 holds the weapon wheel open and the left stick points at Bosh.
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4640);
+      const wheel = document.querySelector<HTMLElement>('#wheel')!;
+      const before = render.mock.lastCall![0].moths[1]!.x;
+      pads = [makePad([1, 0, 0, 0], [6])];
+      frames(4660, 10);
+      expect(wheel.hidden).toBe(false);
+      expect(
+        document
+          .querySelector('[data-weapon="bosh"]')
+          ?.getAttribute('aria-pressed'),
+      ).toBe('true');
+      // The stick chose a weapon; it did not walk the moth.
+      expect(render.mock.lastCall![0].moths[1]!.x).toBeCloseTo(before, 1);
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4880);
+      expect(wheel.hidden).toBe(true);
+      expect(
+        document
+          .querySelector('[data-weapon="bosh"]')
+          ?.getAttribute('aria-pressed'),
+      ).toBe('true');
     } finally {
       if (original) Object.defineProperty(navigator, 'getGamepads', original);
       else Reflect.deleteProperty(navigator, 'getGamepads');
