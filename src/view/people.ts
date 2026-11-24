@@ -244,6 +244,29 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
 
   return {
     root,
+    /**
+     * Make every giant solid for a second view of the same frame; call the
+     * function it returns to put their see-through fade back.
+     */
+    showSolid() {
+      const faded = people.flatMap((person) =>
+        person.materials.map((material) => ({
+          material,
+          opacity: material.opacity,
+          transparent: material.transparent,
+        })),
+      );
+      for (const { material } of faded) {
+        material.opacity = 1;
+        material.transparent = false;
+      }
+      return () => {
+        for (const { material, opacity, transparent } of faded) {
+          material.opacity = opacity;
+          material.transparent = transparent;
+        }
+      };
+    },
     animate(
       seconds: number,
       delta: number,

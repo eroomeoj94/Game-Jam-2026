@@ -165,7 +165,10 @@ export function createScene(host: HTMLElement) {
     renderer.setScissorTest(true);
     renderer.setScissor(x, y, width, height);
     renderer.setViewport(x, y, width, height);
+    // The giants fade out of the main camera's way; here they are the show.
+    const refade = people.showSolid();
     renderer.render(scene, insetCamera);
+    refade();
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, full.x, full.y);
   }
