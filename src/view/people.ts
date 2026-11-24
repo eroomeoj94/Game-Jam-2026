@@ -1,6 +1,7 @@
 import {
   CapsuleGeometry,
   CylinderGeometry,
+  DoubleSide,
   Euler,
   Group,
   Mesh,
@@ -13,6 +14,7 @@ import { ARENA, HAZARD, PEOPLE, ROOM } from '../config';
 import type { WorldView } from '../game/world';
 import { WRIST, createHandMesh, handPose } from './hand';
 import type { createMaterials } from './materials';
+import { GIANT_MODEL_HEIGHT, loadGiantModel } from './giantModel';
 
 const LOOKS = [
   { skin: 0xf0c9a4, top: 0xb04a3a, legs: 0x34415e, hair: 0x3a2a20 },
@@ -29,6 +31,8 @@ const UPPER_ARM = 18;
 const FOREARM = 17;
 const HEAD = 6.5;
 const UP = new Vector3(0, 1, 0);
+const DOWN = new Vector3(0, -1, 0);
+
 const smooth = (value: number) => {
   const t = Math.min(1, Math.max(0, value));
   return t * t * (3 - 2 * t);
@@ -136,17 +140,87 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
       // 0 hanging at the side, 1 out over the desk.
       return { side, upper, fore, shoulder, elbow, hand, reach: 0 };
     });
-    return {
+    const person = {
       body,
       legs,
       torso,
       arms,
-      materials: [skin, top, trousers, hair, dark],
+      materials: [skin, top, trousers, hair, dark] as MeshStandardMaterial[],
       facing: 0,
       placed: false,
       stride: 1,
       lean: 0,
+      // Where the shoulders are on the torso, and how long an arm hangs.
+      shoulderX: SHOULDER,
+      shoulderY: TORSO - 3,
+      armLength: UPPER_ARM + FOREARM + 2,
+      /** The wooden figure's own arms, right then left, once it has loaded. */
+      modelArms: undefined as Group[] | undefined,
+      /** How far a wooden arm hangs, and its scale, in desk units. */
+      modelArmLength: 1,
+      modelScale: 1,
+      /** How wide they are, for fading them out of the camera's way. */
+      bulk: 10,
+      /** How much further from the desk than their path they stand. */
+      setback: 0,
+      /** The furthest they bend over the desk, in radians. */
+      maxLean: 1.15,
     };
+    // When this giant's wooden figure is available it replaces the felt
+    // one: the same walk, lean and smack, with the figure's own limbs.
+    void loadGiantModel(index).then((model) => {
+      if (!model) return;
+      const { cut } = model;
+      // Each figure has its own height: sized to one height, the big-headed
+      // ones would be far too wide to stand round the desk.
+      const scale = cut.height / GIANT_MODEL_HEIGHT;
+      const height = (y: number) =>
+        ROOM.floorY + (y + GIANT_MODEL_HEIGHT / 2) * scale;
+      const wood = new MeshStandardMaterial({
+        map: model.map,
+        roughness: 0.8,
+        emissive: 0xffffff,
+        emissiveMap: model.map,
+        emissiveIntensity: 0.3,
+        // The cut ends of the limbs are open, so both faces are drawn.
+        side: DoubleSide,
+      });
+      const piece = (geometry: (typeof model)['body']) => {
+        const mesh = new Mesh(geometry, wood);
+        mesh.scale.setScalar(scale);
+        mesh.castShadow = true;
+        return mesh;
+      };
+      const hipY = height(cut.hip.y);
+      torso.clear();
+      torso.position.y = hipY;
+      torso.add(piece(model.body));
+      legs.forEach((leg, side) => {
+        leg.clear();
+        leg.position.set((side ? 1 : -1) * cut.hip.x * scale, hipY, 0);
+        leg.add(piece(model.legs[side]!));
+      });
+      person.modelArms = model.arms.map((geometry) => {
+        const arm = new Group();
+        arm.add(new Mesh(geometry, wood));
+        (arm.children[0] as Mesh).castShadow = true;
+        root.add(arm);
+        return arm;
+      });
+      person.shoulderX = cut.shoulder.x * scale;
+      person.shoulderY = (cut.shoulder.y - cut.hip.y) * scale;
+      // Measured to the middle of the hand, which is what lands on the desk.
+      person.modelArmLength = (cut.shoulder.y - cut.armBottom - 0.07) * scale;
+      person.armLength = person.modelArmLength;
+      person.modelScale = scale;
+      person.materials = [wood];
+      // The wooden figures have big heads and take up far more of the view.
+      person.bulk = cut.girth * scale + 4;
+      // Stood back so that neither belly nor shoulders poke into the desk.
+      person.setback = Math.max(0, cut.girth * scale + 3 - PEOPLE.offset);
+      person.maxLean = 0.45;
+    });
+    return person;
   });
 
   const shoulderAt = new Vector3();
@@ -179,6 +253,8 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
     ) {
       const strikeNow = view.hazards[0];
       const ease = (rate: number) => 1 - Math.exp(-delta * rate);
+      const halfWide = ARENA.desk.width / 2;
+      const halfDeep = ARENA.desk.depth / 2;
       people.forEach((person, index) => {
         const state = view.people[index];
         person.body.visible = !!state;
@@ -190,7 +266,8 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
             arm.elbow,
             arm.hand,
           ])
-            part.visible = !!state;
+            part.visible = !!state && !person.modelArms;
+        for (const arm of person.modelArms ?? []) arm.visible = !!state;
         if (!state) return;
         const hit = strikeNow?.person === index ? strikeNow : undefined;
         // Turn smoothly to face the way they walk, or the spot they will hit.
@@ -204,12 +281,18 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
         // Stepped like the moths, for the same stop-motion feel.
         const step = Math.round((state.walked / 5.2) * 5) / 5;
         const reachOut = hit ? Math.hypot(hit.x - state.x, hit.z - state.z) : 0;
-        const lean = hit ? smooth((reachOut - 12) / 34) * 1.15 : 0;
+        const lean = hit ? smooth((reachOut - 12) / 34) * person.maxLean : 0;
         person.lean += (lean - person.lean) * ease(7);
+        // Straight out from the nearest point of the desk's edge.
+        const edgeX = Math.max(-halfWide, Math.min(halfWide, state.x));
+        const edgeZ = Math.max(-halfDeep, Math.min(halfDeep, state.z));
+        const out = Math.hypot(state.x - edgeX, state.z - edgeZ) || 1;
+        const standX = state.x + ((state.x - edgeX) / out) * person.setback;
+        const standZ = state.z + ((state.z - edgeZ) / out) * person.setback;
         person.body.position.set(
-          state.x,
+          standX,
           Math.abs(Math.sin(step)) * 0.9 * person.stride,
-          state.z,
+          standZ,
         );
         person.body.rotation.y = person.facing;
         person.legs.forEach((leg, side) => {
@@ -223,13 +306,13 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
           const striking = hit?.side === arm.side ? hit : undefined;
           arm.reach += ((striking ? 1 : 0) - arm.reach) * ease(9);
           // A figure facing +Z has its right shoulder on -X.
-          shoulderAt.set(-arm.side * SHOULDER, TORSO - 3, 0);
+          shoulderAt.set(-arm.side * person.shoulderX, person.shoulderY, 0);
           person.torso.localToWorld(shoulderAt);
           // Hanging by the side, swinging against the legs.
           const sway =
             Math.sin(step + (arm.side > 0 ? 0 : Math.PI)) * 5 * person.stride;
           restAt
-            .set(-arm.side * 2, -(UPPER_ARM + FOREARM) - 2, sway + 2)
+            .set(-arm.side * 2, -person.armLength, sway + 2)
             .applyAxisAngle(UP, person.facing)
             .add(shoulderAt);
           turn.set(Math.PI / 2 - 0.15, person.facing, 0);
@@ -250,6 +333,26 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
           }
           arm.hand.scale.set(arm.side, squash, 1);
           arm.hand.updateMatrixWorld(true);
+          const wooden = person.modelArms?.[arm.side > 0 ? 0 : 1];
+          if (wooden) {
+            // A wooden arm is one stiff piece: it swings from the shoulder
+            // to point at where the hand should be, and stretches to reach.
+            along.subVectors(arm.hand.position, shoulderAt);
+            // The middle of the hand stops just above the desk, not in it.
+            along.y += arm.reach * person.modelScale * 0.04;
+            const gap = Math.max(along.length(), 1e-3);
+            turn.set(0, person.facing, 0);
+            wooden.position.copy(shoulderAt);
+            wooden.quaternion
+              .setFromUnitVectors(DOWN, along.divideScalar(gap))
+              .multiply(rest.setFromEuler(turn));
+            wooden.scale.set(
+              person.modelScale,
+              person.modelScale * (gap / person.modelArmLength),
+              person.modelScale,
+            );
+            continue;
+          }
           wristAt.copy(WRIST);
           arm.hand.localToWorld(wristAt);
           // Two-bone arm: the elbow sits on a circle between shoulder and
@@ -281,7 +384,7 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
         // See-through when the camera is on top of them, when their hand
         // lands on it, or when they stand between the camera and the desk.
         let opacity = smooth(
-          (Math.hypot(eye.x - state.x, eye.z - state.z) - 12) / 14,
+          (Math.hypot(eye.x - standX, eye.z - standZ) - person.bulk - 2) / 14,
         );
         if (hit)
           opacity = Math.min(
@@ -296,14 +399,14 @@ export function createPeople(materials: ReturnType<typeof createMaterials>) {
           const vx = tx - eye.x;
           const vz = tz - eye.z;
           const t =
-            ((state.x - eye.x) * vx + (state.z - eye.z) * vz) /
+            ((standX - eye.x) * vx + (standZ - eye.z) * vz) /
             Math.max(vx * vx + vz * vz, 1e-6);
           if (t <= 0 || t >= 1) continue;
           const off = Math.hypot(
-            state.x - (eye.x + vx * t),
-            state.z - (eye.z + vz * t),
+            standX - (eye.x + vx * t),
+            standZ - (eye.z + vz * t),
           );
-          opacity = Math.min(opacity, smooth((off - 10) / 14));
+          opacity = Math.min(opacity, smooth((off - person.bulk) / 14));
         }
         opacity = Math.max(0.16, Math.min(1, opacity));
         for (const material of person.materials) {

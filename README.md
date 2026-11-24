@@ -66,6 +66,12 @@ wears the boxing gloves one on each hand; without the files its hands stay
 empty. The bottle cap and firecracker that fly are models as well
 (`projectile-*.glb`), with plain shapes as the fallback.
 
+The three giants are wooden figures as well (`giant-0.glb` to `giant-2.glb`),
+each at its own height. They arrive as one solid piece, so the game cuts their
+arms and legs away at load: the legs swing as they walk and an arm swings up
+from the shoulder and stretches to smack the desk. Without the files the felt
+giants are drawn instead.
+
 ## Sound
 
 The licensed Artlist sound files are not in this repository (see
