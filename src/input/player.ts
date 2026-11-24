@@ -20,9 +20,12 @@ export function createPlayerInput(
 ) {
   const held = new Set<string>();
   let jumpQueued = false;
+  /** A press of fire not yet seen by a frame, however briefly it was held. */
+  let fireQueued = false;
   const clear = () => {
     held.clear();
     jumpQueued = false;
+    fireQueued = false;
   };
   const keyDown = (event: KeyboardEvent) => {
     if (
@@ -65,6 +68,7 @@ export function createPlayerInput(
     event.preventDefault();
     if (event.code === 'Space' && !held.has('Space') && !event.repeat)
       jumpQueued = true;
+    if (event.code === 'KeyF' && !event.repeat) fireQueued = true;
     held.add(event.code);
   };
   const keyUp = (event: KeyboardEvent) => {
@@ -95,7 +99,11 @@ export function createPlayerInput(
     },
     /** True while the fire key is held: aim and charge, release to fire. */
     fireHeld() {
-      return held.has('KeyF');
+      // A tap shorter than one frame still counts as held for that frame,
+      // so a quick press is never lost on a slow machine.
+      const tapped = fireQueued;
+      fireQueued = false;
+      return tapped || held.has('KeyF');
     },
     destroy() {
       clear();

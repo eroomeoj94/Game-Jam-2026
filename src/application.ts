@@ -76,7 +76,7 @@ const WEAPON_ABOUT: Record<WeaponId, string> = {
   mind: 'Once a match: make a giant slam where you choose',
 };
 /** What to call each giant while a Mind Control is choosing between them. */
-const GIANT_NAMES = ['the lad', 'the old man', 'Joe'];
+const GIANT_NAMES = ['the old man', 'the lad', 'Joe'];
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
 
 export function startApplication({

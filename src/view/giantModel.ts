@@ -30,20 +30,6 @@ export type GiantCut = {
   hip: { x: number; y: number };
 };
 export const GIANT_CUTS: readonly GiantCut[] = [
-  // The stocky lad with the satchel, arms held out from his sides.
-  {
-    height: 74,
-    girth: 0.42,
-    armIn: 0.36,
-    armSplay: 0.3,
-    armFlare: -0.1,
-    armTop: 0.12,
-    armBottom: -0.68,
-    shoulder: { x: 0.42, y: 0.08 },
-    legTop: -0.55,
-    legOut: 0.33,
-    hip: { x: 0.18, y: -0.55 },
-  },
   // The old man with the glasses: a big head on a small body.
   {
     height: 66,
@@ -57,6 +43,20 @@ export const GIANT_CUTS: readonly GiantCut[] = [
     legTop: -0.44,
     legOut: 0.28,
     hip: { x: 0.17, y: -0.44 },
+  },
+  // The stocky lad with the satchel, arms held out from his sides.
+  {
+    height: 74,
+    girth: 0.42,
+    armIn: 0.36,
+    armSplay: 0.3,
+    armFlare: -0.1,
+    armTop: 0.12,
+    armBottom: -0.68,
+    shoulder: { x: 0.42, y: 0.08 },
+    legTop: -0.55,
+    legOut: 0.33,
+    hip: { x: 0.18, y: -0.55 },
   },
   // The tall one in the striped shirt, arms close to his sides.
   {
