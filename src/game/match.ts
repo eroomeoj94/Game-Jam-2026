@@ -24,8 +24,11 @@ export function lampControl(
   haloRadius: number,
   teams = 2,
 ): LampControl[] {
+  // However many teams are asked for, every team with a moth on the desk is
+  // counted: a third or fourth team's moths hold lamps like anyone else's.
+  const sides = Math.max(teams, ...view.moths.map((moth) => moth.team + 1));
   return view.lamps.map((lamp) => {
-    const counts = Array.from({ length: teams }, () => 0);
+    const counts = Array.from({ length: sides }, () => 0);
     for (const moth of view.moths) {
       if (moth.respawning || moth.zapped) continue;
       const distance = Math.hypot(

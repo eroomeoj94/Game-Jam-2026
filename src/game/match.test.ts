@@ -384,6 +384,27 @@ describe('lamp control from the world', () => {
     z: LAMPS.positions[index]!.z,
   });
 
+  it('lets a third or fourth team hold a lamp like any other', () => {
+    const world = setup();
+    world.placeMoth(0, under(0, -1.2));
+    world.placeMoth(1, under(0, 1.2));
+    world.placeMoth(2, under(0, 0));
+    const view = world.snapshot();
+    // The same desk, with the moths shared out among four teams: two of the
+    // fourth team under lamp 0 against one of the third.
+    const fourWay = {
+      ...view,
+      moths: view.moths.map((moth, index) => ({
+        ...moth,
+        team: [3, 3, 2][index] ?? index % 4,
+      })),
+    };
+    const lamp = lampControl(fourWay, LAMPS.haloRadius)[0]!;
+    expect(lamp.holder).toBe(3);
+    expect(lamp.counts.slice(0, 4)).toEqual([0, 0, 1, 2]);
+    expect(lamp.contested).toBe(false);
+  });
+
   it('awards the majority, and nothing for ties, empty lights or zappers', () => {
     const world = setup();
     // Lamp 0: two of team 0 against one of team 1. Lamp 1: one each.
