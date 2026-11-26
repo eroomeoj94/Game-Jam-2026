@@ -253,21 +253,21 @@ describe('projectiles', () => {
 });
 
 describe('Dance', () => {
-  it('performs one of five routines, never the same twice running, then stops', () => {
+  it('performs one of three routines, never the same twice running, then stops', () => {
     const world = setup();
     advance(world, 30);
-    expect(DANCE.names).toHaveLength(5);
+    expect(DANCE.names).toHaveLength(3);
     let previous = 0;
     const seen = new Set<number>();
     for (let turn = 0; turn < 60; turn++) {
       const routine = world.dance();
       expect(routine).toBeGreaterThanOrEqual(1);
-      expect(routine).toBeLessThanOrEqual(5);
+      expect(routine).toBeLessThanOrEqual(3);
       expect(routine).not.toBe(previous);
       previous = routine;
       seen.add(routine);
     }
-    expect(seen.size).toBe(5);
+    expect(seen.size).toBe(3);
     expect(world.dance(3)).toBe(3);
     expect(world.drainEvents().at(-1)).toMatchObject({
       type: 'dance',

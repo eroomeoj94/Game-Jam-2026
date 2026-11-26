@@ -633,16 +633,10 @@ export const PEOPLE = {
 
 /** The end-of-turn dance: a moth shows off instead of attacking. */
 export const DANCE = {
-  /** Seconds a dance lasts; keep it within the match's resolve time. */
-  seconds: 2.2,
+  /** Seconds a dance lasts. */
+  seconds: 2.8,
   /** One name per routine, shown as a pop-up. */
-  names: [
-    'The Spin',
-    'The Wiggle',
-    'Shadow Boxing',
-    'The Big Flap',
-    'The Worm',
-  ],
+  names: ['Shadow Boxing', 'The Big Flap', 'The Siuuu'],
 };
 
 /** Weapon playground rules (open the page with ?playground). */

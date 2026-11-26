@@ -785,7 +785,7 @@ describe('match smoke tests', () => {
     const { render } = mount('match');
     frames(0, 10);
     key('KeyP');
-    frames(200, 140);
+    frames(200, 190);
     expect(text('#status')).toContain('Big Flap');
     expect(text('#reset')).toBe('New match');
     click('reset');

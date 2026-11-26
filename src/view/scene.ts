@@ -31,6 +31,7 @@ import {
   AIM,
   ARENA,
   CAMERA,
+  DANCE,
   LAMPS,
   LIGHTING,
   BOSH,
@@ -126,6 +127,18 @@ export function createScene(host: HTMLElement) {
   let spotlit = false;
   /** How far through the sweep round the desk before a match, 0 to 1. */
   let flyby: number | undefined;
+  /** Where the dance camera is, before scenery in the way pulls it in. */
+  let danceCamera: Vector3 | undefined;
+  /** The side and height the dance camera took for the routine in progress. */
+  let danceView: { key: string; swing: number; lift: number } | undefined;
+  /** Whether nothing on the desk stands between two points. */
+  function clearView(from: Vector3, to: Vector3) {
+    const offset = to.clone().sub(from);
+    const distance = offset.length();
+    occlusionRay.set(from, offset.divideScalar(distance));
+    occlusionRay.far = distance;
+    return !occlusionRay.intersectObjects(occluders, false).length;
+  }
   // A second camera for the corner "splat cam": it faces the giant, with the
   // spot being swatted in the foreground.
   const insetCamera = new PerspectiveCamera(62, 1.6, 0.1, 600);
@@ -1137,6 +1150,71 @@ export function createScene(host: HTMLElement) {
           (118 - t * 70) * boardScale,
           controls.target.z + Math.cos(angle) * reach,
         );
+      } else if (
+        cameraMode === 'follow' &&
+        !spotlight &&
+        view.moths.some((moth) => moth.dance && !moth.respawning)
+      ) {
+        // A dance gets the camera: round to the front of the dancers, drifting
+        // across them as the routine goes on. The shoulder view comes back
+        // when the last of them stops.
+        if (!spotlit) {
+          controls.minDistance = 1;
+          controls.maxDistance = 420;
+        }
+        spotlit = true;
+        const dancers = view.moths.filter(
+          (moth) => moth.dance && !moth.respawning,
+        );
+        const lead = dancers[0]!;
+        const centre = new Vector3();
+        for (const moth of dancers)
+          centre.add(
+            mothFocus(moth, new Vector3()).divideScalar(dancers.length),
+          );
+        const spread = Math.max(
+          ...dancers.map((moth) =>
+            Math.hypot(moth.x - centre.x, moth.z - centre.z),
+          ),
+        );
+        // The Siuuu ends on a half turn, so that one is watched from behind:
+        // the moth runs off, leaps and lands facing the camera.
+        const front = lead.heading + (lead.dance === 3 ? Math.PI : 0) - 0.3;
+        const reach = CAMERA.followDistance * 1.15 + spread * 1.6;
+        const seat = (swing: number, lift: number) =>
+          centre
+            .clone()
+            .add(
+              new Vector3(
+                Math.sin(front + swing) * reach,
+                (CAMERA.followRise * 0.7 + spread * 0.5) * lift,
+                Math.cos(front + swing) * reach,
+              ),
+            );
+        // Once per routine, find a seat with nothing in the way: the front
+        // first, then further round, then higher up.
+        const key = `${lead.id}:${lead.dance}`;
+        if (danceView?.key !== key) {
+          danceView = { key, swing: 0, lift: 3.2 };
+          search: for (const lift of [1, 2.2])
+            for (const swing of [0, 0.7, -0.7, 1.4, -1.4, 2.3, -2.3, Math.PI])
+              if (
+                clearView(centre, seat(swing, lift)) &&
+                clearView(centre, seat(swing + 0.5, lift))
+              ) {
+                danceView = { key, swing, lift };
+                break search;
+              }
+        }
+        const ease = 1 - Math.exp(-deltaSeconds * 6);
+        // It drifts a little way round them as the routine goes on.
+        const goal = seat(
+          danceView.swing + (lead.danceTime / DANCE.seconds) * 0.5,
+          danceView.lift,
+        );
+        danceCamera = (danceCamera ?? camera.position.clone()).lerp(goal, ease);
+        controls.target.lerp(centre, ease);
+        camera.position.copy(danceCamera);
       } else if (spotlight) {
         // Swing round to look down on the spot from the front of the desk.
         if (!spotlit) {
@@ -1150,6 +1228,8 @@ export function createScene(host: HTMLElement) {
         camera.position.lerp(goal.add(new Vector3(0, 13, 21)), ease);
       } else if (spotlit) {
         spotlit = false;
+        danceCamera = undefined;
+        danceView = undefined;
         resetCamera();
       } else if (cameraMode === 'follow' && active) {
         const switched = view.selectedMoth !== lastSelected;
@@ -1170,7 +1250,7 @@ export function createScene(host: HTMLElement) {
       // Keep the shoulder camera in front of the back wall.
       if (camera.position.z < CAMERA.wallLimitZ)
         camera.position.z = CAMERA.wallLimitZ;
-      if (cameraMode === 'follow' && !spotlight && flyby === undefined) {
+      if (cameraMode === 'follow' && !spotlight && !spotlit) {
         unobstructed = camera.position.clone();
         avoidOcclusion();
       }

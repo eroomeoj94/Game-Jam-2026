@@ -56,6 +56,11 @@ action. Four Artlist voices (Chipper, Pep, Boss and Tattle; files `a-`, `b-`,
 generated on 23 November 2026 and are saved in the Artlist project "Moth Fight
 Club", folder "Moth voices". See `MOTH_CUES` in `src/audio/sfx.ts`.
 
+Each voice also has one line per dance routine, generated on 26 November 2026
+(`a-box`, `a-flap`, `a-siu` and so on): "Fly like a moth! Sting like a moth...
+with a butter knife!", "Here is... the Big Flap!" and "Siiuuuuuuu!". See
+`DANCE_CUES`. The older `-dance-` clips are no longer played.
+
 ## Giants' voice lines (not in the repository)
 
 `artlist/voice/giant/` holds 12 clips of the three people round the desk

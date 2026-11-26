@@ -399,6 +399,26 @@ describe('moth voices', () => {
     sfx.destroy();
   });
 
+  it('has each dancer call its routine, and shouts the Siuuu together', async () => {
+    const { sfx, spoken } = await talkers();
+    const dance = (moth: number, variant: number) =>
+      sfx.playEvents([
+        { type: 'dance', moth, variant, position: { x: 0, y: 0, z: 0 } },
+      ]);
+    dance(0, 1);
+    expect(spoken()).toEqual(['moth/a-box']);
+    // The whole team shouts at once, each in its own voice.
+    dance(1, 3);
+    dance(2, 3);
+    dance(3, 3);
+    expect(spoken().slice(1)).toEqual([
+      'moth/b-siu',
+      'moth/c-siu',
+      'moth/d-siu',
+    ]);
+    sfx.destroy();
+  });
+
   it('waits for the announcer to finish instead of talking over him', async () => {
     const { sfx, spoken } = await talkers();
     expect(sfx.say('bosh', { priority: 2 })).toBe(true);

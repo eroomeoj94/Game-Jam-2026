@@ -1,4 +1,4 @@
-import { AUDIO, BOSH, HAZARD } from '../config';
+import { AUDIO, BOSH, DANCE, HAZARD } from '../config';
 import type { Position, WorldEvent, WorldView } from '../game/world';
 
 /**
@@ -84,7 +84,6 @@ export const MOTH_CUES = [
   'zap',
   'cap',
   'firecracker',
-  'dance',
   'move',
 ] as const;
 export type MothCue = (typeof MOTH_CUES)[number];
@@ -92,6 +91,14 @@ const mothTakes = (moth: number, cue: MothCue) => {
   const voice = MOTH_VOICES[moth % MOTH_VOICES.length]!;
   return [1, 2].map((take) => `moth/${voice}-${cue}-${take}`);
 };
+/**
+ * What a moth calls out as it dances, one line per routine and voice:
+ * "Fly like a moth, sting like a moth with a butter knife!", "Here is the
+ * Big Flap!" and "Siuuu!".
+ */
+export const DANCE_CUES = ['box', 'flap', 'siu'] as const;
+const danceTake = (moth: number, dance: number) =>
+  `moth/${MOTH_VOICES[moth % MOTH_VOICES.length]!}-${DANCE_CUES[dance - 1] ?? 'siu'}`;
 /**
  * The giants grumble as they swat: three voices, one per person round the
  * desk, with three lines for the slam and one for the wind-up.
@@ -317,7 +324,9 @@ export function createSfx({
         buffers.set(name, buffer);
       });
     const mothFiles = MOTH_VOICES.flatMap((_, moth) =>
-      MOTH_CUES.flatMap((cue) => mothTakes(moth, cue)),
+      MOTH_CUES.flatMap((cue) => mothTakes(moth, cue)).concat(
+        DANCE_CUES.map((_, dance) => danceTake(moth, dance + 1)),
+      ),
     );
     const giantFiles = Array.from({ length: GIANT_VOICES }, (_, person) => [
       ...giantTakes(person, 'slam'),
@@ -440,6 +449,28 @@ export function createSfx({
         priority: 2,
       }) === true
     );
+  }
+
+  /**
+   * A dancing moth calls its routine. The Siuuu is shouted at the top of
+   * the leap, and over anyone else shouting it, so a team makes a chorus.
+   */
+  function danceLine(moth: number, dance: number) {
+    const file = danceTake(moth, dance);
+    if (DANCE_CUES[dance - 1] !== 'siu')
+      return speak([file], file, AUDIO.mothVoice, { priority: 2 }) === true;
+    const buffer = voices.get(file);
+    if (!context || !effects || !effectsOn || !buffer) return false;
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    // Each voice a touch higher or lower, so a chorus is not one voice.
+    source.playbackRate.value = vary(0.06);
+    const gain = context.createGain();
+    gain.gain.value = AUDIO.mothVoice * 1.2 * (voiceMakeup.get(file) ?? 1);
+    source.connect(gain).connect(effects);
+    source.start(context.currentTime + DANCE.seconds * 0.44);
+    dip(0.4, DANCE.seconds * 0.44 + buffer.duration);
+    return true;
   }
 
   /** Play a sample once; false when it is not loaded (use a fallback). */
@@ -782,7 +813,6 @@ export function createSfx({
             say('hand', { chance: 0.7 });
         } else if (event.type === 'explode') say('bang', { chance: 0.6 });
         else if (event.type === 'lamp' && event.zapper) say('zapper');
-        else if (event.type === 'dance') say('dance', { chance: 0.15 });
         else if (event.type === 'gust') say('gust', { chance: 0.2 });
         if (event.type === 'bosh') bosh(event.moth !== undefined, volume);
         else if (event.type === 'gust') {
@@ -807,6 +837,7 @@ export function createSfx({
           slam(volume);
         } else if (event.type === 'dance') {
           play('pop', { volume: 0.7 * volume, rate: vary(0.35) });
+          danceLine(event.moth, event.variant);
         } else if (event.type === 'lamp') {
           play('switch', { volume: 0.8 });
           if (event.zapper) play('zap', { volume: 0.6, rate: 0.7 });

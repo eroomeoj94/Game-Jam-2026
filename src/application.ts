@@ -94,6 +94,8 @@ const GIANT_NAMES = ['the old man', 'the lad', 'Joe'];
 const LOADING_FILMS = 3;
 /** How long each moth fact stays up on the loading screen. */
 const FACT_SECONDS = 5;
+/** The routine the winners finish on: see `DANCE.names`. */
+const SIU = 3;
 /**
  * The call before a match, with room between the words: when each is said
  * and shown, in seconds, and when the match itself begins.
@@ -444,11 +446,9 @@ export function startApplication({
           pendingQuip = { moth, cue: weapon };
       } else if (match.pass()) {
         world.dance();
-        pendingQuip = { moth, cue: 'dance' };
       }
     } else if (order.type === 'dance' && match.pass()) {
       world.dance();
-      pendingQuip = { moth: world.snapshot().selectedMoth, cue: 'dance' };
     }
     return NO_MOVEMENT;
   }
@@ -658,7 +658,6 @@ export function startApplication({
     if (!started || botTurn()) return;
     if (match && !match.pass()) return;
     world.dance();
-    pendingQuip = { moth: world.snapshot().selectedMoth, cue: 'dance' };
     cancelAim();
     focusCanvas();
   }
@@ -709,7 +708,8 @@ export function startApplication({
     const before = world.snapshot();
     for (const moth of before.moths)
       if (moth.team === winner && !moth.respawning && world.selectMoth(moth.id))
-        world.dance();
+        // The last dance is the Siuuu, all together.
+        world.dance(partyRounds === VICTORY_DANCES ? SIU : undefined);
     world.selectMoth(before.selectedMoth);
   }
   /** Lay the final score and each team's match over the desk. */

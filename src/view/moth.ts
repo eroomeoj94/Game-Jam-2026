@@ -1,3 +1,4 @@
+import { dancePose } from './dances';
 import {
   CatmullRomCurve3,
   Color,
@@ -315,36 +316,15 @@ export function createMoth(
         wingSpread = walking
           ? 0.3 + Math.sin(steppedTime * 14 + phase) * 0.35
           : 0.22 + Math.sin(steppedTime * 3.2 + phase) * 0.2;
-      if (state.dance) {
-        // Stepped like the rest of the puppet, for a stop-motion routine.
-        const t = Math.floor(state.danceTime * 12) / 12;
-        if (state.dance === 1) {
-          // The Spin: a pirouette with the wings flung wide.
-          root.rotation.y = state.heading + t * 9;
-          puppet.position.y = Math.abs(Math.sin(t * 9)) * 0.12;
-          wingSpread = 1.1;
-        } else if (state.dance === 2) {
-          // The Wiggle: hips side to side with a little bounce.
-          puppet.rotation.z = Math.sin(t * 16) * 0.5;
-          puppet.rotation.y = Math.sin(t * 8) * 0.5;
-          puppet.position.y = Math.abs(Math.sin(t * 16)) * 0.08;
-        } else if (state.dance === 3) {
-          // Shadow Boxing: jabs at nobody, switching sides.
-          const jab = Math.sin(t * 14);
-          puppet.rotation.y = Math.sign(jab) * 0.55;
-          puppet.rotation.x = 0.3;
-          puppet.position.z = Math.abs(jab) * 0.3;
-          puppet.position.y = Math.abs(Math.sin(t * 7)) * 0.06;
-        } else if (state.dance === 4) {
-          // The Big Flap: star jumps with frantic wings.
-          puppet.position.y = Math.abs(Math.sin(t * 7)) * 0.55;
-          wingSpread = 0.4 + Math.sin(t * 30) * 0.9;
-        } else {
-          // The Worm: rocking flat out, nose to tail.
-          puppet.rotation.x = 1.1 + Math.sin(t * 11) * 0.45;
-          puppet.position.y = -0.18 + Math.abs(Math.sin(t * 11)) * 0.2;
-          puppet.position.z = Math.sin(t * 5.5) * 0.25;
-        }
+      // A routine takes over the whole figure: body, wings and limbs.
+      const pose = state.dance
+        ? dancePose(state.dance, state.danceTime)
+        : undefined;
+      if (pose) {
+        root.rotation.y = state.heading + pose.turn;
+        puppet.position.set(pose.x, pose.y, pose.z);
+        puppet.rotation.set(pose.tiltX, pose.tiltY, pose.tiltZ);
+        wingSpread = pose.wings;
       }
       wings.forEach((wing, index) => {
         wing.rotation.y = (index === 0 ? -1 : 1) * wingSpread;
@@ -383,26 +363,16 @@ export function createMoth(
         armSwing = [-1.5, -1.3];
         legSwing = [-0.4, 0.5];
       }
-      if (state.dance) {
-        const beat = state.danceTime;
-        if (state.dance === 1) {
-          // The Spin: arms flung out.
-          armLift = 1.2;
-        } else if (state.dance === 2) {
-          armSwing = [Math.sin(beat * 16) * 0.8, -Math.sin(beat * 16) * 0.8];
-          legSwing = [Math.sin(beat * 16) * 0.3, -Math.sin(beat * 16) * 0.3];
-        } else if (state.dance === 3) {
-          // Shadow Boxing: one fist out, then the other.
-          const jab = Math.sin(beat * 14);
-          armSwing = [jab > 0 ? -1.5 : -0.4, jab > 0 ? -0.4 : -1.5];
-        } else if (state.dance === 4) {
-          // The Big Flap: star jumps.
-          const jump = Math.abs(Math.sin(beat * 7));
-          armLift = jump * 1.4;
-          legSplay = jump * 0.5;
-        } else {
-          armSwing = [-2.6, -2.6];
-        }
+      let leftLift: number | undefined;
+      if (pose) {
+        // The walk and the breathing set the body above; the routine wins.
+        puppet.position.set(pose.x, pose.y, pose.z);
+        puppet.rotation.set(pose.tiltX, pose.tiltY, pose.tiltZ);
+        armSwing = [...pose.armSwing];
+        legSwing = [...pose.legSwing];
+        legSplay = pose.legSplay;
+        leftLift = pose.armLift[0];
+        armLift = pose.armLift[1];
       }
       // An armed moth holds its weapon out in front in its right hand,
       // unless it is dancing or tumbling. Gloves are worn, so those arms
@@ -435,7 +405,7 @@ export function createMoth(
       );
       arms.forEach((arm, side) => {
         arm.rotation.x = armSwing[side] ?? 0;
-        arm.rotation.z = side === 0 ? -armLift : rightLift;
+        arm.rotation.z = side === 0 ? -(leftLift ?? armLift) : rightLift;
       });
       // A held weapon stays level whatever the arm does; a glove turns with
       // the arm it is on.
