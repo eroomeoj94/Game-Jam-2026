@@ -31,6 +31,7 @@ import { createPlayerInput } from './input/player';
 import { createScene } from './view/scene';
 import { createSfx } from './audio/sfx';
 import type { MothCue, VoiceCue } from './audio/sfx';
+import { MOTH_FACTS } from './mothFacts';
 import type { WeaponId } from './config';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
@@ -48,6 +49,11 @@ export type ApplicationOptions = {
   solo?: boolean;
   /** Two computers play a match behind the start screen (on by default). */
   attract?: boolean;
+  /**
+   * Shortest and longest the loading screen stays up before a match, in
+   * seconds; the length is picked at random between them. [0, 0] skips it.
+   */
+  loadingSeconds?: readonly [number, number];
 };
 
 const COACHED_KEY = 'moth-fight-club:coached';
@@ -82,6 +88,10 @@ const WEAPON_ABOUT: Record<WeaponId, string> = {
 };
 /** What to call each giant while a Mind Control is choosing between them. */
 const GIANT_NAMES = ['the old man', 'the lad', 'Joe'];
+/** Films that can play in the corner of the loading screen. */
+const LOADING_FILMS = 3;
+/** How long each moth fact stays up on the loading screen. */
+const FACT_SECONDS = 5;
 /** How many times the winners dance before the scorecard comes up. */
 const VICTORY_DANCES = 2;
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
@@ -94,6 +104,7 @@ export function startApplication({
   hands = true,
   solo = false,
   attract = true,
+  loadingSeconds = [5, 20],
 }: ApplicationOptions = {}) {
   const playing = mode === 'match';
   const newWorld = () =>
@@ -259,6 +270,11 @@ export function startApplication({
     return button;
   });
   // The character badge, the weapon chip beside it and the weapon wheel.
+  const loader = document.querySelector<HTMLElement>('#loader');
+  const loaderFact = document.querySelector<HTMLElement>('#loader-fact');
+  const loaderVideo = document.querySelector<HTMLVideoElement>('#loader-video');
+  const loaderProgress =
+    document.querySelector<HTMLElement>('#loader-progress');
   const aimHint = document.querySelector<HTMLElement>('#aim-hint');
   const aimGiant = document.querySelector<HTMLElement>('#aim-giant');
   const badge = document.querySelector<HTMLElement>('#badge');
@@ -1585,11 +1601,84 @@ export function startApplication({
       humans = wantHumans;
       bots = makeBots(humans);
     }
+    sfx.unlock();
+    showLoading(beginMatch);
+  };
+  /** Timers for the loading screen, cleared if the page is torn down. */
+  const loadingTimers: number[] = [];
+  let loading = false;
+  /**
+   * Hold a loading screen up for a random few seconds, with the three
+   * films taking turns in the corner and facts about moths, then call `then`.
+   */
+  function showLoading(then: () => void) {
+    const [shortest, longest] = loadingSeconds;
+    const seconds = shortest + Math.random() * Math.max(0, longest - shortest);
+    if (!loader || !playing || seconds <= 0) {
+      then();
+      return;
+    }
+    if (loading) return;
+    loading = true;
+    if (start) start.disabled = true;
+    loader.hidden = false;
+    // Each film plays through once, then the next takes over, starting
+    // from a different one each time.
+    let film = Math.floor(Math.random() * LOADING_FILMS);
+    const nextFilm = () => {
+      if (!loaderVideo || !loading) return;
+      loaderVideo.src = `${import.meta.env.BASE_URL}media/loading-${film++ % LOADING_FILMS}.mp4`;
+      // Fade each film in afresh.
+      loaderVideo.style.animation = 'none';
+      void loaderVideo.offsetWidth;
+      loaderVideo.style.animation = '';
+      void loaderVideo.play?.()?.catch(() => {});
+    };
+    if (loaderVideo) loaderVideo.onended = nextFilm;
+    nextFilm();
+    // A fresh fact every few seconds, none repeated until all are used.
+    const facts = [...MOTH_FACTS].sort(() => Math.random() - 0.5);
+    let fact = 0;
+    const nextFact = () => {
+      setText(loaderFact, facts[fact++ % facts.length]!);
+      if (!loaderFact) return;
+      // Start the fade-in again for each new fact.
+      loaderFact.style.animation = 'none';
+      void loaderFact.offsetWidth;
+      loaderFact.style.animation = '';
+    };
+    nextFact();
+    loadingTimers.push(window.setInterval(nextFact, FACT_SECONDS * 1000));
+    if (loaderProgress) {
+      loaderProgress.style.transition = 'none';
+      loaderProgress.style.width = '0%';
+      // Read the width so the bar starts from empty before it is animated.
+      void loaderProgress.offsetWidth;
+      loaderProgress.style.transition = `width ${seconds}s linear`;
+      loaderProgress.style.width = '100%';
+    }
+    loadingTimers.push(
+      window.setTimeout(() => {
+        hideLoading();
+        then();
+      }, seconds * 1000),
+    );
+  }
+  function hideLoading() {
+    loadingTimers.splice(0).forEach((timer) => {
+      window.clearTimeout(timer);
+      window.clearInterval(timer);
+    });
+    loading = false;
+    if (start) start.disabled = false;
+    if (loader) loader.hidden = true;
+    loaderVideo?.pause?.();
+  }
+  const beginMatch = () => {
     started = true;
     // Clear away the demo match and deal a fresh one.
     if (demoBots.length) restart();
     intro.hidden = true;
-    sfx.unlock();
     if (playing) sfx.say('start', { priority: 3 });
     clearInput();
     resetClock();
@@ -1717,6 +1806,7 @@ export function startApplication({
   return () => {
     if (disposed) return;
     disposed = true;
+    hideLoading();
     cancelAnimationFrame(frame);
     keyboard.destroy();
     tuning.destroy();

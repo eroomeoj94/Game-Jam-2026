@@ -73,6 +73,22 @@
           <span></span> Demo match · the computer is playing itself
         </p>
       </header>
+      <div id="loader" class="loader" role="status" aria-live="polite" hidden>
+        <div class="loader-text">
+          <p class="eyebrow"><span></span> Loading the bout</p>
+          <p class="loader-label">Did you know?</p>
+          <p class="loader-fact" id="loader-fact"></p>
+        </div>
+        <video
+          id="loader-video"
+          class="loader-video"
+          muted
+          playsinline
+          disablepictureinpicture
+          aria-hidden="true"
+        ></video>
+        <div class="loader-bar"><i id="loader-progress"></i></div>
+      </div>
       <p id="paused" class="banner paused" role="status" hidden>
         Paused · click the game to carry on
       </p>

@@ -36,7 +36,13 @@ let nextFrameId: number;
 
 function mount(mode: 'match' | 'playground' = 'playground', hands = false) {
   // Fixed spawn slots keep these tests repeatable.
-  const cleanup = startApplication({ randomSpawns: false, mode, hands });
+  // No loading screen: these tests start a match and play straight away.
+  const cleanup = startApplication({
+    randomSpawns: false,
+    mode,
+    hands,
+    loadingSeconds: [0, 0],
+  });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
   if (!scene) throw new Error('Application did not create a scene.');
@@ -591,6 +597,7 @@ describe('match smoke tests', () => {
 
   it('plays a demo match behind the start screen and deals a fresh one on Start', () => {
     const cleanup = startApplication({
+      loadingSeconds: [0, 0],
       randomSpawns: false,
       mode: 'match',
       hands: false,
@@ -658,6 +665,7 @@ describe('match smoke tests', () => {
 
   it('lets the computer play Teal unaided in a one-player match', () => {
     const cleanup = startApplication({
+      loadingSeconds: [0, 0],
       randomSpawns: false,
       mode: 'match',
       hands: false,
@@ -784,6 +792,53 @@ describe('match smoke tests', () => {
   });
 });
 
+describe('the loading screen', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('holds the match back for its few seconds, showing moth facts', () => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'],
+    });
+    // Shortest and longest the same, so the wait is known.
+    const cleanup = startApplication({
+      randomSpawns: false,
+      mode: 'match',
+      loadingSeconds: [8, 8],
+    });
+    cleanups.push(cleanup);
+    const loader = document.querySelector<HTMLElement>('#loader')!;
+    const intro = document.querySelector<HTMLElement>('#intro')!;
+    const fact = () => document.querySelector('#loader-fact')!.textContent;
+    expect(loader.hidden).toBe(true);
+    document.querySelector<HTMLButtonElement>('#start')!.click();
+    expect(loader.hidden).toBe(false);
+    // The title is still behind it: the match has not begun.
+    expect(intro.hidden).toBe(false);
+    const first = fact();
+    expect(first).toMatch(/moth/i);
+    expect(
+      document.querySelector<HTMLVideoElement>('#loader-video')!.src,
+    ).toMatch(/media\/loading-[0-2]\.mp4$/);
+    // When a film ends the next one takes over, round all three.
+    const video = document.querySelector<HTMLVideoElement>('#loader-video')!;
+    const films = new Set([video.src]);
+    video.dispatchEvent(new Event('ended'));
+    films.add(video.src);
+    video.dispatchEvent(new Event('ended'));
+    films.add(video.src);
+    expect(films.size).toBe(3);
+    // A second press while it loads changes nothing.
+    document.querySelector<HTMLButtonElement>('#start')!.click();
+    vi.advanceTimersByTime(5100);
+    expect(fact()).not.toBe(first);
+    vi.advanceTimersByTime(2700);
+    expect(loader.hidden).toBe(false);
+    vi.advanceTimersByTime(300);
+    expect(loader.hidden).toBe(true);
+    expect(intro.hidden).toBe(true);
+  });
+});
+
 describe('winning', () => {
   it('dances twice, then shows a scorecard with a way to play again', () => {
     const saved = {
@@ -902,7 +957,10 @@ describe('ending a go hands over to the next moth', () => {
       MATCH.scoring = 'incoming';
       MATCH.burnOut = true;
       MATCH.hotLamp = true;
-      const cleanup = startApplication({ mode: 'match' });
+      const cleanup = startApplication({
+        mode: 'match',
+        loadingSeconds: [0, 0],
+      });
       cleanups.push(cleanup);
       const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
       const render = vi.mocked(scene.render);
@@ -948,7 +1006,10 @@ describe('ending a go hands over to the next moth', () => {
     MATCH.scoring = 'incoming';
     MATCH.burnOut = true;
     MATCH.hotLamp = true;
-    const cleanup = startApplication({ mode: 'match' });
+    const cleanup = startApplication({
+      mode: 'match',
+      loadingSeconds: [0, 0],
+    });
     cleanups.push(cleanup);
     const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
     const render = vi.mocked(scene.render);

@@ -1661,3 +1661,106 @@ kbd.ps-triangle {
   right: 4.5%;
   bottom: 76px;
 }
+/* The loading screen before a match: the same dark ground as the title
+   column, a moth fact to read, and one of three films in the corner. */
+.loader {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: #0d0d0d;
+  pointer-events: auto;
+}
+.loader[hidden] {
+  display: none;
+}
+.loader-text {
+  position: absolute;
+  left: 6%;
+  bottom: 13%;
+  width: min(560px, 52%);
+}
+.loader-label {
+  margin: 22px 0 8px;
+  color: #e7c28b;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-style: italic;
+}
+.loader-fact {
+  margin: 0;
+  min-height: 4.2em;
+  color: #efe4cc;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(20px, 2.3vw, 30px);
+  line-height: 1.3;
+  text-wrap: balance;
+  animation: fact-in 0.5s ease-out;
+}
+@keyframes fact-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes loader-film {
+  from {
+    opacity: 0;
+  }
+}
+/* Small, in the corner, with its frame faded into the ground like the sign. */
+.loader-video {
+  position: absolute;
+  right: 4%;
+  bottom: 9%;
+  width: min(250px, 34vw);
+  aspect-ratio: 1;
+  object-fit: cover;
+  /* These films are blacker than the ground in places: only what is
+     brighter than the ground is drawn, so the darker frame never shows. */
+  mix-blend-mode: lighten;
+  animation: loader-film 0.45s ease-out;
+  -webkit-mask-image:
+    linear-gradient(to bottom, #000 74%, transparent 96%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 13%,
+      #000 87%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, #000 74%, transparent 96%),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 13%,
+      #000 87%,
+      transparent 100%
+    );
+  mask-composite: intersect;
+  pointer-events: none;
+}
+.loader-bar {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 6%;
+  height: 3px;
+  border-radius: 3px;
+  background: #ffffff1a;
+  overflow: hidden;
+}
+.loader-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #e7c28b;
+  box-shadow: 0 0 12px #e7c28b;
+}
+@media (max-width: 700px) {
+  .loader-text {
+    width: 88%;
+    bottom: 46%;
+  }
+}
