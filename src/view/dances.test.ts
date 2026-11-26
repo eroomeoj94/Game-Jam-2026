@@ -21,6 +21,7 @@ describe('the dance routines', () => {
           pose.wings,
           ...pose.armSwing,
           ...pose.armLift,
+          ...pose.elbow,
           ...pose.legSwing,
           pose.legSplay,
         ];
@@ -31,17 +32,26 @@ describe('the dance routines', () => {
       }
   });
 
-  it('boxes with one fist then the other, and ends with a fist in the air', () => {
+  it('boxes southpaw: bent-armed guard, right jab, left cross, fist in the air', () => {
     const beat = 1 / 12;
-    const left = at(1, beat * 0.35);
-    const right = at(1, beat * 1.35);
-    // A jab reaches further forwards than the guard.
-    expect(left.armSwing[0]).toBeLessThan(left.armSwing[1]);
-    expect(right.armSwing[1]).toBeLessThan(right.armSwing[0]);
+    // Between punches both elbows are well bent, the rear one tighter.
+    const guard = at(1, beat * 3.02);
+    expect(guard.elbow[1]).toBeGreaterThan(1.2);
+    expect(guard.elbow[0]).toBeGreaterThan(guard.elbow[1]);
+    // The right leads: a jab straightens that arm and leaves the left tucked.
+    const jab = at(1, beat * 0.35);
+    expect(jab.elbow[1]).toBeLessThan(0.2);
+    expect(jab.armSwing[1]).toBeLessThan(-1.4);
+    expect(jab.elbow[0]).toBeGreaterThan(1.8);
+    // The cross is the left, with the body turned through behind it.
+    const cross = at(1, beat * 2.35);
+    expect(cross.elbow[0]).toBeLessThan(0.2);
+    expect(cross.elbow[1]).toBeGreaterThan(1.2);
+    expect(cross.tiltY).toBeGreaterThan(jab.tiltY + 0.8);
     // The uppercut leaves the desk.
     expect(at(1, beat * 9.5).y).toBeGreaterThan(0.4);
     const pose = at(1, 0.95);
-    expect(pose.armSwing[1]).toBeLessThan(-2.5);
+    expect(pose.armSwing[0]).toBeLessThan(-2.5);
     expect(pose.wings).toBeGreaterThan(0.6);
   });
 

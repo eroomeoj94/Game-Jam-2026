@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classifyTriangle, isWood, PARTS } from './mothModel';
+import { BufferAttribute, BufferGeometry } from 'three';
+import { classifyTriangle, isWood, PARTS, splitLimb } from './mothModel';
 
 describe('cutting the wings off the moth model', () => {
   it('tells the wooden body from the painted wings by colour', () => {
@@ -83,5 +84,33 @@ describe('cutting the wings off the moth model', () => {
     expect(PARTS[classifyTriangle(limb(0.15, -0.7))]).toBe('legRight');
     expect(PARTS[classifyTriangle(limb(-0.2, -0.85))]).toBe('legLeft');
     expect(PARTS[classifyTriangle(limb(0.3, -0.85))]).toBe('legRight');
+  });
+});
+
+describe('cutting an arm at the elbow', () => {
+  it('puts each triangle in the half it sits in, with the elbow at the origin of the lower one', () => {
+    // Two triangles of a limb hanging from the origin: one above the cut,
+    // one below, the limb a little off to one side.
+    const limb = new BufferGeometry();
+    limb.setAttribute(
+      'position',
+      new BufferAttribute(
+        new Float32Array([
+          0.1, 0, 0, 0.2, 0, 0, 0.15, -0.16, 0, 0.1, -0.18, 0, 0.2, -0.18, 0,
+          0.15, -0.4, 0,
+        ]),
+        3,
+      ),
+    );
+    limb.setAttribute('uv', new BufferAttribute(new Float32Array(12), 2));
+    const { upper, lower, joint } = splitLimb(limb, -0.17);
+    expect(upper.getAttribute('position').count).toBe(3);
+    expect(lower.getAttribute('position').count).toBe(3);
+    expect(lower.getAttribute('uv').count).toBe(3);
+    expect(joint.y).toBe(-0.17);
+    expect(joint.x).toBeCloseTo(0.15);
+    // The lower half hangs from its own joint now.
+    expect(lower.getAttribute('position').getY(2)).toBeCloseTo(-0.23);
+    expect(lower.getAttribute('position').getX(2)).toBeCloseTo(0);
   });
 });

@@ -13,13 +13,15 @@ import {
 import { FUR, MOTH_LOOK } from '../config';
 import type { MothView } from '../game/world';
 import { createFurShells } from './fur';
-import { loadMothModel } from './mothModel';
+import { loadMothModel, splitLimb } from './mothModel';
 import { loadWeaponModel, WEAPON_GRIP } from './weaponModels';
 import type { WeaponId } from '../config';
 import type { createMaterials } from './materials';
 
 /** The right hand, measured from the right shoulder; the left mirrors it. */
 const HAND = { x: 0.07, y: -0.34, z: 0.02 };
+/** How far below the shoulder the elbow is. */
+const ELBOW = -0.17;
 
 export function createMoth(
   materials: ReturnType<typeof createMaterials>,
@@ -154,6 +156,9 @@ export function createMoth(
   let modelled = false;
   /** The wooden figure's arms and legs, left then right, once it is loaded. */
   const arms: Group[] = [];
+  /** The forearms, hinged at the elbows, and where those elbows are. */
+  const forearms: Group[] = [];
+  const elbows = [new Vector3(), new Vector3()];
   const legs: Group[] = [];
   void loadMothModel().then((model) => {
     if (!model) return;
@@ -201,14 +206,36 @@ export function createMoth(
         const joint = joints[side]!;
         const limb = new Group();
         limb.position.set(joint.x, joint.y, joint.z);
-        const part = new Mesh(geometry, wood);
-        part.castShadow = true;
-        limb.add(part);
         puppet.add(limb);
         limbs.push(limb);
+        if (limbs !== arms) {
+          const part = new Mesh(geometry, wood);
+          part.castShadow = true;
+          limb.add(part);
+          return;
+        }
+        // An arm is cut at the elbow so the forearm can bend.
+        const { upper, lower, joint: elbow } = splitLimb(geometry, ELBOW);
+        const forearm = new Group();
+        forearm.position.set(elbow.x, elbow.y, elbow.z);
+        elbows[side]!.set(elbow.x, elbow.y, elbow.z);
+        for (const [half, parent] of [
+          [upper, limb],
+          [lower, forearm],
+        ] as const) {
+          const part = new Mesh(half, wood);
+          part.castShadow = true;
+          parent.add(part);
+        }
+        limb.add(forearm);
+        forearms.push(forearm);
       });
     modelled = true;
-    hands.forEach((hand, side) => arms[side]?.add(hand));
+    // The hands go with the forearms.
+    hands.forEach((hand, side) => {
+      hand.position.sub(elbows[side]!);
+      forearms[side]?.add(hand);
+    });
     rememberColours();
   });
   // A grip on each arm, at the hand, left then right. A weapon is held in
@@ -398,11 +425,13 @@ export function createMoth(
       // Charging draws the weapon back, trembling as it nears full power;
       // the recoil throws it back further still.
       const tremble = Math.sin(seconds * 70) * 0.012 * pull * pull;
-      hands[1]!.position.set(
-        HAND.x + tremble,
-        HAND.y,
-        HAND.z - pull * 0.13 - kick * 0.1,
-      );
+      hands[1]!.position
+        .set(HAND.x + tremble, HAND.y, HAND.z - pull * 0.13 - kick * 0.1)
+        .sub(elbows[1]!);
+      // Only a routine bends the elbows; negative folds the forearm up.
+      forearms.forEach((forearm, side) => {
+        forearm.rotation.x = -(pose?.elbow[side] ?? 0);
+      });
       arms.forEach((arm, side) => {
         arm.rotation.x = armSwing[side] ?? 0;
         arm.rotation.z = side === 0 ? -(leftLift ?? armLift) : rightLift;

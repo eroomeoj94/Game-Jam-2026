@@ -21,6 +21,8 @@ export type DancePose = {
   armSwing: [number, number];
   /** Left and right arm, lifted out to the side. */
   armLift: [number, number];
+  /** Left and right elbow: how far the forearm is folded up. */
+  elbow: [number, number];
   legSwing: [number, number];
   /** Both legs spread apart. */
   legSplay: number;
@@ -47,21 +49,35 @@ const still = (): DancePose => ({
   wings: 0.22,
   armSwing: [0, 0],
   armLift: [0, 0],
+  elbow: [0, 0],
   legSwing: [0, 0],
   legSplay: 0,
 });
 
-/** Fists up in front of the face. */
-const GUARD = -1.15;
-/** One move to a beat: jabs, ducks, then a wound-up spinning uppercut. */
+/** The left arm and the right, as indexes into a pose's pairs. */
+const LEFT = 0;
+const RIGHT = 1;
+/**
+ * A southpaw's guard: side-on with the right foot and right hand leading.
+ * The lead arm is held out, bent at a right angle; the rear fist is tucked
+ * up by the chin with the elbow folded tight.
+ */
+const GUARD = {
+  swing: [-0.55, -0.95],
+  lift: [0.22, 0.3],
+  elbow: [2.1, 1.45],
+  /** The body turned so the right shoulder leads. */
+  twist: -0.45,
+} as const;
+/** One move to a beat: jabs, crosses and ducks, then a spinning uppercut. */
 const COMBO = [
-  'left',
-  'right',
-  'left',
+  'jab',
+  'jab',
+  'cross',
   'duck',
-  'right',
-  'left',
-  'right',
+  'jab',
+  'cross',
+  'jab',
   'duck',
   'wind',
   'upper',
@@ -70,9 +86,9 @@ const COMBO = [
 ] as const;
 
 /**
- * Shadow Boxing: bouncing on its toes behind a guard, a combination of
- * jabs and ducks, then an uppercut that lifts it off the desk in a spin and
- * a fist held high.
+ * Shadow Boxing, southpaw: bouncing on its toes behind a bent-armed guard,
+ * right jabs and left crosses that snap straight and fold back, ducks, then
+ * a left uppercut that lifts it off the desk in a spin and a fist held high.
  */
 function shadowBoxing(time: number): DancePose {
   const pose = still();
@@ -80,50 +96,62 @@ function shadowBoxing(time: number): DancePose {
   const index = Math.min(COMBO.length - 1, Math.floor(time / beat));
   const move = COMBO[index]!;
   const f = clamp(time / beat - index);
-  // A boxer's stance, never quite still.
-  pose.armSwing = [GUARD, GUARD];
-  pose.armLift = [0.28, 0.28];
-  pose.legSwing = [-0.25, 0.3];
+  // The stance, never quite still.
+  pose.armSwing = [...GUARD.swing];
+  pose.armLift = [...GUARD.lift];
+  pose.elbow = [...GUARD.elbow];
+  pose.tiltY = GUARD.twist;
+  pose.legSwing = [0.3, -0.3];
   pose.tiltX = 0.18;
   pose.y = Math.abs(Math.sin(time * 17)) * 0.05;
   pose.x = Math.sin(time * 8.5) * 0.07;
-  if (move === 'left' || move === 'right') {
-    const side = move === 'left' ? 0 : 1;
+  if (move === 'jab' || move === 'cross') {
+    const side = move === 'jab' ? RIGHT : LEFT;
     // Out fast, back slower.
     const reach = f < 0.35 ? ease(f / 0.35) : 1 - ease((f - 0.35) / 0.65);
-    pose.armSwing[side] = mix(GUARD, -1.62, reach);
-    pose.armLift[side] = mix(0.28, 0.05, reach);
-    pose.tiltY = (side === 0 ? 1 : -1) * 0.6 * reach;
-    pose.z = 0.26 * reach;
+    // The arm snaps straight from the shoulder, then folds back to guard.
+    pose.armSwing[side] = mix(GUARD.swing[side], -1.58, reach);
+    pose.armLift[side] = mix(GUARD.lift[side], 0.05, reach);
+    pose.elbow[side] = mix(GUARD.elbow[side], 0.08, reach);
+    // A jab barely turns the body; a cross brings the rear shoulder through.
+    pose.tiltY = GUARD.twist + (side === RIGHT ? -0.25 : 1.0) * reach;
+    pose.z = (side === RIGHT ? 0.16 : 0.28) * reach;
     // The wings flick open with every punch.
-    pose.wings = 0.25 + 0.5 * reach;
+    pose.wings = 0.25 + (side === RIGHT ? 0.35 : 0.6) * reach;
   } else if (move === 'duck') {
     const dip = Math.sin(Math.PI * f);
     pose.y = -0.16 * dip;
     pose.tiltZ = (index % 2 ? 1 : -1) * 0.5 * dip;
     pose.tiltX = 0.18 + 0.3 * dip;
   } else if (move === 'wind') {
+    // Down and round, the left fist dropped low with the elbow still bent.
     const drawn = ease(f);
     pose.y = -0.14 * drawn;
-    pose.tiltY = -0.9 * drawn;
+    pose.tiltY = GUARD.twist + 0.9 * drawn;
     pose.tiltX = 0.3;
-    pose.armSwing[1] = mix(GUARD, 0.7, drawn);
+    pose.armSwing[LEFT] = mix(GUARD.swing[LEFT], 0.5, drawn);
+    pose.elbow[LEFT] = mix(GUARD.elbow[LEFT], 1.5, drawn);
   } else if (move === 'upper') {
     pose.y = Math.sin(Math.PI * f) * 0.6;
     pose.x = 0;
     pose.turn = TURN * ease(f);
     pose.tiltX = -0.1;
-    pose.armSwing[1] = mix(0.7, -2.9, clamp(f * 3));
-    pose.legSwing = [-0.5, -0.3];
+    pose.tiltY = 0;
+    // Driven up bent, straightening only at the top.
+    pose.armSwing[LEFT] = mix(0.5, -2.9, clamp(f * 2.5));
+    pose.elbow[LEFT] = mix(1.5, 0.15, clamp((f - 0.3) * 2.5));
+    pose.legSwing = [-0.3, -0.5];
     pose.wings = 1.1;
   } else {
-    // Two beats with the winning fist in the air.
+    // Two beats with the winning fist in the air, the other arm flexed.
     const held = clamp((time - 10 * beat) / (2 * beat));
     pose.x = 0;
     pose.y = Math.abs(Math.sin(held * TURN)) * 0.04;
     pose.tiltX = -0.12;
-    pose.armSwing = [-0.2, -2.9];
-    pose.armLift = [0.5, 0.15];
+    pose.tiltY = 0;
+    pose.armSwing = [-2.9, -0.3];
+    pose.armLift = [0.15, 0.7];
+    pose.elbow = [0.15, 1.9];
     pose.legSwing = [0, 0];
     pose.legSplay = 0.25;
     pose.wings = 0.9 + Math.sin(held * TURN * 3) * 0.2;

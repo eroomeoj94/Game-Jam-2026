@@ -101,6 +101,68 @@ export function classifyTriangle(
   return 0;
 }
 
+/**
+ * Cut a hanging limb in two at height `y` (in the limb's own space, joint at
+ * the origin), so the lower half can bend. Returns the upper half, the lower
+ * half with the new joint at its origin, and where that joint is.
+ */
+export function splitLimb(geometry: BufferGeometry, y: number) {
+  const names = ['position', 'normal', 'uv'] as const;
+  const position = geometry.getAttribute('position');
+  // The joint sits in the middle of the limb where it is cut.
+  const joint = { x: 0, y, z: 0 };
+  let near = 0;
+  for (let index = 0; index < position.count; index++)
+    if (Math.abs(position.getY(index) - y) < 0.04) {
+      joint.x += position.getX(index);
+      joint.z += position.getZ(index);
+      near++;
+    }
+  if (near) {
+    joint.x /= near;
+    joint.z /= near;
+  }
+  const halves = [0, 1].map(() => ({
+    position: [] as number[],
+    normal: [] as number[],
+    uv: [] as number[],
+  }));
+  for (let corner = 0; corner + 2 < position.count; corner += 3) {
+    const height =
+      (position.getY(corner) +
+        position.getY(corner + 1) +
+        position.getY(corner + 2)) /
+      3;
+    const lower = height < y;
+    const half = halves[lower ? 1 : 0]!;
+    for (let index = corner; index < corner + 3; index++)
+      for (const name of names) {
+        const attribute = geometry.getAttribute(name);
+        if (!attribute) continue;
+        for (let item = 0; item < attribute.itemSize; item++) {
+          let value = attribute.getComponent(index, item);
+          if (lower && name === 'position')
+            value -= [joint.x, joint.y, joint.z][item]!;
+          half[name].push(value);
+        }
+      }
+  }
+  const [upper, lower] = halves.map((half) => {
+    const part = new BufferGeometry();
+    for (const name of names)
+      if (half[name].length)
+        part.setAttribute(
+          name,
+          new BufferAttribute(
+            new Float32Array(half[name]),
+            name === 'uv' ? 2 : 3,
+          ),
+        );
+    return part;
+  });
+  return { upper: upper!, lower: lower!, joint };
+}
+
 let pending: Promise<MothModel | undefined> | undefined;
 
 /** Load and cut up the model once; undefined when it is missing or broken. */
