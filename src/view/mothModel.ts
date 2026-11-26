@@ -89,10 +89,18 @@ export function classifyTriangle(
   const y = mean((corner) => corner.y);
   const z = mean((corner) => corner.z);
   const painted = corners.filter((corner) => !corner.wood).length;
+  // A hand hangs out as far as the wings do, but it is bare wood and in
+  // front of them; everything else that far from the spine is wing.
+  const hand = painted === 0 && z > WING_DEPTH;
   const wing =
-    Math.abs(x) > BODY_REACH ||
+    (Math.abs(x) > BODY_REACH && !hand) ||
     (painted * 2 > corners.length && z < WING_DEPTH);
   if (wing) return x < 0 ? 1 : 2;
+  return limbAt(x, y);
+}
+
+/** Which limb, or the body, a point of the wooden figure belongs to. */
+function limbAt(x: number, y: number) {
   if (y > LIMBS.armBottom && y < LIMBS.armTop) {
     if (x < LIMBS.armLeft) return 3;
     if (x > LIMBS.armRight) return 4;
@@ -163,6 +171,108 @@ export function splitLimb(geometry: BufferGeometry, y: number) {
   return { upper: upper!, lower: lower!, joint };
 }
 
+/**
+ * Paint that has picked up a tint of the wood behind it sorts as body or
+ * limb, leaving scraps that stay put while the wing they belong to flaps.
+ * They are easy to tell: each part is one joined-up piece, so any other
+ * island of it lying behind the back is wing. `kinds` holds one PARTS index
+ * for each triangle of the unindexed `position`, and is corrected in place.
+ */
+export function adoptStrays(
+  kinds: number[],
+  position: {
+    count: number;
+    getX(i: number): number;
+    getY(i: number): number;
+    getZ(i: number): number;
+  },
+  behind = WING_DEPTH,
+  /** True for each triangle that is plainly painted wing, not wood. */
+  painted?: readonly boolean[],
+) {
+  // Corners at the same place are the same point, whatever their index.
+  const points = new Map<string, number>();
+  const point = (index: number) => {
+    const key = `${Math.round(position.getX(index) * 2e3)},${Math.round(position.getY(index) * 2e3)},${Math.round(position.getZ(index) * 2e3)}`;
+    let id = points.get(key);
+    if (id === undefined) points.set(key, (id = points.size));
+    return id;
+  };
+  const corners = Array.from({ length: kinds.length * 3 }, (_, index) =>
+    point(index),
+  );
+  // Join triangles of the same part that share a point.
+  const group = kinds.map((_, triangle) => triangle);
+  const find = (triangle: number): number => {
+    while (group[triangle] !== triangle) {
+      group[triangle] = group[group[triangle]!]!;
+      triangle = group[triangle]!;
+    }
+    return triangle;
+  };
+  const owner = new Map<string, number>();
+  kinds.forEach((kind, triangle) => {
+    for (let corner = 0; corner < 3; corner++) {
+      const key = `${kind}:${corners[triangle * 3 + corner]}`;
+      const other = owner.get(key);
+      if (other === undefined) owner.set(key, triangle);
+      else group[find(triangle)] = find(other);
+    }
+  });
+  const sizes = new Map<number, number>();
+  kinds.forEach((_, triangle) => {
+    const root = find(triangle);
+    sizes.set(root, (sizes.get(root) ?? 0) + 1);
+  });
+  const largest = new Map<number, number>();
+  for (const [root, size] of sizes) {
+    const kind = kinds[root]!;
+    if (size > (sizes.get(largest.get(kind) ?? -1) ?? 0))
+      largest.set(kind, root);
+  }
+  let adopted = 0;
+  const moved = new Set<number>();
+  kinds.forEach((kind, triangle) => {
+    if (kind === 1 || kind === 2 || find(triangle) === largest.get(kind))
+      return;
+    const at = [0, 1, 2].map((corner) => triangle * 3 + corner);
+    const z = at.reduce((sum, index) => sum + position.getZ(index), 0) / 3;
+    if (z >= behind) return;
+    const x = at.reduce((sum, index) => sum + position.getX(index), 0) / 3;
+    kinds[triangle] = x < 0 ? 1 : 2;
+    moved.add(triangle);
+    adopted++;
+  });
+  if (!painted) return adopted;
+  // The other way round: a hand that reaches out past the body, or a scrap
+  // too dark to read as wood, sorts as wing. A small island of wing that is
+  // not painted like one goes back to the limb or body it sits in.
+  const wings = [1, 2].map(
+    (wing) => kinds.filter((kind) => kind === wing).length,
+  );
+  const blue = new Map<number, number>();
+  kinds.forEach((kind, triangle) => {
+    if ((kind === 1 || kind === 2) && painted[triangle] && !moved.has(triangle))
+      blue.set(find(triangle), (blue.get(find(triangle)) ?? 0) + 1);
+  });
+  kinds.forEach((kind, triangle) => {
+    if ((kind !== 1 && kind !== 2) || moved.has(triangle)) return;
+    const root = find(triangle);
+    const size = sizes.get(root) ?? 0;
+    if (size > wings[kind - 1]! * 0.03) return;
+    if ((blue.get(root) ?? 0) * 2 > size) return;
+    const at = [0, 1, 2].map((corner) => triangle * 3 + corner);
+    const mean = (pick: (index: number) => number) =>
+      at.reduce((sum, index) => sum + pick(index), 0) / 3;
+    kinds[triangle] = limbAt(
+      mean((index) => position.getX(index)),
+      mean((index) => position.getY(index)),
+    );
+    adopted++;
+  });
+  return adopted;
+}
+
 let pending: Promise<MothModel | undefined> | undefined;
 
 /** Load and cut up the model once; undefined when it is missing or broken. */
@@ -226,6 +336,7 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
   }));
   // Find the wings first, to learn where their hinge is.
   const kinds: number[] = [];
+  const painted: boolean[] = [];
   let hingeZ = 0;
   let hingeCount = 0;
   for (let corner = 0; corner < position.count; corner += 3) {
@@ -245,17 +356,23 @@ function cutUp(scene: { traverse(visit: (object: unknown) => void): void }) {
         y: position.getY(index),
         z: position.getZ(index),
         wood: isWood(pixels[at]!, pixels[at + 1]!, pixels[at + 2]!),
+        // Wing paint is blue-grey: more blue in it than red.
+        blue: pixels[at + 2]! > pixels[at]!,
       };
     });
-    const kind = classifyTriangle(corners);
-    kinds.push(kind);
-    if (kind !== 1 && kind !== 2) continue;
-    for (const { x, z } of corners)
-      if (Math.abs(x) < 0.12) {
-        hingeZ += z;
+    kinds.push(classifyTriangle(corners));
+    painted.push(corners.filter((corner) => corner.blue).length >= 2);
+  }
+  adoptStrays(kinds, position, WING_DEPTH, painted);
+  // The hinge runs down the spine, where the wings meet.
+  kinds.forEach((kind, triangle) => {
+    if (kind !== 1 && kind !== 2) return;
+    for (let corner = triangle * 3; corner < triangle * 3 + 3; corner++)
+      if (Math.abs(position.getX(corner)) < 0.12) {
+        hingeZ += position.getZ(corner);
         hingeCount++;
       }
-  }
+  });
   const hinge = {
     y: lift,
     z: (hingeCount ? hingeZ / hingeCount : -0.14) * scale,

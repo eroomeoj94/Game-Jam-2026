@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BufferAttribute, BufferGeometry } from 'three';
-import { classifyTriangle, isWood, PARTS, splitLimb } from './mothModel';
+import {
+  adoptStrays,
+  classifyTriangle,
+  isWood,
+  PARTS,
+  splitLimb,
+} from './mothModel';
 
 describe('cutting the wings off the moth model', () => {
   it('tells the wooden body from the painted wings by colour', () => {
@@ -68,6 +74,19 @@ describe('cutting the wings off the moth model', () => {
     ).toBe(2);
   });
 
+  it('leaves a bare wooden hand with its arm, however far out it hangs', () => {
+    // As far from the spine as the wings, but all wood and in front of them.
+    const hand = [
+      corner(-0.36, 0.05, true, -0.42),
+      corner(-0.37, 0.05, true, -0.45),
+      corner(-0.35, 0.05, true, -0.47),
+    ];
+    expect(PARTS[classifyTriangle(hand)]).toBe('armLeft');
+    // The same wood behind the back is the edge of a wing.
+    const edge = hand.map((point) => ({ ...point, z: -0.15 }));
+    expect(PARTS[classifyTriangle(edge)]).toBe('wingLeft');
+  });
+
   it('cuts the arms off at the shoulders and the legs at the hips', () => {
     const limb = (x: number, y: number) => [
       corner(x, 0, true, y),
@@ -112,5 +131,72 @@ describe('cutting an arm at the elbow', () => {
     // The lower half hangs from its own joint now.
     expect(lower.getAttribute('position').getY(2)).toBeCloseTo(-0.23);
     expect(lower.getAttribute('position').getX(2)).toBeCloseTo(0);
+  });
+});
+
+describe('tidying up after the cut', () => {
+  /** Unindexed triangles, three corners each, as [x, y, z]. */
+  const mesh = (triangles: number[][][]) => {
+    const flat = triangles.flat();
+    return {
+      count: flat.length,
+      getX: (index: number) => flat[index]![0]!,
+      getY: (index: number) => flat[index]![1]!,
+      getZ: (index: number) => flat[index]![2]!,
+    };
+  };
+  /** A strip of `count` joined triangles starting at (x, y), at depth z. */
+  const strip = (x: number, y: number, z: number, count: number) =>
+    Array.from({ length: count }, (_, step) => [
+      [x + step * 0.01, y, z],
+      [x + (step + 1) * 0.01, y, z],
+      [x + step * 0.01, y + 0.01, z],
+    ]);
+
+  it('gives scraps of body stranded behind the back to the wing they lie in', () => {
+    const body = strip(0, 0, 0.05, 20);
+    const scrapLeft = strip(-0.3, -0.2, -0.15, 2);
+    const scrapRight = strip(0.3, -0.2, -0.15, 2);
+    // A separate piece in front of the back is left alone: it is not wing.
+    const button = strip(0, 0.3, 0.1, 2);
+    const kinds = [
+      ...body.map(() => 0),
+      ...scrapLeft.map(() => 0),
+      ...scrapRight.map(() => 0),
+      ...button.map(() => 0),
+    ];
+    const moved = adoptStrays(
+      kinds,
+      mesh([...body, ...scrapLeft, ...scrapRight, ...button]),
+    );
+    expect(moved).toBe(4);
+    expect(kinds.slice(0, 20).every((kind) => kind === 0)).toBe(true);
+    expect(kinds.slice(20, 22)).toEqual([1, 1]);
+    expect(kinds.slice(22, 24)).toEqual([2, 2]);
+    expect(kinds.slice(24)).toEqual([0, 0]);
+  });
+
+  it('hands small unpainted islands of wing back to the limb they sit in', () => {
+    const wing = strip(-0.9, 0.3, -0.15, 100);
+    // Dark scraps down by the hips that sorted as wing.
+    const scrap = strip(-0.1, -0.7, -0.15, 2);
+    const kinds = [...wing.map(() => 1), ...scrap.map(() => 1)];
+    const painted = [...wing.map(() => true), ...scrap.map(() => false)];
+    adoptStrays(kinds, mesh([...wing, ...scrap]), -0.06, painted);
+    expect(kinds.slice(0, 100).every((kind) => kind === 1)).toBe(true);
+    expect(kinds.slice(100).map((kind) => PARTS[kind])).toEqual([
+      'legLeft',
+      'legLeft',
+    ]);
+    // A small island that is painted like a wing stays one.
+    const chip = strip(-0.5, -0.3, -0.15, 2);
+    const again = [...wing.map(() => 1), ...chip.map(() => 1)];
+    adoptStrays(
+      again,
+      mesh([...wing, ...chip]),
+      -0.06,
+      again.map(() => true),
+    );
+    expect(again.every((kind) => kind === 1)).toBe(true);
   });
 });

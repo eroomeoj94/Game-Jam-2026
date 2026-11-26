@@ -54,7 +54,9 @@ The game pauses while the window is not focused.
 
 ## The moth model
 
-The moths are a wooden figure generated with Artlist's 3D tool, loaded from
+The moths are a wooden figure generated with Meshy v7 at its High setting in
+Artlist, brought down from 100,000 triangles to 20,000 with the texture layout
+protected so the wing stripes stay clean, and loaded from
 `public/models/artlist/moth.glb`. If the file is missing the game draws its
 built-in felt moths. The game cuts the wings, arms and legs away from the body
 when it loads the model, so they can flap and swing.
