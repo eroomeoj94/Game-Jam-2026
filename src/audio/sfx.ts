@@ -3,7 +3,7 @@ import type { Position, WorldEvent, WorldView } from '../game/world';
 
 /**
  * Sound samples, loaded from `public/sounds/artlist/` when present: `.aac`
- * for effects and `music.mp3` for the background tune.
+ * for effects and `.m4a` for the two tunes.
  * They are Artlist sounds licensed to whoever downloaded them, so they
  * are not in the repository; see `public/sounds/README.md`. Without them the
  * game falls back to small synthesised sounds.
@@ -31,7 +31,7 @@ const isTune = (name: string): name is Tune =>
   (TUNES as readonly string[]).includes(name);
 export type SampleName = (typeof SAMPLES)[number];
 const samplePath = (name: SampleName) =>
-  `sounds/artlist/${name}.${isTune(name) ? 'mp3' : 'aac'}`;
+  `sounds/artlist/${name}.${isTune(name) ? 'm4a' : 'aac'}`;
 
 /**
  * The announcer: short spoken lines for the big moments, generated with an
@@ -317,12 +317,23 @@ export function createSfx({
   function load(ctx: AudioContext) {
     if (loading) return;
     loading = true;
-    for (const name of SAMPLES)
-      void loadSample(ctx, name).then((buffer) => {
+    const fetchSample = (name: SampleName) =>
+      loadSample(ctx, name).then((buffer) => {
         if (!buffer) return;
         makeup.set(name, normalisingGain(buffer));
         buffers.set(name, buffer);
       });
+    // The title tune is wanted at once and is one of the biggest files, so
+    // it goes first with the line to itself; everything else follows it.
+    void fetchSample('title')
+      .catch(() => undefined)
+      .then(() => loadRest(ctx, fetchSample));
+  }
+  function loadRest(
+    ctx: AudioContext,
+    fetchSample: (name: SampleName) => Promise<void>,
+  ) {
+    for (const name of SAMPLES) if (name !== 'title') void fetchSample(name);
     const mothFiles = MOTH_VOICES.flatMap((_, moth) =>
       MOTH_CUES.flatMap((cue) => mothTakes(moth, cue)).concat(
         DANCE_CUES.map((_, dance) => danceTake(moth, dance + 1)),
@@ -683,6 +694,12 @@ export function createSfx({
   }
 
   return {
+    /**
+     * Get the sound ready and start it if the browser allows. Called as the
+     * page opens, so the files are already here when they are wanted, and
+     * again on the first click or key, which is when most browsers let
+     * sound begin.
+     */
     unlock() {
       const ctx = audio();
       if (ctx) load(ctx);

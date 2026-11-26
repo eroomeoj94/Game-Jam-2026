@@ -1847,6 +1847,9 @@ export function startApplication({
   music?.addEventListener('click', onMusic);
   if (music) music.disabled = false;
   window.addEventListener('keydown', onMuteKey);
+  // Fetch the sounds now, title tune first, and play it straight away where
+  // the browser lets a page make sound unasked (as itch's game frame does).
+  sfx.unlock();
   window.addEventListener('pointerdown', onFirstGesture, { once: true });
   window.addEventListener('keydown', onFirstGesture, { once: true });
   selectors.forEach((button) => button.addEventListener('click', onSelect));

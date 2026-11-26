@@ -15,3 +15,6 @@ public/sounds/artlist/
 # Builds packed for itch: they contain the Artlist sounds, so never commit them.
 moth-fight-club-itch/
 moth-fight-club-itch.zip
+
+# The tunes as downloaded; the game ships smaller copies made from them.
+sounds-src/

@@ -308,8 +308,8 @@ describe('the announcer', () => {
       random: () => rolls.shift() ?? 0,
     });
     sfx.unlock();
-    await Promise.resolve();
-    await Promise.resolve();
+    // The title tune loads first, then everything else behind it.
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve();
     const spoken = () =>
       started
         .map(({ name }) => name)
@@ -369,8 +369,8 @@ describe('moth voices', () => {
       random: () => 0,
     });
     sfx.unlock();
-    await Promise.resolve();
-    await Promise.resolve();
+    // The title tune loads first, then everything else behind it.
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve();
     const spoken = () =>
       started
         .map(({ name }) => name)
