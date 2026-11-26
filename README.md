@@ -72,6 +72,36 @@ arms and legs away at load: the legs swing as they walk and an arm swings up
 from the shoulder and stretches to smack the desk. Without the files the felt
 giants are drawn instead.
 
+## Levels
+
+The title screen offers two: the **Desk** and the **Kitchen**, a worktop with a
+sink in the middle that anyone knocked into is lost in. Both have the same six
+lamps in three tiers. Every match is laid out afresh: the clusters under the
+low lamps swap places and the clutter is rescattered, so the page reloads
+between matches. Tests keep the original fixed desk with nothing moving
+(`buildLevel` with no seed, in `src/level/layout.ts`); a `seed` in the saved
+setup pins a layout for debugging.
+
+Each level has pieces that join in, simulated in `src/game/contraptions.ts`:
+
+|                                             | Desk                                   | Kitchen                                |
+| ------------------------------------------- | -------------------------------------- | -------------------------------------- |
+| Blows moths along                           | A fan that sweeps side to side         | A kettle that lets off steam in bursts |
+| Throws whoever is on it                     | A ruler see-saw (land on the high end) | A toaster that pops every few seconds  |
+| Drives laps and shoves                      | A wind-up car                          | A clockwork mouse                      |
+| Rolls when pushed                           | A pencil                               | A rolling pin                          |
+| Tips over, leaving a slippery puddle        | A mug of coffee                        | A bottle of milk                       |
+| Comes down when punched, blasted or slapped | A tower of books                       | A stack of plates                      |
+
+A plank also juts out over the front edge with a perch on the end.
+
+The scenery is 22 models generated with Meshy v7 in Artlist
+(`public/models/props/`, about 11 MB): mugs, pencil pots, boxes, the toaster,
+kettle, loaf and so on. Each is fitted into the simple box or cylinder the
+physics uses for it (`src/view/props.ts`), and that plain shape is drawn first
+and stays if a model is missing. The book stacks and the laptop are still drawn
+by the code.
+
 ## Two, three or four teams
 
 The title screen asks how many teams are playing and how many of them people

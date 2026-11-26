@@ -26,7 +26,6 @@ export const PROPS = {
   tin: { file: 'tin', fit: 'round' },
   box: { file: 'box', fit: 'box' },
   pad: { file: 'pad', fit: 'box' },
-  openbook: { file: 'book', fit: 'box' },
   toaster: { file: 'toaster', fit: 'box' },
   // It arrived standing on its edge.
   board: { file: 'board', fit: 'box', turn: [-Math.PI / 2, 0, 0] },

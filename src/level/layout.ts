@@ -13,7 +13,6 @@ export type BoxPiece = Piece & {
     | 'laptop'
     | 'box'
     | 'pad'
-    | 'openbook'
     | 'ruler'
     | 'eraser'
     | 'toaster'
@@ -379,7 +378,7 @@ const study: Cluster = (x, z, lively) => ({
           radius: 0.9,
           height: 1.9,
           puddle: 3.4,
-          color: 0x5a3a22,
+          color: 0x7a4a26,
         },
       ]
     : [],

@@ -228,6 +228,9 @@ export function startApplication({
   const scene = createScene(host);
   const sfx = createSfx();
   let world = newWorld();
+  // For poking at the level from the browser console while developing.
+  if (import.meta.env?.DEV)
+    Object.assign(window, { mothFightClub: { scene, world: () => world } });
   let match = newMatch();
   // The line-up: how many teams, and how many of them people play. The
   // people take the first teams and the computer plays the rest.
@@ -1902,6 +1905,13 @@ export function startApplication({
     !playing || new URLSearchParams(location.search).has('tune'),
   );
   modeTag.textContent = playing ? 'Match' : 'Weapon playground';
+  // The corner label names the level.
+  const edition = document.querySelector<HTMLElement>('#edition');
+  if (edition && LEVEL === 'kitchen') {
+    const number = document.createElement('span');
+    number.textContent = '02 / MINIATURE WORLD';
+    edition.replaceChildren('THE KITCHEN BOUT', number);
+  }
   reset.textContent = playing ? 'New match' : 'Reset scene';
   moveMeter.hidden = !playing || MATCH.moveSeconds <= 0;
   nudge.hidden = zaps.hidden = playing;

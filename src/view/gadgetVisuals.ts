@@ -307,10 +307,10 @@ export function createGadgetVisuals(scene: Scene, materials: Materials) {
         new CircleGeometry(1, 40),
         new MeshStandardMaterial({
           color: first.color,
-          roughness: 0.12,
-          metalness: 0.1,
+          roughness: 0.08,
+          metalness: 0.25,
           transparent: true,
-          opacity: 0.88,
+          opacity: 0.92,
         }),
       );
       puddle.rotation.x = -Math.PI / 2;

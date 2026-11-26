@@ -418,6 +418,11 @@ export function createScene(host: HTMLElement) {
     color: 0x5f7d6e,
     roughness: 0.8,
   });
+  /** Draws nothing, but still counts for shadows and for the camera. */
+  const unseen = new MeshStandardMaterial({
+    colorWrite: false,
+    depthWrite: false,
+  });
   /**
    * Scenery with a model: a plain stand-in the shape of its collider, which
    * steps aside for the model once that has loaded.
@@ -459,8 +464,14 @@ export function createScene(host: HTMLElement) {
       // Round things face any way they like, the same way each time.
       if (round)
         model.rotation.y = Math.sin(x * 12.9898 + z * 78.233) * Math.PI;
+      // The stand-in stays, unseen, to cast the shadow: far cheaper than
+      // drawing every model again for each lamp.
+      model.traverse((part) => {
+        part.castShadow = false;
+      });
       scene.add(model);
-      stand.visible = false;
+      stand.material = unseen;
+      stand.receiveShadow = false;
     });
     return true;
   }
