@@ -305,6 +305,18 @@ export function createMoth(
       for (const { material } of tintable)
         if (material.emissiveMap)
           material.emissiveIntensity = MOTH_LOOK.glow * (1 - char);
+      puppet.scale.set(1, 1, 1);
+      if (state.squished) {
+        // Flat as a pressed flower, wings and all.
+        root.rotation.y = state.heading;
+        puppet.rotation.set(0, 0, 0);
+        puppet.scale.set(1.5, 0.07, 1.5);
+        puppet.position.set(0, -0.44, 0);
+        wings.forEach((wing, index) => {
+          wing.rotation.y = (index === 0 ? -1 : 1) * 0.1;
+        });
+        return;
+      }
       if (state.zapped) {
         // Cartoon tumble: smooth spin, stiff limbs, wings flung wide.
         tumble += delta * 13;

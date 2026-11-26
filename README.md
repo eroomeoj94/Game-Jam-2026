@@ -33,6 +33,8 @@ Play one player against the computer or two players on one keyboard.
   team a point and sits out a round.
 - Each round a giant hand hangs over the busiest lamp and swats it after both
   teams have played. A firecracker or a Bosh that lands draws it elsewhere.
+  Any moth under it is squashed flat and is off the desk for a round, the same
+  as one knocked over the edge.
 - First to ten wins.
 
 Until you press a start button, two computers play a demo match behind the
@@ -119,7 +121,7 @@ Each team has one Mind Control a match: a barrel ray gun (`weapon-mind.glb`)
 that takes over a giant. Press fire to take control: the view lifts to the whole desk,
 the movement keys steer a purple target, and the weapon keys pick which giant
 does it. Press fire again and that giant, glowing purple, slams the spot, replacing any
-hand already hanging over the desk. Its own moths are flung too if they are
+hand already hanging over the desk. Its own moths are squashed too if they are
 under it.
 
 ## Sound

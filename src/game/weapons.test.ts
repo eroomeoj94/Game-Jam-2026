@@ -306,7 +306,7 @@ describe('giant hands', () => {
     expect(types(world)).not.toContain('loom');
   });
 
-  it('warn with a shadow, then fling the moths underneath outwards', () => {
+  it('warn with a shadow, then squash the moths underneath off the desk', () => {
     const world = setup();
     world.placeMoth(0, { x: 2, y: 0.5, z: FRONT });
     world.placeMoth(1, { x: HAZARD.radius + 3, y: 0.5, z: FRONT });
@@ -331,12 +331,23 @@ describe('giant hands', () => {
       expect.objectContaining({ type: 'smack', moths: 1 }),
     );
     expect(world.snapshot().hazards[0]!.phase).toBe('down');
-    advance(world, 30);
-    const after = world.snapshot().moths;
-    // Moth 0 was under the palm, to its right, so it flies further right.
-    expect(after[0]!.x - before[0]!.x).toBeGreaterThan(2);
-    expect(after[0]!.staggered).toBe(true);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'squish', moth: 0, team: 0 }),
+    );
+    // Moth 0 was under the palm: it lies flat where it stood, out of play.
+    const flat = world.snapshot().moths[0]!;
+    expect(flat).toMatchObject({ squished: true, respawning: false });
+    expect(flat.x).toBeCloseTo(before[0]!.x, 1);
+    expect(world.selectMoth(0)).toBe(false);
+    // Then it is gone, the same as one knocked off the edge.
+    advance(world, Math.ceil(HAZARD.squashSeconds * 60) + 2);
+    expect(world.snapshot().moths[0]).toMatchObject({
+      squished: false,
+      respawning: true,
+    });
     // Moth 1 stood outside the ring.
+    const after = world.snapshot().moths;
+    expect(after[1]).toMatchObject({ squished: false, respawning: false });
     expect(after[1]!.x).toBeCloseTo(before[1]!.x, 1);
   });
 
@@ -370,8 +381,9 @@ describe('giant hands', () => {
       expect.objectContaining({ type: 'smack', moths: 1 }),
     );
     expect(MIND.warnSeconds).toBeGreaterThan(PLAYGROUND.cooldown * 2);
-    advance(world, 30);
-    expect(world.snapshot().moths[1]!.x - before.x).toBeGreaterThan(2);
+    // A commanded hand squashes just the same.
+    expect(world.snapshot().moths[1]).toMatchObject({ squished: true });
+    expect(world.snapshot().moths[1]!.x).toBeCloseTo(before.x, 1);
   });
 
   it('can be dodged during the warning', () => {

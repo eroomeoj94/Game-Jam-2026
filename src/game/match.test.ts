@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ARENA, LAMPS, MATCH } from '../config';
-import { createMatch, crowdedSpot, lampControl } from './match';
+import { createMatch, crowdedSpot, emptyTeams, lampControl } from './match';
 import type { LampControl, Match, TurnFacts } from './match';
 import { createWorld } from './world';
+import type { WorldView } from './world';
 
 // Moths 0 and 2 are team 0; moths 1 and 3 are team 1.
 const TEAMS = [0, 1, 0, 1];
@@ -718,5 +719,26 @@ describe('the hot lamp and the second team', () => {
       scores: [0, 2 + MATCH.hotPoints + 1],
       points: [MATCH.hotPoints, 0, 1],
     });
+  });
+});
+
+describe('a team with nobody left', () => {
+  const moth = (team: number, gone: Partial<WorldView['moths'][number]>) =>
+    ({ team, respawning: false, squished: false, ...gone }) as never;
+  const view = (moths: unknown[]) => ({ moths }) as unknown as WorldView;
+
+  it('is one whose every moth is off the desk or squashed', () => {
+    expect(
+      emptyTeams(
+        view([
+          moth(0, { respawning: true }),
+          moth(0, { squished: true }),
+          moth(1, { respawning: true }),
+          moth(1, {}),
+        ]),
+        3,
+      ),
+      // The third team has no moths at all, so it is not "wiped out".
+    ).toEqual([true, false, false]);
   });
 });

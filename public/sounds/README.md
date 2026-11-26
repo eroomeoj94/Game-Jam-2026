@@ -59,6 +59,12 @@ were added later the same day with a wilder delivery, and interrupt any other
 line. Without the clips the game has no announcer and falls back to the browser's
 spoken "Bosh!".
 
+Added on 26 November 2026: the call before a match (`ready`, `flutter`,
+`fight`), three for a hand catching someone (`squish-1` to `squish-3`), and the
+lines for a team with nobody left on the desk: two for each team (`wiped-0-1`
+to `wiped-3-2`, "You've got no fans! Where have all the Mustard moths gone?")
+and two for anyone (`wiped-any-1`, `wiped-any-2`).
+
 ## Moth voice lines (not in the repository)
 
 `artlist/voice/moth/` holds 56 clips: what a moth says after a move or an

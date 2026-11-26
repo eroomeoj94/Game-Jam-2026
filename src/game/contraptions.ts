@@ -93,6 +93,7 @@ export type GadgetMoth = {
   grounded: boolean;
   respawning: boolean;
   zap: number;
+  squash: number;
 };
 
 type Dependencies = {
@@ -148,7 +149,8 @@ export function createContraptions({
   let time = 0;
   /** Moths in a blower's stream this tick: they do not brake against it. */
   const blown = new Set<number>();
-  const inPlay = (moth: GadgetMoth) => !moth.respawning && moth.zap <= 0;
+  const inPlay = (moth: GadgetMoth) =>
+    !moth.respawning && moth.zap <= 0 && moth.squash <= 0;
   const solid = (body: Body) => {
     standable.add(body);
     world.addBody(body);

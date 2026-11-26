@@ -412,7 +412,9 @@ export const HAZARD = {
   radius: 4,
   /** Chance a hand aims at a lamp's light instead of anywhere on the desk. */
   lampBias: 0.6,
-  /** Outward and upward speed given to a moth it hits. */
+  /** Seconds a squashed moth lies flat under the palm before it is gone. */
+  squashSeconds: 0.9,
+  /** How hard the slap shoves loose things on the desk, and how far up. */
   force: 12,
   lift: 8,
   /** Seconds the hit moth tumbles without braking. */

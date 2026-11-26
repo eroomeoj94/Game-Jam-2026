@@ -61,6 +61,8 @@ export type MothView = Position & {
   staggered: boolean;
   /** True during the comic flight after being zapped. */
   zapped: boolean;
+  /** True while lying flat under a giant's hand, on its way out. */
+  squished: boolean;
   /** True for a moment after throwing a Bosh, for the lunge pose. */
   punching: boolean;
   /** The dance routine being performed, from 1; 0 when not dancing. */
@@ -111,8 +113,10 @@ export type WorldEvent =
   | { type: 'loom'; position: Position }
   /** A loud noise drew the giants' attention to a new spot. */
   | { type: 'heard'; position: Position }
-  /** A giant hand hit the desk, flinging `moths` moths. */
+  /** A giant hand hit the desk, squashing `moths` moths. */
   | { type: 'smack'; position: Position; moths: number }
+  /** A moth was flattened by a hand, and is off the desk. */
+  | { type: 'squish'; moth: number; team: number; position: Position }
   | { type: 'explode'; position: Position }
   | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position }
   /** A moth took over giant `person`, who will smack `position`. */
@@ -289,6 +293,8 @@ export function createWorld({
       stagger: 0,
       /** Seconds of zap flight left; 0 when not zapped. */
       zap: 0,
+      /** Seconds left lying squashed under a hand; 0 when not. */
+      squash: 0,
       /** Seconds left of the punch lunge pose. */
       punch: 0,
       /** Dance routine in progress, from 1; 0 when not dancing. */
@@ -414,7 +420,8 @@ export function createWorld({
   }
 
   /** A moth is in play when it can be pushed, zapped or score. */
-  const inPlay = (moth: Moth) => !moth.respawning && moth.zap <= 0;
+  const inPlay = (moth: Moth) =>
+    !moth.respawning && moth.zap <= 0 && moth.squash <= 0;
 
   function knock(
     moth: Moth,
@@ -445,6 +452,7 @@ export function createWorld({
     moth.fluttering = false;
     moth.stagger = 0;
     moth.zap = 0;
+    moth.squash = 0;
   }
 
   /** Zap a moth: its team pays, and it is flung away from the zapper. */
@@ -700,7 +708,7 @@ export function createWorld({
     raiseHand(at, attention === 'hold');
   }
 
-  /** The hand lands: every moth under it is flung outwards, lamps swing. */
+  /** The hand lands: every moth under it is squashed, and the lamps swing. */
   function landHand(at: Hand) {
     let hits = 0;
     for (const moth of moths) {
@@ -711,18 +719,21 @@ export function createWorld({
       const dz = moth.body.position.z - at.z;
       const gap = Math.hypot(dx, dz);
       if (gap > HAZARD.radius + ARENA.mothRadius) continue;
-      // Dead centre has no "outwards", so it goes the way the moth faces.
-      const out =
-        gap > 1e-3
-          ? { x: dx / gap, z: dz / gap }
-          : { x: Math.sin(moth.heading), z: Math.cos(moth.heading) };
-      knock(
-        moth,
-        out.x * HAZARD.force,
-        HAZARD.lift,
-        out.z * HAZARD.force,
-        HAZARD.stagger,
-      );
+      // Flattened where it stands: it lies there a moment, then it is off
+      // the desk, the same as if it had been knocked over the edge.
+      world.removeBody(moth.body);
+      moth.body.velocity.setZero();
+      moth.squash = HAZARD.squashSeconds;
+      moth.grounded = true;
+      moth.fluttering = false;
+      moth.stagger = 0;
+      moth.dance = 0;
+      events.push({
+        type: 'squish',
+        moth: moth.id,
+        team: moth.team,
+        position: positionOf(moth.body),
+      });
       hits++;
     }
     for (const { bulb } of lamps) {
@@ -950,7 +961,7 @@ export function createWorld({
   return {
     selectMoth(id: number) {
       const moth = moths[id];
-      if (!moth || moth.respawning) return false;
+      if (!moth || moth.respawning || moth.squash > 0) return false;
       selectedMoth = id;
       return true;
     },
@@ -968,6 +979,16 @@ export function createWorld({
         if (moth.dance) {
           moth.danceTime += DT;
           if (moth.danceTime >= DANCE.seconds) moth.dance = 0;
+        }
+        if (moth.squash > 0) {
+          moth.squash -= DT;
+          if (moth.squash <= 0) {
+            // Its body left the desk when the hand landed.
+            moth.squash = 0;
+            moth.respawning = true;
+            moth.respawnTime = MOVEMENT.respawnDelay;
+          }
+          continue;
         }
         if (moth.respawning) {
           moth.respawnTime -= DT;
@@ -1075,7 +1096,7 @@ export function createWorld({
         zapInside(index);
       });
       for (const moth of moths) {
-        if (moth.respawning) continue;
+        if (moth.respawning || moth.squash > 0) continue;
         const p = moth.body.position;
         if (
           p.y < MOVEMENT.fallHeight ||
@@ -1279,6 +1300,7 @@ export function createWorld({
           respawning: moth.respawning,
           staggered: moth.stagger > 0,
           zapped: moth.zap > 0,
+          squished: moth.squash > 0,
           punching: moth.punch > 0,
           dance: moth.dance,
           danceTime: moth.danceTime,

@@ -19,6 +19,20 @@ export type LampControl = {
  * Count the moths in each lamp's light, using the same centre-to-bulb distance
  * as zapping. Moths that are off the desk or mid-zap do not count.
  */
+/**
+ * Teams with nobody left on the desk: every moth knocked off, zapped away
+ * or squashed. A team that never had a moth is not counted.
+ */
+export function emptyTeams(view: WorldView, teams: number): boolean[] {
+  return Array.from({ length: teams }, (_, team) => {
+    const squad = view.moths.filter((moth) => moth.team === team);
+    return (
+      squad.length > 0 &&
+      squad.every((moth) => moth.respawning || moth.squished)
+    );
+  });
+}
+
 export function lampControl(
   view: WorldView,
   haloRadius: number,
@@ -30,7 +44,7 @@ export function lampControl(
   return view.lamps.map((lamp) => {
     const counts = Array.from({ length: sides }, () => 0);
     for (const moth of view.moths) {
-      if (moth.respawning || moth.zapped) continue;
+      if (moth.respawning || moth.zapped || moth.squished) continue;
       const distance = Math.hypot(
         moth.x - lamp.x,
         moth.y - lamp.y,

@@ -19,7 +19,12 @@ import {
   WEAPONS,
   ZAP,
 } from './config';
-import { createMatch, crowdedSpot, lampControl } from './game/match';
+import {
+  createMatch,
+  crowdedSpot,
+  emptyTeams,
+  lampControl,
+} from './game/match';
 import type { LampControl, MatchView } from './game/match';
 import { createWorld } from './game/world';
 import { nearLampPlacement, restingLightRadius } from './game/spawns';
@@ -409,6 +414,18 @@ export function startApplication({
   let partyTimer = 0;
   /** Victory dances done so far: two, then the scorecard. */
   let partyRounds = 0;
+  /** Teams the announcer has already said have nobody left on the desk. */
+  let wipedOut = TEAM_LABELS.map(() => false);
+  /** Call out a team the moment its last moth leaves the desk. */
+  function announceWipeOuts(view: WorldView) {
+    if (!match || match.view().phase === 'won') return;
+    emptyTeams(view, TEAM_LABELS.length).forEach((empty, team) => {
+      if (empty && !wipedOut[team])
+        // After the squish or the splash that did it.
+        sfx.say(`wiped${team}` as VoiceCue, { priority: 3, delay: 1.3 });
+      wipedOut[team] = empty;
+    });
+  }
   /** What each team did this match, for the scorecard. */
   const freshTally = () =>
     TEAM_LABELS.map(() => ({ lamps: 0, hot: 0, falls: 0 }));
@@ -1478,6 +1495,7 @@ export function startApplication({
       if (!started) sfx.idle();
       if (started) {
         sfx.playEvents(events, listener);
+        announceWipeOuts(view);
         sfx.update(view, listener);
         if (pendingQuip) sfx.quip(pendingQuip.moth, pendingQuip.cue);
       }
@@ -1497,6 +1515,7 @@ export function startApplication({
     world.destroy();
     world = newWorld();
     match = newMatch();
+    wipedOut = TEAM_LABELS.map(() => false);
     bots.forEach((each) => each.reset());
     demoBots.forEach((demo) => demo.reset());
     demoWon = 0;

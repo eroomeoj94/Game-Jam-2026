@@ -682,7 +682,7 @@ export function createWeaponEffects(
             );
           }
           popup(
-            event.moths ? 'SPLAT!' : 'SMACK!',
+            event.moths ? 'SQUISH!' : 'SMACK!',
             at.setY(at.y + 3),
             '#ffd36b',
           );

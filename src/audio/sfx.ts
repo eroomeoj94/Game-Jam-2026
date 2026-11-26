@@ -57,6 +57,12 @@ export const VOICE_LINES = {
   zapper: ['zapper'],
   hand: ['hand-1', 'hand-2'],
   smack: ['smack-1', 'smack-2'],
+  squish: ['squish-1', 'squish-2', 'squish-3'],
+  // A team with nobody left on the desk: two lines of its own, two for anyone.
+  wiped0: ['wiped-0-1', 'wiped-0-2', 'wiped-any-1', 'wiped-any-2'],
+  wiped1: ['wiped-1-1', 'wiped-1-2', 'wiped-any-1', 'wiped-any-2'],
+  wiped2: ['wiped-2-1', 'wiped-2-2', 'wiped-any-1', 'wiped-any-2'],
+  wiped3: ['wiped-3-1', 'wiped-3-2', 'wiped-any-1', 'wiped-any-2'],
   hot: ['hot'],
   burn: ['burn-1', 'burn-2', 'burn-3'],
   bank: ['bank-1', 'bank-2'],
@@ -829,7 +835,10 @@ export function createSfx({
             AUDIO.giantVoice,
             { priority: 3 },
           );
-          say('smack', { priority: 2, chance: event.moths ? 1 : 0.3 });
+          // A hand that caught someone gets the squish; a miss, now and
+          // then, a word about the slap.
+          if (event.moths) say('squish', { priority: 3, delay: 0.5 });
+          else say('smack', { priority: 2, chance: 0.3 });
         } else if (event.type === 'loom') {
           if (
             speak(

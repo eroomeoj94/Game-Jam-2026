@@ -333,6 +333,31 @@ describe('the announcer', () => {
     sfx.destroy();
   });
 
+  it('calls a squish when a hand catches someone, and names a wiped-out team', async () => {
+    const { sfx, context, spoken } = await announcer();
+    const clock = context as unknown as { currentTime: number };
+    const at = { x: 0, y: 0, z: 0 };
+    sfx.playEvents([{ type: 'smack', position: at, moths: 2 }]);
+    expect(spoken().some((file) => file.startsWith('squish-'))).toBe(true);
+    clock.currentTime = 10;
+    // A hand that hits nobody is no squish.
+    const before = spoken().length;
+    sfx.playEvents([{ type: 'smack', position: at, moths: 0 }]);
+    expect(
+      spoken()
+        .slice(before)
+        .some((file) => file.startsWith('squish-')),
+    ).toBe(false);
+    clock.currentTime = 20;
+    // Each team has lines of its own, and shares two with the others.
+    for (const team of [0, 1, 2, 3]) {
+      expect(sfx.say(`wiped${team}` as 'wiped0', { priority: 3 })).toBe(true);
+      expect(spoken().at(-1)).toMatch(new RegExp(`^wiped-(${team}|any)-[12]$`));
+      clock.currentTime += 10;
+    }
+    sfx.destroy();
+  });
+
   it('varies the take, rolls for occasional lines and stays quiet when muted', async () => {
     const { sfx, context, spoken } = await announcer([0, 0, 0, 0, 0.9]);
     const clock = context as unknown as { currentTime: number };
