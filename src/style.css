@@ -1661,7 +1661,3 @@ kbd.ps-triangle {
   right: 4.5%;
   bottom: 76px;
 }
-/* The choices speak for themselves: no line underneath saying who plays. */
-#lineup-note {
-  display: none;
-}

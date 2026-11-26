@@ -240,6 +240,37 @@ describe('sampled sound effects', () => {
       1,
     );
   });
+
+  it('plays its own tune on the title screen, and the match tune from the start of a match', async () => {
+    const { sfx, started } = await loadedSfx();
+    const view = {
+      lamps: [],
+      projectiles: [],
+      moths: [],
+      selectedMoth: 0,
+      weaponCooldown: 0,
+      teamZaps: [0, 0],
+    } as unknown as import('../game/world').WorldView;
+    const loops = () =>
+      started.filter((item) => item.loop).map(({ name }) => name);
+    // On the title screen, frame after frame, only the title tune runs.
+    sfx.idle();
+    sfx.idle();
+    expect(loops()).toEqual(['title']);
+    // The match begins: its tune and room tone come in.
+    sfx.update(view, here);
+    sfx.update(view, here);
+    expect(loops()).toEqual(['title', 'ambience', 'music']);
+    // Back at the title, the title tune starts over.
+    sfx.idle();
+    expect(loops()).toEqual(['title', 'ambience', 'music', 'title']);
+    // With music switched off neither tune plays.
+    sfx.setMusic(false);
+    sfx.idle();
+    sfx.update(view, here);
+    expect(loops().filter((name) => name === 'music')).toHaveLength(1);
+    expect(loops().filter((name) => name === 'title')).toHaveLength(2);
+  });
 });
 
 describe('loudness and status', () => {

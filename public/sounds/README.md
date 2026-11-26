@@ -25,7 +25,8 @@ music) and save it in
 | `fuse.aac`       | Loop while a firecracker fuse burns                 | [Fire – Fuse, Dynamite, Burning, Sizzling](https://artlist.io/sfx/track/fire---fuse-dynamite-burning-sizzling/50385)                            |
 | `pop.aac`        | Bottle-Cap Flick                                    | [Cartoon Elements – Bottle Pop](https://artlist.io/sfx/track/cartoon-elements---bottle-pop/69729)                                               |
 | `flutter.aac`    | Loop while the active moth flutters                 | [Creatures of Darkness – Winged Insect Flutter](https://artlist.io/sfx/track/creatures-of-darkness---winged-insect-flutter/102378)              |
-| `music.mp3`      | Background music on a loop (download as MP3)        | [Steven Beddall – Jellybean Heist](https://artlist.io/royalty-free-music/song/jellybean-heist/137223)                                           |
+| `music.mp3`      | Music during a match, on a loop (download as MP3)   | [Steven Beddall – Jellybean Heist](https://artlist.io/royalty-free-music/song/jellybean-heist/137223)                                           |
+| `title.mp3`      | Music on the title screen, on a loop (MP3)          | [Ziggy – Molly the Mule (Alternative 1)](https://artlist.io/royalty-free-music/song/molly-the-mule-alternative-1/6001310)                       |
 | `ambience.aac`   | Background: faint night crickets under the music    | [American Suburbs – Night Crickets](https://artlist.io/sfx/track/american-suburbs---night-crickets/110996)                                      |
 
 Before hosting a public build that serves these files, confirm that your

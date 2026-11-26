@@ -141,7 +141,6 @@ export function startApplication({
   const teamChoices = document.querySelector<HTMLElement>('#team-choices');
   const mothChoices = document.querySelector<HTMLElement>('#moth-choices');
   const humanChoices = document.querySelector<HTMLElement>('#human-choices');
-  const lineupNote = document.querySelector<HTMLElement>('#lineup-note');
   const again = document.querySelector<HTMLButtonElement>('#again');
   const scorecard = document.querySelector<HTMLElement>('#scorecard');
   const scorecardTitle =
@@ -1424,6 +1423,8 @@ export function startApplication({
       // The commanded hand has come and gone: back to the shoulder view.
       if (mindWatching && !view.hazards.length) lowerMindView();
       const listener = scene.listenerPosition();
+      // The title screen has its own tune; the match's starts with the match.
+      if (!started) sfx.idle();
       if (started) {
         sfx.playEvents(events, listener);
         sfx.update(view, listener);
@@ -1514,7 +1515,7 @@ export function startApplication({
     },
   });
   const onPass = () => passTurn();
-  /** Draw the title screen's two rows of choices and say what they mean. */
+  /** Draw the title screen's rows of choices. */
   function showLineup() {
     const segments = (
       host: HTMLElement | null,
@@ -1555,21 +1556,6 @@ export function startApplication({
     segments(humanChoices, 'humans', 0, wantTeams, wantHumans, (value) => {
       wantHumans = value;
     });
-    const names = ['Mustard', 'Teal', 'Purple', 'Ivory'].slice(0, wantTeams);
-    const people = names.slice(0, wantHumans);
-    const computer = names.slice(wantHumans);
-    const list = (items: string[]) =>
-      items.length > 1
-        ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
-        : (items[0] ?? '');
-    setText(
-      lineupNote,
-      wantHumans === 0
-        ? 'The computer plays every team: sit back and watch.'
-        : `${wantHumans === 1 ? 'You play' : 'People play'} ${list(people)}${
-            computer.length ? `; the computer plays ${list(computer)}.` : '.'
-          }`,
-    );
   }
   const saveSetup = (autostart: boolean) => {
     try {

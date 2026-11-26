@@ -25,10 +25,16 @@ export const SAMPLES = [
   'flutter',
   'ambience',
   'music',
+  'title',
 ] as const;
+/** The two tunes: one for the title screen, one for a match. */
+const TUNES = ['title', 'music'] as const;
+type Tune = (typeof TUNES)[number];
+const isTune = (name: string): name is Tune =>
+  (TUNES as readonly string[]).includes(name);
 export type SampleName = (typeof SAMPLES)[number];
 const samplePath = (name: SampleName) =>
-  `sounds/artlist/${name}.${name === 'music' ? 'mp3' : 'aac'}`;
+  `sounds/artlist/${name}.${isTune(name) ? 'mp3' : 'aac'}`;
 
 /**
  * The announcer: short spoken lines for the big moments, generated with an
@@ -245,6 +251,13 @@ export function createSfx({
   let duck: GainNode | undefined;
   // Music and everything else (effects, voices, room tone) switch separately.
   let musicOn = true;
+  /** Which tune is wanted: the title screen's until a match begins. */
+  let tune: Tune = 'title';
+  /** Fade the unwanted tune out and bring the wanted one in from its start. */
+  const playTune = () => {
+    for (const each of TUNES)
+      loop(each, each === tune && musicOn ? AUDIO.music : 0, true);
+  };
   let effectsOn = true;
   let loading = false;
   let unsupported = false;
@@ -683,7 +696,7 @@ export function createSfx({
     /** Switch the background music on or off. */
     setMusic(on: boolean) {
       musicOn = on;
-      if (!on) loop('music', 0);
+      if (!on) for (const each of TUNES) loop(each, 0);
       applyVolumes();
     },
     /** Switch effects, voices and room tone on or off. */
@@ -691,8 +704,7 @@ export function createSfx({
       effectsOn = on;
       if (!on) {
         speech?.cancel();
-        for (const name of [...loops.keys()])
-          if (name !== 'music') loop(name, 0);
+        for (const name of [...loops.keys()]) if (!isTune(name)) loop(name, 0);
       }
       applyVolumes();
     },
@@ -828,6 +840,16 @@ export function createSfx({
         }
       }
     },
+    /**
+     * The title screen: its own tune plays, and the match's beds fall
+     * silent. Call each frame while no match is being played.
+     */
+    idle() {
+      if (!context) return;
+      tune = 'title';
+      playTune();
+      for (const name of [...loops.keys()]) if (!isTune(name)) loop(name, 0);
+    },
     /** Keep the looping beds in step with the world each frame. */
     update(view: WorldView, listener?: Position) {
       if (!context) return;
@@ -835,8 +857,9 @@ export function createSfx({
       // With the effects off every bed but the music falls silent.
       const sound = effectsOn ? 1 : 0;
       loop('ambience', AUDIO.ambience * sound);
-      // The tune always begins at its opening bar.
-      loop('music', musicOn ? AUDIO.music : 0, true);
+      // A match has its own tune, which always begins at its opening bar.
+      tune = 'music';
+      playTune();
       const zapperVolume = view.lamps.reduce(
         (loudest, lamp) =>
           lamp.zapper
