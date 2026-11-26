@@ -1,9 +1,6 @@
 import { AUDIO, BOSH, HAZARD } from '../config';
 import type { Position, WorldEvent, WorldView } from '../game/world';
 
-/** Optional recording: drop a file here to replace the spoken "Bosh!". */
-export const BOSH_RECORDING = 'sounds/bosh.mp3';
-
 /**
  * Sound samples, loaded from `public/sounds/artlist/` when present: `.aac`
  * for effects and `music.mp3` for the background tune.
@@ -155,8 +152,6 @@ export function normalisingGain(buffer: AudioBuffer) {
 type Dependencies = {
   createContext?: () => AudioContext | undefined;
   speech?: SpeechSynthesis | undefined;
-  /** Resolves to a playable recording URL, or undefined when there is none. */
-  findRecording?: () => Promise<string | undefined>;
   /** Fetches and decodes one sample; undefined when it is not available. */
   loadSample?: (
     context: AudioContext,
@@ -169,18 +164,6 @@ type Dependencies = {
   ) => Promise<AudioBuffer | undefined>;
   random?: () => number;
 };
-
-/** Ask the server whether the optional recording exists. */
-async function findBoshRecording() {
-  try {
-    const response = await fetch(BOSH_RECORDING, { method: 'HEAD' });
-    // Vite answers unknown paths with the HTML page, so check the type too.
-    const type = response.headers.get('content-type') ?? '';
-    return response.ok && type.startsWith('audio') ? BOSH_RECORDING : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 async function fetchSample(context: AudioContext, name: SampleName) {
   try {
@@ -226,7 +209,6 @@ export function createSfx({
     return Context ? new Context() : undefined;
   },
   speech = typeof window !== 'undefined' ? window.speechSynthesis : undefined,
-  findRecording = findBoshRecording,
   loadSample = fetchSample,
   // A caller that supplies its own samples gets no announcer unless it
   // supplies those clips too.
@@ -264,16 +246,12 @@ export function createSfx({
   let effectsOn = true;
   let loading = false;
   let unsupported = false;
-  let recording: HTMLAudioElement | undefined;
   const buffers = new Map<SampleName, AudioBuffer>();
   const makeup = new Map<SampleName, number>();
   const loops = new Map<
     SampleName,
     { source: AudioBufferSourceNode; gain: GainNode }
   >();
-  void findRecording().then((url) => {
-    if (url) recording = new Audio(url);
-  });
 
   function audio() {
     if (!context) {
@@ -590,14 +568,6 @@ export function createSfx({
   function shout() {
     // A different voice every time: from a growl to a squeak.
     const pitch = 0.7 + Math.random() * 0.75;
-    if (recording) {
-      recording.volume = 1;
-      recording.preservesPitch = false;
-      recording.playbackRate = pitch;
-      recording.currentTime = 0;
-      void recording.play().catch(() => undefined);
-      return;
-    }
     if (!speech) return;
     speech.cancel();
     const line = new SpeechSynthesisUtterance('Bosh!');

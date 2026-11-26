@@ -27,7 +27,6 @@ describe('sound effects', () => {
     const sfx = createSfx({
       createContext: () => undefined,
       speech,
-      findRecording: async () => undefined,
     });
     sfx.bosh(true);
     sfx.bosh(false);
@@ -46,7 +45,6 @@ describe('sound effects', () => {
         throw new Error('no audio');
       },
       speech: undefined,
-      findRecording: async () => undefined,
     });
     expect(() => {
       sfx.unlock();
@@ -121,7 +119,6 @@ async function loadedSfx() {
   const sfx = createSfx({
     createContext: () => context,
     speech: undefined,
-    findRecording: async () => undefined,
     loadSample: async (_ctx, name) =>
       ({ name, duration: 2 }) as unknown as AudioBuffer,
   });
@@ -292,7 +289,6 @@ describe('loudness and status', () => {
     const pending = createSfx({
       createContext: () => undefined,
       speech: undefined,
-      findRecording: async () => undefined,
     });
     expect(pending.status).toBe('waiting');
     pending.unlock();
@@ -306,7 +302,6 @@ describe('the announcer', () => {
     const sfx = createSfx({
       createContext: () => context,
       speech: undefined,
-      findRecording: async () => undefined,
       loadSample: async () => undefined,
       loadVoice: async (_ctx, file) =>
         ({ name: `voice:${file}`, duration: 1 }) as unknown as AudioBuffer,
@@ -368,7 +363,6 @@ describe('moth voices', () => {
     const sfx = createSfx({
       createContext: () => context,
       speech: undefined,
-      findRecording: async () => undefined,
       loadSample: async () => undefined,
       loadVoice: async (_ctx, file) =>
         ({ name: `voice:${file}`, duration: 1 }) as unknown as AudioBuffer,

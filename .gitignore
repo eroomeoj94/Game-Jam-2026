@@ -11,3 +11,7 @@ coverage/
 # Artlist sound effects are licensed to the downloader and must not be
 # redistributed from this public repository. See public/sounds/README.md.
 public/sounds/artlist/
+
+# Builds packed for itch: they contain the Artlist sounds, so never commit them.
+moth-fight-club-itch/
+moth-fight-club-itch.zip

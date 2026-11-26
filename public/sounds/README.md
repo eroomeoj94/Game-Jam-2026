@@ -70,9 +70,3 @@ Each giant also has three lines for being taken over by a Mind Control
 Cartesia Sonic 2 without the anger, and the Joe Moore voice saying "Go go Power
 Rangers!", "Claude, give me an overview of how to smash these bugs." and "I am
 being controlled by a moth. This is not in my job description."
-
-## Optional recording
-
-- `bosh.mp3` — the shout when a moth throws a Bosh. Without it, the browser's
-  speech voice says "Bosh!". This file is not ignored: only add one you are
-  free to publish.
