@@ -54,6 +54,8 @@ export type ApplicationOptions = {
    * seconds; the length is picked at random between them. [0, 0] skips it.
    */
   loadingSeconds?: readonly [number, number];
+  /** Whether the announcer calls the match in before it starts. */
+  opening?: boolean;
 };
 
 const COACHED_KEY = 'moth-fight-club:coached';
@@ -92,6 +94,16 @@ const GIANT_NAMES = ['the old man', 'the lad', 'Joe'];
 const LOADING_FILMS = 3;
 /** How long each moth fact stays up on the loading screen. */
 const FACT_SECONDS = 5;
+/**
+ * The call before a match, with room between the words: when each is said
+ * and shown, in seconds, and when the match itself begins.
+ */
+const OPENING_CALLS = [
+  { at: 0.7, cue: 'ready', word: 'Ready?' },
+  { at: 2.8, cue: 'flutter', word: 'Flutter!' },
+  { at: 5.2, cue: 'fight', word: 'Fight!' },
+] as const;
+const OPENING_SECONDS = 6.5;
 /** How many times the winners dance before the scorecard comes up. */
 const VICTORY_DANCES = 2;
 const NO_MOVEMENT = { x: 0, z: 0, jump: false, flutter: false };
@@ -105,6 +117,7 @@ export function startApplication({
   solo = false,
   attract = true,
   loadingSeconds = [5, 20],
+  opening: callsIn = true,
 }: ApplicationOptions = {}) {
   const playing = mode === 'match';
   const newWorld = () =>
@@ -1291,6 +1304,17 @@ export function startApplication({
       frame = requestAnimationFrame(render);
       return;
     }
+    if (opening !== undefined) {
+      // Ready, flutter, fight: the camera sweeps the desk and nothing moves.
+      if (!document.hidden && !unfocused && !menuOpen) {
+        clearInput();
+        seconds += elapsed / 1000;
+        stepOpening(elapsed / 1000);
+        scene.render(world.snapshot(), seconds);
+      }
+      frame = requestAnimationFrame(render);
+      return;
+    }
     if (!document.hidden && !unfocused && !menuOpen) {
       const pad = gamepad.poll();
       if (controllerStatus && controllerStatus.textContent !== pad.text)
@@ -1674,12 +1698,51 @@ export function startApplication({
     if (loader) loader.hidden = true;
     loaderVideo?.pause?.();
   }
+  /** Seconds into the call before a match; undefined once it is under way. */
+  let opening: number | undefined;
+  let openingCalls = 0;
+  /** Show one word of the call, large, in the middle of the screen. */
+  function showCall(word: string | undefined) {
+    if (!countdown) return;
+    countdown.hidden = !word;
+    countdown.classList.toggle('call', !!word);
+    // Nothing but the desk and the word while the call is made.
+    countdown.parentElement?.classList.toggle('calling', opening !== undefined);
+    const shown = document.createElement('span');
+    shown.textContent = word ?? '';
+    countdown.replaceChildren(shown);
+  }
+  function endOpening() {
+    if (opening === undefined) return;
+    opening = undefined;
+    scene.setFlyby(undefined);
+    showCall(undefined);
+    clearInput();
+    resetClock();
+  }
+  function stepOpening(delta: number) {
+    if (opening === undefined) return;
+    opening += delta;
+    scene.setFlyby(opening / OPENING_SECONDS);
+    const call = OPENING_CALLS[openingCalls];
+    if (call && opening >= call.at) {
+      openingCalls++;
+      showCall(call.word);
+      sfx.say(call.cue, { priority: 5, boost: 1.3 });
+    }
+    if (opening >= OPENING_SECONDS) endOpening();
+  }
   const beginMatch = () => {
     started = true;
     // Clear away the demo match and deal a fresh one.
     if (demoBots.length) restart();
     intro.hidden = true;
-    if (playing) sfx.say('start', { priority: 3 });
+    if (playing && callsIn) {
+      opening = 0;
+      openingCalls = 0;
+      scene.setFlyby(0);
+      showCall(undefined);
+    } else if (playing) sfx.say('start', { priority: 3 });
     clearInput();
     resetClock();
     focusCanvas();
@@ -1700,6 +1763,7 @@ export function startApplication({
   /** Back to the title, where the demo match starts again. */
   const onQuit = () => {
     setMenu(false);
+    endOpening();
     started = false;
     bots = [];
     intro.hidden = false;

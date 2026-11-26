@@ -124,6 +124,8 @@ export function createScene(host: HTMLElement) {
   let spotlight:
     { x: number; z: number; from?: { x: number; z: number } } | undefined;
   let spotlit = false;
+  /** How far through the sweep round the desk before a match, 0 to 1. */
+  let flyby: number | undefined;
   // A second camera for the corner "splat cam": it faces the giant, with the
   // spot being swatted in the foreground.
   const insetCamera = new PerspectiveCamera(62, 1.6, 0.1, 600);
@@ -828,6 +830,14 @@ export function createScene(host: HTMLElement) {
      * Hold the camera on a spot on the desk; undefined lets it go back.
      * With `from` (where the giant stands), a corner inset shows them too.
      */
+    /**
+     * Sweep the camera round the desk: 0 is the start of the sweep and 1 the
+     * end; undefined hands the camera back.
+     */
+    setFlyby(progress: number | undefined) {
+      flyby =
+        progress === undefined ? undefined : Math.min(1, Math.max(0, progress));
+    },
     setSpotlight(
       spot:
         { x: number; z: number; from?: { x: number; z: number } } | undefined,
@@ -1109,7 +1119,25 @@ export function createScene(host: HTMLElement) {
       // Orbit from the player's chosen position, not last frame's pulled-in one.
       if (unobstructed) camera.position.copy(unobstructed);
       unobstructed = undefined;
-      if (spotlight) {
+      if (flyby !== undefined) {
+        // Before the match: sweep low round the front of the desk, from one
+        // side to the other, closing in as it goes.
+        if (!spotlit) {
+          controls.minDistance = 1;
+          controls.maxDistance = 420;
+          camera.clearViewOffset();
+        }
+        spotlit = true;
+        const t = flyby * flyby * (3 - 2 * flyby);
+        const angle = -1.3 + t * 2.45;
+        const reach = (255 - t * 115) * boardScale;
+        controls.target.set(0, 2, homeTarget.z * 0.5);
+        camera.position.set(
+          Math.sin(angle) * reach,
+          (118 - t * 70) * boardScale,
+          controls.target.z + Math.cos(angle) * reach,
+        );
+      } else if (spotlight) {
         // Swing round to look down on the spot from the front of the desk.
         if (!spotlit) {
           controls.minDistance = 1;
@@ -1142,7 +1170,7 @@ export function createScene(host: HTMLElement) {
       // Keep the shoulder camera in front of the back wall.
       if (camera.position.z < CAMERA.wallLimitZ)
         camera.position.z = CAMERA.wallLimitZ;
-      if (cameraMode === 'follow' && !spotlight) {
+      if (cameraMode === 'follow' && !spotlight && flyby === undefined) {
         unobstructed = camera.position.clone();
         avoidOcclusion();
       }

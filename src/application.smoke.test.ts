@@ -21,6 +21,7 @@ vi.mock('./view/scene', () => ({
       playEvents: vi.fn(),
       showScores: vi.fn(),
       setSpotlight: vi.fn(),
+      setFlyby: vi.fn(),
       listenerPosition: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
       movementDirection: vi.fn((x: number, z: number) => ({ x, z })),
       orbitCamera: vi.fn(),
@@ -42,6 +43,7 @@ function mount(mode: 'match' | 'playground' = 'playground', hands = false) {
     mode,
     hands,
     loadingSeconds: [0, 0],
+    opening: false,
   });
   cleanups.push(cleanup);
   const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
@@ -598,6 +600,7 @@ describe('match smoke tests', () => {
   it('plays a demo match behind the start screen and deals a fresh one on Start', () => {
     const cleanup = startApplication({
       loadingSeconds: [0, 0],
+      opening: false,
       randomSpawns: false,
       mode: 'match',
       hands: false,
@@ -666,6 +669,7 @@ describe('match smoke tests', () => {
   it('lets the computer play Teal unaided in a one-player match', () => {
     const cleanup = startApplication({
       loadingSeconds: [0, 0],
+      opening: false,
       randomSpawns: false,
       mode: 'match',
       hands: false,
@@ -839,6 +843,45 @@ describe('the loading screen', () => {
   });
 });
 
+describe('the call before a match', () => {
+  it('says ready, flutter, fight as the camera sweeps, then plays', () => {
+    const cleanup = startApplication({
+      randomSpawns: false,
+      mode: 'match',
+      loadingSeconds: [0, 0],
+    });
+    cleanups.push(cleanup);
+    const scene = vi.mocked(createScene).mock.results.at(-1)!.value;
+    const flyby = vi.mocked(scene.setFlyby);
+    const word = () => {
+      const shown = document.querySelector<HTMLElement>('#countdown')!;
+      return shown.hidden ? '' : shown.textContent;
+    };
+    document.querySelector<HTMLButtonElement>('#start')!.click();
+    expect(flyby).toHaveBeenLastCalledWith(0);
+    const heard: string[] = [];
+    let time = 0;
+    // Seven seconds of frames, a twentieth of a second apart.
+    for (let n = 0; n < 140; n++) {
+      frame((time += 50));
+      if (word() && heard.at(-1) !== word()) heard.push(word()!);
+      // Keys do nothing while the call is made.
+      if (n === 20)
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+    }
+    expect(heard).toEqual(['Ready?', 'Flutter!', 'Fight!']);
+    // The sweep ran from start to finish and the camera was handed back.
+    const sweeps: Array<number | undefined> = flyby.mock.calls.map(
+      (call: unknown[]) => call[0] as number | undefined,
+    );
+    expect(sweeps.at(-1)).toBeUndefined();
+    expect(Math.max(...sweeps.map((sweep) => sweep ?? 0))).toBeGreaterThan(
+      0.95,
+    );
+    expect(word()).toBe('');
+  });
+});
+
 describe('winning', () => {
   it('dances twice, then shows a scorecard with a way to play again', () => {
     const saved = {
@@ -960,6 +1003,7 @@ describe('ending a go hands over to the next moth', () => {
       const cleanup = startApplication({
         mode: 'match',
         loadingSeconds: [0, 0],
+        opening: false,
       });
       cleanups.push(cleanup);
       const scene = vi.mocked(createScene).mock.results.at(-1)?.value;
@@ -1009,6 +1053,7 @@ describe('ending a go hands over to the next moth', () => {
     const cleanup = startApplication({
       mode: 'match',
       loadingSeconds: [0, 0],
+      opening: false,
     });
     cleanups.push(cleanup);
     const scene = vi.mocked(createScene).mock.results.at(-1)?.value;

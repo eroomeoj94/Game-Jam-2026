@@ -965,6 +965,12 @@ kbd {
   -webkit-text-stroke: 2px #2a1a10;
   animation: count-pop 0.8s ease-out both;
 }
+/* The words of the call before a match: smaller than a digit, held longer. */
+.countdown.call span {
+  font-size: clamp(64px, 13vw, 170px);
+  white-space: nowrap;
+  animation-duration: 1.7s;
+}
 @keyframes count-pop {
   0% {
     opacity: 0;
@@ -1763,4 +1769,9 @@ kbd.ps-triangle {
     width: 88%;
     bottom: 46%;
   }
+}
+
+/* The call before a match: the desk and the word, nothing else. */
+.diorama.calling > :not(#game):not(#countdown):not(#menu) {
+  visibility: hidden;
 }

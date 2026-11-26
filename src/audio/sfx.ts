@@ -43,6 +43,9 @@ const samplePath = (name: SampleName) =>
  */
 export const VOICE_LINES = {
   start: ['start-1', 'start-2'],
+  ready: ['ready'],
+  flutter: ['flutter'],
+  fight: ['fight'],
   round1: ['round-1'],
   round2: ['round-2'],
   round3: ['round-3'],
