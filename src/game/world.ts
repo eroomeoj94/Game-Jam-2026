@@ -36,6 +36,9 @@ import {
   pickLamp,
 } from './gadgets';
 import type { Aim, Direction } from './gadgets';
+import { createContraptions } from './contraptions';
+import type { GadgetEvent, GadgetView } from './contraptions';
+import type { GadgetSpec } from '../config';
 import type { Placement } from './spawns';
 
 export type Position = Readonly<{ x: number; y: number; z: number }>;
@@ -113,7 +116,9 @@ export type WorldEvent =
   | { type: 'explode'; position: Position }
   | { type: 'launch'; kind: 'cap' | 'firecracker'; position: Position }
   /** A moth took over giant `person`, who will smack `position`. */
-  | { type: 'mind'; person: number; origin: Position; position: Position };
+  | { type: 'mind'; person: number; origin: Position; position: Position }
+  /** Something on the level went off, fell over or hit a moth. */
+  | GadgetEvent;
 /** A giant pacing round the desk; (x, z) is where they stand. */
 export type PersonView = {
   x: number;
@@ -147,6 +152,8 @@ export type WorldView = {
   /** The giants walking round the desk, whose hands those are. */
   people: PersonView[];
   projectiles: ProjectileView[];
+  /** Whatever on this level moves or reacts. */
+  gadgets: GadgetView[];
   /** 0 when a weapon is ready, rising to 1 just after one is used. */
   weaponCooldown: number;
   /** Zaps suffered by each team: each one will cost a point. */
@@ -175,6 +182,11 @@ export type WorldOptions = {
    * it straight down. A hand already swinging is not distracted.
    */
   attention?: 'hold' | 'strike';
+  /**
+   * The level's moving and reacting pieces: true for the arena's own, or a
+   * list to use instead. Off by default, which keeps tests predictable.
+   */
+  gadgets?: boolean | readonly GadgetSpec[];
   /** Source of randomness for the hands, from 0 to 1. */
   random?: () => number;
   /**
@@ -188,6 +200,7 @@ export function createWorld({
   placement,
   match = false,
   hazards = false,
+  gadgets: gadgetSpecs = false,
   attention,
   random = Math.random,
 }: WorldOptions = {}) {
@@ -354,6 +367,24 @@ export function createWorld({
       new DistanceConstraint(anchor, bulb, LAMPS.tetherLength),
     );
     return { anchor, bulb, base, zapperTime: 0, dark: false, hot: false };
+  });
+  const contraptions = createContraptions({
+    world,
+    specs:
+      gadgetSpecs === true
+        ? ARENA.gadgets
+        : gadgetSpecs === false
+          ? []
+          : gadgetSpecs,
+    material: terrainMaterial,
+    standable: terrain,
+    moths,
+    knock: (id, x, y, z) => {
+      const moth = moths[id];
+      if (moth && inPlay(moth)) knock(moth, x, y, z);
+    },
+    emit: (event) => events.push(event),
+    random,
   });
   type Projectile = {
     id: number;
@@ -573,6 +604,14 @@ export function createWorld({
       bulb.velocity.x += push.x;
       bulb.velocity.z += push.z;
     }
+    contraptions.disturb(
+      centre,
+      undefined,
+      FIRECRACKER.blastRadius + 1,
+      Math.PI,
+      FIRECRACKER.force,
+      true,
+    );
     events.push({ type: 'explode', position: centre });
     makeNoise(centre);
   }
@@ -697,6 +736,14 @@ export function createWorld({
       bulb.velocity.x += Math.cos(angle) * push;
       bulb.velocity.z += Math.sin(angle) * push;
     }
+    contraptions.disturb(
+      { x: at.x, y: at.y, z: at.z },
+      undefined,
+      HAZARD.radius,
+      Math.PI,
+      HAZARD.force,
+      true,
+    );
     events.push({
       type: 'smack',
       position: { x: at.x, y: at.y, z: at.z },
@@ -798,6 +845,14 @@ export function createWorld({
       bulb.velocity.x += push.x;
       bulb.velocity.z += push.z;
     }
+    contraptions.disturb(
+      origin,
+      direction,
+      GUST.range,
+      GUST.halfAngle,
+      GUST.force,
+      false,
+    );
     events.push({ type: 'gust', origin, direction });
     return true;
   }
@@ -848,6 +903,14 @@ export function createWorld({
             z: origin.z + direction.z * BOSH.range * 0.6,
           },
     });
+    contraptions.disturb(
+      origin,
+      direction,
+      BOSH.range + 0.6,
+      0.6,
+      BOSH.force,
+      true,
+    );
     // Only a punch that lands is loud enough to be heard.
     if (target) makeNoise(positionOf(target.body));
     return true;
@@ -898,6 +961,7 @@ export function createWorld({
       return lampInReach(attacker, aim);
     },
     step(command: MovementCommand = IDLE) {
+      contraptions.step(DT);
       for (const moth of moths) {
         moth.fluttering = false;
         moth.punch = Math.max(0, moth.punch - DT);
@@ -920,8 +984,10 @@ export function createWorld({
         moth.stagger = Math.max(0, moth.stagger - DT);
         // A staggered moth slides freely; nothing it does can stop it.
         if (moth.stagger > 0) continue;
+        // Wind and anything spilt carry a standing moth along.
+        const slick = moth.grounded && contraptions.slick(moth);
         if (moth.id !== selectedMoth) {
-          if (moth.grounded) {
+          if (moth.grounded && !slick && !contraptions.blown.has(moth.id)) {
             const speed = Math.hypot(
               moth.body.velocity.x,
               moth.body.velocity.z,
@@ -951,9 +1017,12 @@ export function createWorld({
           body.velocity.x *= scale;
           body.velocity.z *= scale;
         } else {
-          const acceleration = moth.grounded
-            ? MOVEMENT.groundAcceleration
-            : MOVEMENT.airAcceleration;
+          // On a puddle the feet find almost nothing to push against.
+          const acceleration = slick
+            ? MOVEMENT.groundAcceleration * 0.12
+            : moth.grounded
+              ? MOVEMENT.groundAcceleration
+              : MOVEMENT.airAcceleration;
           const changeX = x * MOVEMENT.speed - body.velocity.x;
           const changeZ = z * MOVEMENT.speed - body.velocity.z;
           const changeLength = Math.hypot(changeX, changeZ);
@@ -1197,6 +1266,7 @@ export function createWorld({
               ? Math.max(0, 1 - age / FIRECRACKER.fuse)
               : 0,
         })),
+        gadgets: contraptions.view(),
         selectedMoth,
         moths: moths.map((moth) => ({
           ...positionOf(moth.body),

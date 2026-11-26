@@ -780,7 +780,19 @@ export function createSfx({
         const volume = attenuation(listener, at);
         // The announcer reacts to the big moments, and now and then to the
         // small ones.
-        if (event.type === 'mind') {
+        if (event.type === 'gadget') {
+          // The level's own noises, made from the effects already loaded.
+          if (event.action === 'pop') {
+            play('switch', { volume: 0.9 * volume, rate: 0.8 });
+            play('pop', { volume: volume, rate: 0.75, delay: 0.03 });
+          } else if (event.action === 'flip')
+            play('swish', { volume: 0.9 * volume, rate: 0.8 });
+          else if (event.action === 'bump')
+            play('punch', { volume: 0.45 * volume, rate: 1.5 * vary() });
+          else if (event.action === 'spill')
+            play('whoosh', { volume: 0.7 * volume, rate: 1.7 });
+          else play('slap', { volume: 0.8 * volume, rate: 0.65 * vary() });
+        } else if (event.type === 'mind') {
           // The spell crackles out, then the giant says what it feels like.
           play('zap', { volume: 0.5 * volume, rate: 0.55 });
           play('whoosh', { volume: 0.7 * volume, rate: 0.7, delay: 0.1 });

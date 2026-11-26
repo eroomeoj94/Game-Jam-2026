@@ -1570,7 +1570,8 @@ kbd.ps-triangle {
   display: block;
   flex: none;
   /* Square, like the film itself, so the fades below line up with its frame. */
-  width: min(33vh, 100%);
+  /* Small enough that the choices and Start fit a 720px-tall frame. */
+  width: min(27vh, 100%);
   aspect-ratio: 1;
   margin: 0 auto;
   border: 0;
@@ -1628,8 +1629,8 @@ kbd.ps-triangle {
 /* The three choices stack, each a label with its buttons beside it. */
 #intro .lineup {
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 #intro .choice {
   display: flex;

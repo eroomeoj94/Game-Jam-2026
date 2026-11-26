@@ -1,5 +1,7 @@
 import {
   ARENA,
+  besidePits,
+  overPit,
   BOSH,
   GUST,
   HAZARD,
@@ -228,6 +230,8 @@ export function createBot(team: number, random: () => number = Math.random) {
         case 'move': {
           thinking = 0;
           target ??= chooseTarget(view, id, state);
+          // Nobody can stand on a hole: stop at the nearest solid edge.
+          if (target) target = besidePits(target);
           walking += DT;
           const dx = (target?.x ?? me?.x ?? 0) - (me?.x ?? 0);
           const dz = (target?.z ?? me?.z ?? 0) - (me?.z ?? 0);
@@ -243,13 +247,19 @@ export function createBot(team: number, random: () => number = Math.random) {
             stuck = gap > lastGap - 0.01 ? stuck + 1 : 0;
             lastGap = gap;
             const climb = below && gap < BOT.takeOff;
+            // A hole ahead, or underneath: up and over it.
+            const hole =
+              !!me &&
+              gap > 1e-3 &&
+              (overPit(me.x, me.z) ||
+                overPit(me.x + (dx / gap) * 1.6, me.z + (dz / gap) * 1.6));
             return {
               type: 'walk',
               x: gap > 1e-3 ? dx / gap : 0,
               z: gap > 1e-3 ? dz / gap : 0,
               // Hop and flutter over whatever is in the way, or up to a tier.
-              jump: (climb || stuck > 6) && !!me?.grounded,
-              flutter: climb || stuck > 6,
+              jump: (climb || stuck > 6 || hole) && !!me?.grounded,
+              flutter: climb || stuck > 6 || hole,
             };
           }
           // Stand still for a moment so the shot is lined up from rest.

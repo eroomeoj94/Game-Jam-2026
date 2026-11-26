@@ -686,6 +686,16 @@ export function createWeaponEffects(
             at.setY(at.y + 3),
             '#ffd36b',
           );
+        } else if (event.type === 'gadget') {
+          const label = {
+            pop: 'POP!',
+            flip: 'BOING!',
+            bump: event.kind === 'car' ? 'BEEP BEEP!' : 'SQUEAK!',
+            spill: 'SPLOSH!',
+            topple: 'TIMBER!',
+          }[event.action];
+          const at = toVector(event.position);
+          popup(label, at.setY(at.y + 1.6), '#ffe2a8');
         } else if (event.type === 'dance') {
           const at = toVector(event.position);
           popup(

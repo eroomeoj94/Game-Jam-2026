@@ -33,6 +33,8 @@ import { createSfx } from './audio/sfx';
 import type { MothCue, VoiceCue } from './audio/sfx';
 import { MOTH_FACTS } from './mothFacts';
 import type { WeaponId } from './config';
+import { LEVEL, LEVELS } from './config';
+import type { LevelId } from './config';
 import { createTuningPanel, loadSavedTuning } from './ui/tuning';
 
 export type ApplicationOptions = {
@@ -129,6 +131,8 @@ export function startApplication({
       // A match times its own smacks; free play gets them at random.
       hazards: hands && !playing,
       attention: hands ? (playing ? 'hold' : 'strike') : undefined,
+      // Whatever on this level moves or reacts.
+      gadgets: true,
     });
   const newMatch = () =>
     playing
@@ -165,6 +169,7 @@ export function startApplication({
   const intro = document.querySelector<HTMLElement>('#intro');
   const start = document.querySelector<HTMLButtonElement>('#start');
   const teamChoices = document.querySelector<HTMLElement>('#team-choices');
+  const levelChoices = document.querySelector<HTMLElement>('#level-choices');
   const mothChoices = document.querySelector<HTMLElement>('#moth-choices');
   const humanChoices = document.querySelector<HTMLElement>('#human-choices');
   const again = document.querySelector<HTMLButtonElement>('#again');
@@ -227,6 +232,9 @@ export function startApplication({
   // The line-up: how many teams, and how many of them people play. The
   // people take the first teams and the computer plays the rest.
   const setup = readSetup();
+  let wantLevel: LevelId = LEVEL;
+  /** True once a match has begun on this page: the next gets a new layout. */
+  let played = false;
   let wantTeams = TEAM_COUNT;
   let wantMoths = TEAM_SIZE;
   let wantHumans = solo ? 1 : Math.min(setup.humans, TEAM_COUNT);
@@ -1501,6 +1509,7 @@ export function startApplication({
     updateHUD(world.snapshot());
   }
   const onReset = () => {
+    if (playing && started && freshLayout()) return;
     setMenu(false);
     restart();
     focusCanvas();
@@ -1584,6 +1593,21 @@ export function startApplication({
         }),
       );
     };
+    levelChoices?.replaceChildren(
+      ...LEVELS.map(({ id, name }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = `level-${id}`;
+        button.className = 'secondary';
+        button.textContent = name;
+        button.setAttribute('aria-pressed', String(id === wantLevel));
+        button.addEventListener('click', () => {
+          wantLevel = id;
+          showLineup();
+        });
+        return button;
+      }),
+    );
     wantHumans = Math.min(wantHumans, wantTeams);
     segments(teamChoices, 'teams', 2, 4, wantTeams, (value) => {
       // A new number of teams brings its own usual team size with it.
@@ -1597,6 +1621,17 @@ export function startApplication({
       wantHumans = value;
     });
   }
+  /**
+   * Every match is laid out afresh, which means loading the page again and
+   * starting straight away. The first match of a visit uses the layout the
+   * title screen showed. Returns true when the page is on its way out.
+   */
+  function freshLayout() {
+    if (!played || import.meta.env?.MODE === 'test') return false;
+    saveSetup(true);
+    location.reload();
+    return true;
+  }
   const saveSetup = (autostart: boolean) => {
     try {
       sessionStorage.setItem(
@@ -1605,6 +1640,7 @@ export function startApplication({
           teams: wantTeams,
           humans: wantHumans,
           moths: wantMoths,
+          level: wantLevel,
           autostart,
         }),
       );
@@ -1615,11 +1651,18 @@ export function startApplication({
   const onStart = () => {
     // The desk is laid out for a set number of teams and moths: a different
     // number means loading the page again, and starting straight away.
-    if (playing && (wantTeams !== TEAM_COUNT || wantMoths !== TEAM_SIZE)) {
+    if (
+      playing &&
+      (wantTeams !== TEAM_COUNT ||
+        wantMoths !== TEAM_SIZE ||
+        wantLevel !== LEVEL)
+    ) {
       saveSetup(true);
       location.reload();
       return;
     }
+    // A match has already been played on this layout: deal a new one.
+    if (playing && freshLayout()) return;
     if (playing) {
       saveSetup(false);
       humans = wantHumans;
@@ -1734,6 +1777,7 @@ export function startApplication({
   }
   const beginMatch = () => {
     started = true;
+    played = true;
     // Clear away the demo match and deal a fresh one.
     if (demoBots.length) restart();
     intro.hidden = true;

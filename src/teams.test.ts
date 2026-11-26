@@ -19,10 +19,22 @@ function seeded(seed: number) {
  * Load the game laid out for `teams` teams, as the page does after the title
  * screen saves that line-up and reloads, and let computers play a match.
  */
-async function playMatch(teams: number, seed: number, teamSize?: number) {
+async function playMatch(
+  teams: number,
+  seed: number,
+  teamSize?: number,
+  /** A level, laid out from a seed with everything on it moving. */
+  level?: { id: 'desk' | 'kitchen'; seed: number },
+) {
   sessionStorage.setItem(
     SETUP_KEY,
-    JSON.stringify({ teams, humans: 0, moths: teamSize }),
+    JSON.stringify({
+      teams,
+      humans: 0,
+      moths: teamSize,
+      level: level?.id,
+      seed: level?.seed,
+    }),
   );
   vi.resetModules();
   const config = await import('./config');
@@ -40,6 +52,7 @@ async function playMatch(teams: number, seed: number, teamSize?: number) {
     placement: nearLampPlacement(random),
     match: true,
     attention: 'hold',
+    gadgets: true,
     random,
   });
   const match = createMatch(
@@ -74,6 +87,8 @@ async function playMatch(teams: number, seed: number, teamSize?: number) {
   for (let step = 0; step < 30; step++) world.step();
   world.drainEvents();
   let steps = 0;
+  const heard = new Set<string>();
+  let falls = 0;
   while (match.view().phase !== 'won' && steps++ < 600_000) {
     const before = match.view();
     const order = bots[before.team]!.tick(world.snapshot(), before);
@@ -90,11 +105,16 @@ async function playMatch(teams: number, seed: number, teamSize?: number) {
     } else if (order.type === 'dance' && match.pass()) world.dance();
     const turn = match.view();
     if (turn.stepping) world.step(turn.phase === 'move' ? steer : idle);
-    for (const event of world.drainEvents())
+    for (const event of world.drainEvents()) {
       if (event.type === 'zap') match.zapped(event.team);
+      if (event.type === 'gadget') heard.add(`${event.kind}:${event.action}`);
+    }
     const view = world.snapshot();
     for (const moth of view.moths)
-      if (moth.respawning && !match.isResting(moth.id)) match.mothOut(moth.id);
+      if (moth.respawning && !match.isResting(moth.id)) {
+        match.mothOut(moth.id);
+        falls++;
+      }
     const active = match.view().active;
     match.tick(PHYSICS_STEP_MS / 1000, {
       grounded: active === undefined || (view.moths[active]?.grounded ?? true),
@@ -117,7 +137,16 @@ async function playMatch(teams: number, seed: number, teamSize?: number) {
   const end = match.view();
   const moths = world.snapshot().moths.length;
   world.destroy();
-  return { end, moths, turns, target: MATCH.targetScore, config };
+  return {
+    end,
+    moths,
+    turns,
+    target: MATCH.targetScore,
+    config,
+    heard,
+    falls,
+    steps,
+  };
 }
 
 // Teams, the moths each should have, and the number asked for, if any.
@@ -154,3 +183,26 @@ for (const [teams, size, asked] of [
     expect(end.winner).toBe(end.scores.indexOf(best));
     expect(end.round).toBeGreaterThan(1);
   }, 180_000);
+
+// Both levels, shuffled and with everything on them moving.
+for (const [id, layout] of [
+  ['desk', 3],
+  ['desk', 12],
+  ['kitchen', 3],
+  ['kitchen', 12],
+] as const)
+  it(`plays a whole match on the ${id}, layout ${layout}, with its contraptions running`, async () => {
+    const { end, config, heard, falls, steps } = await playMatch(2, 5, 3, {
+      id,
+      seed: layout,
+    });
+    expect(config.LEVEL).toBe(id);
+    expect(config.ARENA.gadgets.length).toBeGreaterThanOrEqual(6);
+    expect(config.ARENA.pits).toHaveLength(id === 'kitchen' ? 1 : 0);
+    expect(end.phase).toBe('won');
+    expect(Math.max(...end.scores)).toBeGreaterThanOrEqual(10);
+    // The level joined in, and the computers did not spend the match
+    // walking into the sink.
+    expect(heard.size).toBeGreaterThan(0);
+    expect(falls).toBeLessThan(steps / 600);
+  }, 240_000);

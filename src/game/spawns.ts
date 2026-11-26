@@ -1,4 +1,4 @@
-import { ARENA, LAMPS } from '../config';
+import { ARENA, LAMPS, overPit } from '../config';
 import type { Position } from './world';
 
 /** Chooses where moth `id` appears, given where the other moths are. */
@@ -45,6 +45,39 @@ export function isClearSpot(
         return false;
     } else if (Math.hypot(x - piece.x, z - piece.z) < piece.radius + reach)
       return false;
+  }
+  if (overPit(x, z, reach + 0.8)) return false;
+  // Clear of anything that moves, and of the lane a runner drives round.
+  for (const gadget of ARENA.gadgets) {
+    if (gadget.type === 'runner') {
+      const near = gadget.path.some((from, index) => {
+        const to = gadget.path[(index + 1) % gadget.path.length]!;
+        const [dx, dz] = [to.x - from.x, to.z - from.z];
+        const along = Math.min(
+          1,
+          Math.max(
+            0,
+            ((x - from.x) * dx + (z - from.z) * dz) /
+              Math.max(dx * dx + dz * dz, 1e-6),
+          ),
+        );
+        return (
+          Math.hypot(x - from.x - dx * along, z - from.z - dz * along) <
+          gadget.width + reach + 0.6
+        );
+      });
+      if (near) return false;
+      continue;
+    }
+    const size =
+      gadget.type === 'launcher'
+        ? Math.max(gadget.width, gadget.depth) / 2
+        : gadget.type === 'topple'
+          ? Math.max(gadget.width, gadget.depth) / 2
+          : gadget.type === 'roller'
+            ? gadget.length / 2
+            : gadget.radius;
+    if (Math.hypot(x - gadget.x, z - gadget.z) < size + reach) return false;
   }
   const light = restingLightRadius() + LIGHT_MARGIN;
   for (const lamp of LAMPS.positions.slice(0, LAMPS.count))

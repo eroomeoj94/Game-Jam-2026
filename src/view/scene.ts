@@ -61,6 +61,10 @@ import { preloadWeaponModels } from './weaponModels';
 import type { WeaponId } from '../config';
 import { createWarning } from './hand';
 import { createPeople } from './people';
+import { createGadgetVisuals } from './gadgetVisuals';
+import { fitProp, isProp } from './props';
+import { LEVEL } from '../config';
+import type { TerrainPiece } from '../config';
 
 export function createScene(host: HTMLElement) {
   const renderer = new WebGLRenderer({
@@ -408,6 +412,58 @@ export function createScene(host: HTMLElement) {
     materials.felt(0x6e8a7a),
   );
 
+  const kitchen = LEVEL === 'kitchen';
+  const stone = new MeshStandardMaterial({ color: 0x77736c, roughness: 0.55 });
+  const cupboard = new MeshStandardMaterial({
+    color: 0x5f7d6e,
+    roughness: 0.8,
+  });
+  /**
+   * Scenery with a model: a plain stand-in the shape of its collider, which
+   * steps aside for the model once that has loaded.
+   */
+  function drawProp(piece: TerrainPiece) {
+    if (!isProp(piece.kind)) return false;
+    const { x, y, z, color } = piece;
+    const round = piece.shape === 'cylinder';
+    const stand = round
+      ? cylinder(
+          scene,
+          piece.radius,
+          piece.height,
+          x,
+          y,
+          z,
+          materials.felt(color),
+        )
+      : box(
+          scene,
+          piece.width,
+          piece.height,
+          piece.depth,
+          x,
+          y,
+          z,
+          materials.felt(color),
+        );
+    const bounds = round
+      ? {
+          width: piece.radius * 2,
+          height: piece.height,
+          depth: piece.radius * 2,
+        }
+      : { width: piece.width, height: piece.height, depth: piece.depth };
+    void fitProp(piece.kind, bounds).then((model) => {
+      if (!model) return;
+      model.position.set(x, y, z);
+      // Round things face any way they like, the same way each time.
+      if (round)
+        model.rotation.y = Math.sin(x * 12.9898 + z * 78.233) * Math.PI;
+      scene.add(model);
+      stand.visible = false;
+    });
+    return true;
+  }
   function drawBooks(piece: BoxPiece) {
     const { x, y, z, width, height, depth, color } = piece;
     const cover = materials.felt(color);
@@ -466,6 +522,22 @@ export function createScene(host: HTMLElement) {
   function drawBox(piece: BoxPiece) {
     const { x, y, z, width, height, depth, color } = piece;
     const top = y + height / 2;
+    if (piece.kind === 'desk' && kitchen) {
+      // A stone worktop on painted cupboards, one run for each slab.
+      box(scene, width, 0.6, depth, x, -0.3, z, stone);
+      const drop = -0.6 - floorY;
+      box(
+        scene,
+        width - (Math.abs(x) + width / 2 >= ARENA.desk.width / 2 ? 0.8 : 0),
+        drop,
+        depth - (z + depth / 2 >= ARENA.desk.depth / 2 ? 0.8 : 0),
+        x,
+        floorY + drop / 2,
+        z - (z + depth / 2 >= ARENA.desk.depth / 2 ? 0.4 : 0),
+        cupboard,
+      );
+      return;
+    }
     if (piece.kind === 'desk') {
       box(scene, width, height, depth, x, y, z, materials.wood);
       box(scene, width - 2, 3, depth - 2, x, -2, z, materials.wood);
@@ -592,6 +664,7 @@ export function createScene(host: HTMLElement) {
     cylinder(scene, radius * 0.7, 0.02, x, top + 0.01, z, brass);
   }
   for (const piece of ARENA.terrain) {
+    if (drawProp(piece)) continue;
     if (piece.shape === 'box') drawBox(piece);
     else drawCylinder(piece);
   }
@@ -604,7 +677,7 @@ export function createScene(host: HTMLElement) {
     [21, -6, -0.8, 0x3f5d87],
     [1, 12, 0.2, 0xc9b37a],
   ];
-  for (const [x, z, turn, colour] of decor) {
+  for (const [x, z, turn, colour] of kitchen ? [] : decor) {
     const pencil = cylinder(
       scene,
       0.07,
@@ -616,12 +689,14 @@ export function createScene(host: HTMLElement) {
     );
     pencil.rotation.set(0, turn, Math.PI / 2);
   }
-  for (const [x, z] of [
-    [19.6, -4.2],
-    [20.1, -3.6],
-    [-1.6, 7.4],
-    [-24, 12],
-  ] as const)
+  for (const [x, z] of kitchen
+    ? []
+    : ([
+        [19.6, -4.2],
+        [20.1, -3.6],
+        [-1.6, 7.4],
+        [-24, 12],
+      ] as const))
     cylinder(scene, 0.32, 0.05, x, 0.025, z, brass);
 
   const bulbMaterial = new MeshStandardMaterial({
@@ -758,6 +833,111 @@ export function createScene(host: HTMLElement) {
   moths.forEach((moth) => scene.add(moth.root));
   const warning = createWarning();
   const people = createPeople(materials);
+  const gadgetVisuals = createGadgetVisuals(scene, materials);
+  if (kitchen) drawKitchen();
+  /** What makes it a kitchen: tiles behind the worktop, and the sink in it. */
+  function drawKitchen() {
+    const tile = new MeshStandardMaterial({ color: 0xe9e4d8, roughness: 0.25 });
+    const grout = new MeshStandardMaterial({ color: 0x9aa39c, roughness: 0.9 });
+    const tilesHigh = 24;
+    const back = -ARENA.desk.depth / 2 - 0.9;
+    const across = ARENA.desk.width + 60;
+    box(scene, across, tilesHigh, 0.4, 0, tilesHigh / 2 - 0.5, back, tile);
+    for (let y = 2.2; y < tilesHigh; y += 2.4)
+      box(scene, across, 0.08, 0.06, 0, y - 0.5, back + 0.22, grout);
+    for (let x = -across / 2 + 2; x < across / 2; x += 4.8)
+      box(
+        scene,
+        0.08,
+        tilesHigh,
+        0.06,
+        x,
+        tilesHigh / 2 - 0.5,
+        back + 0.22,
+        grout,
+      );
+    // A shelf closes the tiles off at the top.
+    box(
+      scene,
+      across,
+      0.5,
+      2.4,
+      0,
+      tilesHigh - 0.3,
+      back + 1.1,
+      materials.wood,
+    );
+    const steel = gadgetVisuals.steel;
+    for (const pit of ARENA.pits) {
+      const deep = 2.4;
+      box(scene, pit.width, 0.1, pit.depth, pit.x, -deep, pit.z, steel);
+      for (const side of [-1, 1]) {
+        box(
+          scene,
+          0.12,
+          deep,
+          pit.depth,
+          pit.x + (side * pit.width) / 2,
+          -deep / 2,
+          pit.z,
+          steel,
+        );
+        box(
+          scene,
+          pit.width,
+          deep,
+          0.12,
+          pit.x,
+          -deep / 2,
+          pit.z + (side * pit.depth) / 2,
+          steel,
+        );
+      }
+      const water = new Mesh(
+        new BoxGeometry(pit.width - 0.2, 0.05, pit.depth - 0.2),
+        new MeshStandardMaterial({
+          color: 0x4f8fa8,
+          roughness: 0.08,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.78,
+        }),
+      );
+      water.position.set(pit.x, -1.1, pit.z);
+      scene.add(water);
+      // A tap arching over from the back.
+      const stem = cylinder(
+        scene,
+        0.28,
+        3.6,
+        pit.x,
+        1.8,
+        pit.z - pit.depth / 2 - 0.9,
+        steel,
+      );
+      stem.castShadow = true;
+      const spout = cylinder(
+        scene,
+        0.22,
+        2.6,
+        pit.x,
+        3.5,
+        pit.z - pit.depth / 2 + 0.3,
+        steel,
+      );
+      spout.rotation.x = Math.PI / 2;
+      for (const side of [-1, 1])
+        cylinder(
+          scene,
+          0.3,
+          0.5,
+          pit.x + side * 1.5,
+          0.25,
+          pit.z - pit.depth / 2 - 0.9,
+          steel,
+        );
+    }
+  }
   scene.add(warning.root, people.root);
   let heldWeapon: WeaponId | undefined;
   let aimPreview: AimPreview | undefined;
@@ -1107,6 +1287,7 @@ export function createScene(host: HTMLElement) {
       people.highlight(
         aimPreview?.weapon === 'mind' ? aimPreview.giant : undefined,
       );
+      gadgetVisuals.update(view.gadgets, seconds);
       people.animate(
         seconds,
         frameDelta,

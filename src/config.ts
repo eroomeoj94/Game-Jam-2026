@@ -1,234 +1,23 @@
-type Piece = { x: number; y: number; z: number; color: number };
-export type BoxPiece = Piece & {
-  shape: 'box';
-  kind: 'desk' | 'books' | 'laptop' | 'box' | 'pad';
-  width: number;
-  height: number;
-  depth: number;
-  levels?: number;
-};
-export type CylinderPiece = Piece & {
-  shape: 'cylinder';
-  kind: 'mug' | 'pot' | 'spool' | 'tin';
-  radius: number;
-  height: number;
-};
-export type TerrainPiece = BoxPiece | CylinderPiece;
+import {
+  buildLevel,
+  DESK,
+  LAMP_SPOTS,
+  START_A,
+  START_B,
+  START_C,
+  START_D,
+  type LevelId,
+} from './level/layout';
 
-/** Shrinks or grows the desk and everything laid out on it. */
-const BOARD_SCALE = 0.24;
-const DESK = { width: 250 * BOARD_SCALE, depth: 134 * BOARD_SCALE } as const;
-const scaled = <T extends { x: number; z: number }>(spot: T) => ({
-  x: spot.x * BOARD_SCALE,
-  z: spot.z * BOARD_SCALE,
-});
-
-function books(
-  x: number,
-  z: number,
-  width: number,
-  depth: number,
-  levels: number,
-  color: number,
-  levelHeight = 0.4,
-  /** Height of whatever the stack stands on; 0 is the desk. */
-  base = 0,
-): BoxPiece {
-  const height = levels * levelHeight;
-  return {
-    kind: 'books',
-    shape: 'box',
-    x,
-    y: base + height / 2,
-    z,
-    width,
-    height,
-    depth,
-    levels,
-    color,
-  };
-}
-function block(
-  kind: BoxPiece['kind'],
-  x: number,
-  z: number,
-  width: number,
-  height: number,
-  depth: number,
-  color: number,
-  base = 0,
-): BoxPiece {
-  return {
-    kind,
-    shape: 'box',
-    x,
-    y: base + height / 2,
-    z,
-    width,
-    height,
-    depth,
-    color,
-  };
-}
-function round(
-  kind: CylinderPiece['kind'],
-  x: number,
-  z: number,
-  radius: number,
-  height: number,
-  color: number,
-  base = 0,
-): CylinderPiece {
-  return {
-    kind,
-    shape: 'cylinder',
-    x,
-    y: base + height / 2,
-    z,
-    radius,
-    height,
-    color,
-  };
-}
-
-/**
- * Fixed start slots at each end of the desk, beside a low book perch. The game
- * drops moths in at random; tests and the respawn fallback use these slots.
- */
-const START_A = scaled({ x: -110, z: 0 });
-const START_B = scaled({ x: 110, z: 0 });
-// The third and fourth teams start mid-desk, towards the front and the back.
-const START_C = { x: START_A.x * 0.35, z: DESK.depth * 0.3 };
-const START_D = { x: START_B.x * 0.35, z: -DESK.depth * 0.3 };
-
-/** Height of the first tier above the desk; the summit is twice this. */
-const TIER = 3.4;
-/**
- * Where the lamps hang, in three tiers. Three hang over the desk, each with a
- * cluster of perches beneath it. Two hang over the box lids in the back
- * corners, a flutter up from the desk, and one over the summit of the book
- * tower between them. `base` is the height of the surface a lamp lights: the
- * giants cannot reach the high ones, but their platforms are small and jut
- * out over the back of the desk, so a shove can send a moth off it for good.
- */
-const LAMP_SPOTS = [
-  { x: 0, z: 4, base: 0 },
-  { x: -14, z: 6, base: 0 },
-  { x: 14, z: 6, base: 0 },
-  { x: -24.5, z: -13.2, base: TIER },
-  { x: 24.5, z: -13.2, base: TIER },
-  { x: 0, z: -12.6, base: TIER * 2 },
-];
-
-/** A box lid in a back corner with book steps up to it; `side` mirrors it. */
-const corner = (side: 1 | -1): TerrainPiece[] => [
-  block('box', side * 24.5, -13.2, 10, TIER, 8, 0xb08d62),
-  books(side * 17.9, -7.6, 3, 3, 2, 0x8a7a3e, 0.6),
-  books(side * 21.2, -7.6, 3, 3, 4, 0x6c5a86, 0.6),
-  round('spool', side * 27.6, -10.8, 0.5, 0.75, 0x9f6051, TIER),
-  block('pad', side * 21.4, -15.6, 1.4, 0.28, 1.4, 0xe0c65a, TIER),
-];
-/** The book tower at the back: a wide stack, then a narrow summit. */
-const summit: TerrainPiece[] = [
-  books(0, -12, 11, 9, 6, 0x3f5d87, TIER / 6),
-  books(0, -12.6, 6.4, 6, 6, 0x995845, TIER / 6, TIER),
-  // Steps up either side of the wide stack.
-  ...([1, -1] as const).flatMap((side) => [
-    books(side * 8.6, -8.6, 3, 3, 2, 0x526e6d, 0.6),
-    books(side * 7.2, -12, 3, 3.2, 4, 0x8a7a3e, 0.6),
-  ]),
-  // A box on the stack shortens the flutter to the summit.
-  block('box', 3.8, -8.6, 2, 1.5, 1.6, 0xb04a3a, TIER),
-  round('tin', -3.8, -8.7, 1.1, 0.5, 0x7d8e6a, TIER),
-];
-
-type Cluster = (x: number, z: number) => TerrainPiece[];
-/** A ring of low perches inside a lamp's light. */
-const ring: Cluster = (x, z) => [
-  books(x - 3.2, z - 2.6, 2.6, 2.2, 2, 0x6c5a86),
-  books(x + 3.4, z + 2.4, 2.4, 2.2, 3, 0x8a7a3e),
-  block('pad', x + 0.4, z + 4.4, 1.4, 0.28, 1.4, 0xe0c65a),
-  block('box', x - 4, z + 2.6, 1.9, 1, 1.2, 0xb04a3a),
-  round('spool', x + 3.2, z - 3, 0.5, 0.75, 0x9f6051),
-];
-/** A tall book tower with steps up to it. */
-const tower: Cluster = (x, z) => [
-  books(x - 1, z - 4, 3, 2.4, 4, 0x6c5a86, 0.55),
-  books(x + 2, z - 3.6, 1.8, 2.2, 2, 0x8a7a3e, 0.55),
-  round('tin', x - 2.5, z + 3.5, 1.1, 0.5, 0x7d8e6a),
-  block('pad', x + 2.5, z + 3.5, 1.1, 0.36, 0.6, 0xd98a96),
-  block('box', x + 4.5, z + 0.5, 1.9, 1, 1.2, 0x5a7f4f),
-];
-/** A study corner: closed laptop, mug, pencil pot and books. */
-const study: Cluster = (x, z) => [
-  block('laptop', x, z - 4.5, 5, 0.35, 3.4, 0x3b3f45),
-  round('mug', x + 4, z + 3, 0.9, 1.9, 0xa37a58),
-  round('pot', x - 3.5, z, 0.85, 2, 0x4f6f8a),
-  round('spool', x - 2, z + 5, 0.5, 0.75, 0xc9b37a),
-  books(x + 2.5, z + 0.5, 2.2, 2, 2, 0x995845),
-];
-/** One cluster for each lamp over the desk, in the order of LAMP_SPOTS. */
-const CLUSTERS: Cluster[] = [ring, study, tower];
-
-/**
- * Seeded scatter between the lamps, so routes have cover and detours. The
- * same seed always gives the same desk. Pieces keep clear of lamp clusters,
- * the fixed start slots and a strip along the front edge kept free for testing.
- */
-function scatter(count: number, seed: number): TerrainPiece[] {
-  let state = seed;
-  const random = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  const palette = [
-    0x6c5a86, 0x8a7a3e, 0x526e6d, 0x995845, 0xb04a3a, 0x4a6b5a, 0x3f5d87,
-  ];
-  const colour = () => palette[Math.floor(random() * palette.length)]!;
-  const placed: { x: number; z: number }[] = [];
-  const pieces: TerrainPiece[] = [];
-  for (
-    let attempt = 0;
-    pieces.length < count && attempt < count * 40;
-    attempt++
-  ) {
-    const x = (random() * 2 - 1) * (DESK.width / 2 - 8);
-    const z = (random() * 2 - 1) * (DESK.depth / 2 - 12);
-    const clear =
-      LAMP_SPOTS.every((spot) => Math.hypot(spot.x - x, spot.z - z) > 13) &&
-      [START_A, START_B].every(
-        (spot) => Math.hypot(spot.x - x, spot.z - z) > 16,
-      ) &&
-      placed.every((spot) => Math.hypot(spot.x - x, spot.z - z) > 6);
-    if (!clear) continue;
-    placed.push({ x, z });
-    const roll = random();
-    if (roll < 0.4)
-      pieces.push(
-        books(
-          x,
-          z,
-          2 + random() * 1.5,
-          1.8 + random(),
-          2 + Math.floor(random() * 3),
-          colour(),
-        ),
-      );
-    else if (roll < 0.55)
-      pieces.push(block('box', x, z, 1.9, 1, 1.2, colour()));
-    else if (roll < 0.68)
-      pieces.push(block('pad', x, z, 1.4, 0.28, 1.4, 0xe0c65a));
-    else if (roll < 0.78) pieces.push(round('tin', x, z, 1.1, 0.5, 0x7d8e6a));
-    else if (roll < 0.86)
-      pieces.push(round('spool', x, z, 0.5, 0.75, colour()));
-    else if (roll < 0.93) pieces.push(round('mug', x, z, 0.9, 1.9, 0xa37a58));
-    else pieces.push(round('pot', x, z, 0.85, 2, 0x4f6f8a));
-  }
-  return pieces;
-}
+export type {
+  BoxPiece,
+  CylinderPiece,
+  GadgetSpec,
+  LevelId,
+  Pit,
+  TerrainPiece,
+} from './level/layout';
+export { LEVELS } from './level/layout';
 
 /** Where the title screen keeps the chosen line-up between page loads. */
 export const SETUP_KEY = 'moth-fight-club:setup';
@@ -239,6 +28,10 @@ export type Setup = {
   humans: number;
   /** Moths in each team, 1 to 5; left out, it follows the number of teams. */
   moths?: number;
+  /** Which level to play on. */
+  level?: LevelId;
+  /** Lay the level out from this seed, instead of afresh each load. */
+  seed?: number;
   /** True for the one load that follows a change of line-up: skip the title. */
   autostart?: boolean;
 };
@@ -259,9 +52,18 @@ export function readSetup(): Setup {
       MAX_TEAM_SIZE,
       Math.max(1, Math.round(saved?.moths ?? defaultTeamSize(teams))),
     );
-    return { teams, humans, moths, autostart: !!saved?.autostart };
+    const level: LevelId = saved?.level === 'kitchen' ? 'kitchen' : 'desk';
+    const seed = Number.isFinite(saved?.seed) ? Number(saved?.seed) : undefined;
+    return {
+      teams,
+      humans,
+      moths,
+      level,
+      seed,
+      autostart: !!saved?.autostart,
+    };
   } catch {
-    return { teams: 2, humans: 2, moths: defaultTeamSize(2) };
+    return { teams: 2, humans: 2, moths: defaultTeamSize(2), level: 'desk' };
   }
 }
 /**
@@ -271,6 +73,20 @@ export function readSetup(): Setup {
 export const TEAM_COUNT = readSetup().teams;
 /** Moths in each team for this page load. */
 export const TEAM_SIZE = readSetup().moths ?? defaultTeamSize(TEAM_COUNT);
+
+/** The level this page was loaded for; changing it reloads the page. */
+export const LEVEL: LevelId = readSetup().level ?? 'desk';
+/**
+ * Every page load lays the level out afresh. Tests keep the one fixed
+ * layout, with nothing on it that moves, so they stay predictable.
+ */
+const LAYOUT = buildLevel(
+  LEVEL,
+  readSetup().seed ??
+    (import.meta.env?.MODE === 'test'
+      ? undefined
+      : Math.floor(Math.random() * 2 ** 31)),
+);
 
 /** Up to five moths per team, with names and slightly different wing colours. */
 const TEAMS = [
@@ -308,32 +124,12 @@ export const ARENA = {
   lampRadius: 0.32,
   mothRadius: 0.48,
   desk: DESK,
-  /** Order matters: the desk first, then each team's nearby book perch. */
-  terrain: [
-    {
-      kind: 'desk',
-      shape: 'box',
-      x: 0,
-      y: -0.25,
-      z: 0,
-      width: DESK.width,
-      height: 0.5,
-      depth: DESK.depth,
-      color: 0x79523b,
-    },
-    books(START_A.x + 0.9, START_A.z - 2.1, 2.5, 2, 2, 0x995845),
-    books(START_B.x - 0.9, START_B.z - 2.25, 2.2, 2.4, 3, 0x526e6d),
-    ...[
-      ...LAMP_SPOTS.flatMap(
-        (spot, index) => CLUSTERS[index]?.(spot.x, spot.z) ?? [],
-      ),
-      ...corner(-1),
-      ...corner(1),
-      ...summit,
-      // Keep the clutter about as dense whatever the desk size.
-      ...scatter(Math.round(60 * BOARD_SCALE ** 2 * 1.6), 20261127),
-    ],
-  ] satisfies TerrainPiece[] as TerrainPiece[],
+  /** Order matters: the surface first, then each team's nearby book perch. */
+  terrain: LAYOUT.terrain,
+  /** What moves or reacts on this level; the world brings them to life. */
+  gadgets: LAYOUT.gadgets,
+  /** Holes in the surface. */
+  pits: LAYOUT.pits,
   /**
    * Moth 0 and moth 1 lead each team, so key 1 is Dusty and key 2 is
    * Mothhew; the rest alternate teams.
@@ -353,6 +149,29 @@ export const ARENA = {
     }),
   ),
 } as const;
+
+/** True over a hole in the surface, or within `margin` of one. */
+export const overPit = (x: number, z: number, margin = 0) =>
+  ARENA.pits.some(
+    (pit) =>
+      Math.abs(x - pit.x) < pit.width / 2 + margin &&
+      Math.abs(z - pit.z) < pit.depth / 2 + margin,
+  );
+/** The nearest spot to (x, z) with solid surface under it. */
+export function besidePits<T extends { x: number; z: number }>(spot: T): T {
+  for (const pit of ARENA.pits) {
+    const dx = spot.x - pit.x;
+    const dz = spot.z - pit.z;
+    const reachX = pit.width / 2 + 1;
+    const reachZ = pit.depth / 2 + 1;
+    if (Math.abs(dx) >= reachX || Math.abs(dz) >= reachZ) continue;
+    // Out through whichever side is nearest.
+    if (reachX - Math.abs(dx) < reachZ - Math.abs(dz))
+      return { ...spot, x: pit.x + (dx < 0 ? -reachX : reachX) };
+    return { ...spot, z: pit.z + (dz < 0 ? -reachZ : reachZ) };
+  }
+  return spot;
+}
 
 export const MAX_LAMPS = 8;
 
