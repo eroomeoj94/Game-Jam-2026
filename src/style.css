@@ -76,22 +76,7 @@ h1 {
   font-size: 13px;
   letter-spacing: 0.035em;
 }
-.edition {
-  position: absolute;
-  right: 4.5%;
-  top: 6%;
-  text-align: right;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: #d6c7ad;
-  pointer-events: none;
-}
-.edition span {
-  display: block;
-  margin-top: 10px;
-  color: #899390;
-  font-size: 9px;
-}
+
 .bottom-panel {
   position: absolute;
   bottom: 68px;
@@ -187,9 +172,6 @@ footer {
   }
   h1 {
     font-size: 48px;
-  }
-  .edition {
-    display: none;
   }
   .bottom-panel {
     flex-direction: column;
@@ -622,36 +604,8 @@ kbd {
 .keys kbd:first-child {
   margin-left: 0;
 }
-.demo-tag {
-  position: absolute;
-  right: 0;
-  bottom: 76px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0;
-  padding: 7px 13px;
-  border: 1px solid #c69d6244;
-  border-radius: 99px;
-  color: #d6c7ad;
-  background: #101922b0;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-}
-.demo-tag span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #ff6b5e;
-  animation: demo-blink 1.4s ease-in-out infinite;
-}
-@keyframes demo-blink {
-  50% {
-    opacity: 0.25;
-  }
-}
+
 @media (max-width: 700px) {
-  .demo-tag,
   .keys {
     display: none;
   }
@@ -776,10 +730,6 @@ kbd {
 }
 .again {
   top: calc(max(22%, 150px) + 84px);
-}
-/* Once play starts the corner credit makes way for the scoreboard. */
-#intro[hidden] ~ .edition {
-  display: none;
 }
 .lil-gui.tuning {
   display: none;
@@ -1661,12 +1611,6 @@ kbd.ps-triangle {
 /* The keys are in the menu's controls table; the column has no room. */
 #intro .keys {
   display: none;
-}
-/* The demo note sits over the desk, not inside the column. */
-#intro .demo-tag {
-  position: fixed;
-  right: 4.5%;
-  bottom: 76px;
 }
 /* The loading screen before a match: the same dark ground as the title
    column, a moth fact to read, and one of three films in the corner. */

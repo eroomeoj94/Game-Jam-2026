@@ -186,7 +186,6 @@ export function startApplication({
     document.querySelector<HTMLButtonElement>('#scorecard-quit');
   const scoreboard = document.querySelector<HTMLElement>('#scoreboard');
   const caption = document.querySelector<HTMLElement>('.caption');
-  const demoTag = document.querySelector<HTMLElement>('#demo-tag');
   const menu = document.querySelector<HTMLElement>('#menu');
   const resume = document.querySelector<HTMLButtonElement>('#resume');
   const quit = document.querySelector<HTMLButtonElement>('#quit');
@@ -1882,7 +1881,6 @@ export function startApplication({
   mute.disabled = pass.disabled = false;
   start.disabled = helpToggle.disabled = false;
   // The match has its own HUD; the playground keeps its debug controls.
-  if (demoTag) demoTag.hidden = !demoBots.length;
   // The page is written for two teams: the others' scoreboard blocks and
   // scorecard columns are copies, Purple beside Mustard and Ivory beside Teal.
   const extraTeams: Element[] = [];
@@ -1927,13 +1925,6 @@ export function startApplication({
     !playing || new URLSearchParams(location.search).has('tune'),
   );
   modeTag.textContent = playing ? 'Match' : 'Weapon playground';
-  // The corner label names the level.
-  const edition = document.querySelector<HTMLElement>('#edition');
-  if (edition && LEVEL === 'kitchen') {
-    const number = document.createElement('span');
-    number.textContent = '02 / MINIATURE WORLD';
-    edition.replaceChildren('THE KITCHEN BOUT', number);
-  }
   reset.textContent = playing ? 'New match' : 'Reset scene';
   moveMeter.hidden = !playing || MATCH.moveSeconds <= 0;
   nudge.hidden = zaps.hidden = playing;
