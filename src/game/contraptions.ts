@@ -425,7 +425,9 @@ export function createContraptions({
   function stepRunners(dt: number) {
     for (const runner of runners) {
       const { spec, body } = runner;
-      if (!runner.begun) {
+      // Its first step puts it at its place on the loop without a run-up.
+      const placing = !runner.begun;
+      if (placing) {
         runner.begun = true;
         runner.at = (spec.start ?? 0) * runner.total;
       }
@@ -442,11 +444,15 @@ export function createContraptions({
       const x = from.x + (to.x - from.x) * part;
       const z = from.z + (to.z - from.z) * part;
       runner.heading = Math.atan2(to.x - from.x, to.z - from.z);
-      body.velocity.set(
-        (x - body.position.x) / dt,
-        0,
-        (z - body.position.z) / dt,
-      );
+      // Jumping to its place must not count as speed: a body moving that
+      // fast would fling whatever it touched, and overshoot its own spot.
+      if (placing) body.velocity.setZero();
+      else
+        body.velocity.set(
+          (x - body.position.x) / dt,
+          0,
+          (z - body.position.z) / dt,
+        );
       body.position.set(x, spec.height / 2, z);
       body.quaternion.setFromAxisAngle(new Vec3(0, 1, 0), runner.heading);
       const drive = facing(runner.heading);

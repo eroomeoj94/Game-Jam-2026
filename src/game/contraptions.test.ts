@@ -175,6 +175,46 @@ describe('a wind-up toy', () => {
   });
 });
 
+describe('toy cars sharing a loop', () => {
+  it('set off spread round it, without lurching on the first step', () => {
+    const path = [
+      { x: -6, z: FRONT },
+      { x: 6, z: FRONT },
+      { x: 6, z: FRONT - 2 },
+      { x: -6, z: FRONT - 2 },
+    ];
+    const world = setup(
+      [0, 0.5].map((start) => ({
+        type: 'runner' as const,
+        kind: 'car' as const,
+        path,
+        start,
+        speed: 6,
+        length: 2.4,
+        width: 1.1,
+        height: 0.95,
+        push: 8,
+      })),
+    );
+    const cars = () =>
+      world
+        .snapshot()
+        .gadgets.flatMap((gadget) =>
+          gadget.type === 'runner' ? [gadget] : [],
+        );
+    world.step();
+    const [first, second] = cars();
+    // Half a lap apart: one on the near straight, one on the far one.
+    expect(first!.z).toBeCloseTo(FRONT, 0);
+    expect(second!.z).toBeCloseTo(FRONT - 2, 0);
+    // And a tick later each has moved a tick's worth, not leapt.
+    world.step();
+    const [later, laterSecond] = cars();
+    expect(Math.abs(later!.x - first!.x)).toBeLessThan(0.5);
+    expect(Math.abs(laterSecond!.x - second!.x)).toBeLessThan(0.5);
+  });
+});
+
 describe('a mug', () => {
   const mug: GadgetSpec = {
     type: 'spill',
