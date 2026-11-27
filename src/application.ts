@@ -303,6 +303,28 @@ export function startApplication({
   const loader = document.querySelector<HTMLElement>('#loader');
   const loaderFact = document.querySelector<HTMLElement>('#loader-fact');
   const loaderVideo = document.querySelector<HTMLVideoElement>('#loader-video');
+  // The loading films are fetched whole as the page opens and played from
+  // memory, so one is on screen the moment a loading screen appears.
+  const filmUrls = Array.from(
+    { length: LOADING_FILMS },
+    (_, film) => `${import.meta.env.BASE_URL}media/loading-${film}.mp4`,
+  );
+  const filmsHeld: (string | undefined)[] = [];
+  if (
+    import.meta.env?.MODE !== 'test' &&
+    typeof fetch === 'function' &&
+    typeof URL.createObjectURL === 'function'
+  )
+    filmUrls.forEach((url, film) => {
+      void fetch(url)
+        .then((response) => (response.ok ? response.blob() : undefined))
+        .then((blob) => {
+          if (blob) filmsHeld[film] = URL.createObjectURL(blob);
+        })
+        .catch(() => {});
+    });
+  const filmSource = (film: number) =>
+    filmsHeld[film % LOADING_FILMS] ?? filmUrls[film % LOADING_FILMS]!;
   const loaderProgress =
     document.querySelector<HTMLElement>('#loader-progress');
   const aimHint = document.querySelector<HTMLElement>('#aim-hint');
@@ -1725,7 +1747,7 @@ export function startApplication({
     let film = Math.floor(Math.random() * LOADING_FILMS);
     const nextFilm = () => {
       if (!loaderVideo || !loading) return;
-      loaderVideo.src = `${import.meta.env.BASE_URL}media/loading-${film++ % LOADING_FILMS}.mp4`;
+      loaderVideo.src = filmSource(film++);
       // Fade each film in afresh.
       loaderVideo.style.animation = 'none';
       void loaderVideo.offsetWidth;
@@ -1843,7 +1865,7 @@ export function startApplication({
   let menuFilm = Math.floor(Math.random() * LOADING_FILMS);
   function nextMenuFilm() {
     if (!menuVideo || !menuOpen) return;
-    menuVideo.src = `${import.meta.env.BASE_URL}media/loading-${menuFilm++ % LOADING_FILMS}.mp4`;
+    menuVideo.src = filmSource(menuFilm++);
     void menuVideo.play?.()?.catch(() => {});
   }
   const onHelp = () => setMenu(!menuOpen);
