@@ -92,7 +92,7 @@ Each level has pieces that join in, simulated in `src/game/contraptions.ts`:
 | ------------------------------------------- | -------------------------------------- | -------------------------------------- |
 | Blows moths along                           | A fan that sweeps side to side         | A kettle that lets off steam in bursts |
 | Throws whoever is on it                     | A ruler see-saw (land on the high end) | A toaster that pops every few seconds  |
-| Drives laps and shoves                      | A wind-up car                          | A clockwork mouse                      |
+| Drives laps and shoves                      | Three wind-up cars                     | A clockwork mouse and a runaway apple  |
 | Rolls when pushed                           | A pencil                               | A rolling pin                          |
 | Tips over, leaving a slippery puddle        | A mug of coffee                        | A bottle of milk                       |
 | Comes down when punched, blasted or slapped | A tower of books                       | A stack of plates                      |
