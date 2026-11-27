@@ -38,7 +38,9 @@ export type GadgetView =
     })
   | (Point & {
       type: 'runner';
-      kind: 'car' | 'mouse';
+      kind: 'car' | 'mouse' | 'apple';
+      /** How far round the loop it sets off, from 0 to 1. */
+      start?: number;
       heading: number;
       length: number;
       width: number;
@@ -222,6 +224,7 @@ export function createContraptions({
         lengths,
         total: lengths.reduce((sum, length) => sum + length, 0),
         at: 0,
+        begun: false,
         heading: 0,
         bumped: new Map<number, number>(),
       },
@@ -333,7 +336,7 @@ export function createContraptions({
         // Wind only speeds a moth up to the wind's own speed.
         const speed =
           moth.body.velocity.x * aim.x + moth.body.velocity.z * aim.z;
-        if (speed >= 6.5 * falloff) continue;
+        if (speed >= 10 * falloff) continue;
         moth.body.wakeUp();
         moth.body.velocity.x += aim.x * spec.force * falloff * dt;
         moth.body.velocity.z += aim.z * spec.force * falloff * dt;
@@ -422,6 +425,10 @@ export function createContraptions({
   function stepRunners(dt: number) {
     for (const runner of runners) {
       const { spec, body } = runner;
+      if (!runner.begun) {
+        runner.begun = true;
+        runner.at = (spec.start ?? 0) * runner.total;
+      }
       runner.at = (runner.at + spec.speed * dt) % runner.total;
       let left = runner.at;
       let index = 0;

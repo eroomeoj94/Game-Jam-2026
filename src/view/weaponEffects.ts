@@ -690,7 +690,12 @@ export function createWeaponEffects(
           const label = {
             pop: 'POP!',
             flip: 'BOING!',
-            bump: event.kind === 'car' ? 'BEEP BEEP!' : 'SQUEAK!',
+            bump:
+              event.kind === 'car'
+                ? 'BEEP BEEP!'
+                : event.kind === 'apple'
+                  ? 'BONK!'
+                  : 'SQUEAK!',
             spill: 'SPLOSH!',
             topple: 'TIMBER!',
           }[event.action];

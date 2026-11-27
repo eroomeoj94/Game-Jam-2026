@@ -55,6 +55,8 @@ describe('laying out a level', () => {
       'launcher:seesaw',
       'roller:pencil',
       'runner:car',
+      'runner:car',
+      'runner:car',
       'spill:mug',
       'topple:books',
     ]);
@@ -66,6 +68,7 @@ describe('laying out a level', () => {
       'blower:kettle',
       'launcher:toaster',
       'roller:pin',
+      'runner:apple',
       'runner:mouse',
       'spill:milk',
       'topple:plates',
@@ -105,20 +108,23 @@ describe('laying out a level', () => {
     for (const level of ['desk', 'kitchen'] as const)
       for (let seed = 1; seed <= 25; seed++) {
         const built = buildLevel(level, seed);
-        const runner = built.gadgets.find(({ type }) => type === 'runner');
-        if (runner?.type !== 'runner') throw new Error('no runner');
+        const runners = built.gadgets.flatMap((gadget) =>
+          gadget.type === 'runner' ? [gadget] : [],
+        );
+        if (!runners.length) throw new Error('no runner');
         const solid = built.terrain.filter(({ kind }) => kind !== 'desk');
-        for (const point of runner.path)
-          for (const piece of solid) {
-            const half = footprint(piece);
-            const inside =
-              Math.abs(point.x - piece.x) < half.x + runner.width / 2 &&
-              Math.abs(point.z - piece.z) < half.z + runner.width / 2 &&
-              piece.y -
-                (piece.shape === 'box' ? piece.height : piece.height) / 2 <
-                runner.height;
-            expect(inside, `${level} ${seed} ${piece.kind}`).toBe(false);
-          }
+        for (const runner of runners)
+          for (const point of runner.path)
+            for (const piece of solid) {
+              const half = footprint(piece);
+              const inside =
+                Math.abs(point.x - piece.x) < half.x + runner.width / 2 &&
+                Math.abs(point.z - piece.z) < half.z + runner.width / 2 &&
+                piece.y -
+                  (piece.shape === 'box' ? piece.height : piece.height) / 2 <
+                  runner.height;
+              expect(inside, `${level} ${seed} ${piece.kind}`).toBe(false);
+            }
         // Six lamps, as ever, whatever is under them.
         expect(LAMP_SPOTS).toHaveLength(6);
       }

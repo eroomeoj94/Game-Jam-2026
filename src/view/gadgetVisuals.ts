@@ -213,7 +213,7 @@ export function createGadgetVisuals(scene: Scene, materials: Materials) {
         { width: first.length, height: first.height, depth: first.width },
         new Mesh(
           new BoxGeometry(first.width, first.height, first.length),
-          materials.felt(first.kind === 'car' ? 0xc0392b : 0x8d8d8d),
+          materials.felt(first.kind === 'mouse' ? 0x8d8d8d : 0xc0392b),
         ),
         // The car's nose is at +x and the mouse's at -x.
         first.kind === 'car' ? -Math.PI / 2 : Math.PI / 2,
@@ -222,6 +222,11 @@ export function createGadgetVisuals(scene: Scene, materials: Materials) {
         if (view.type !== 'runner') return;
         group.position.set(view.x, 0, view.z);
         group.rotation.y = view.heading;
+        if (view.kind === 'apple') {
+          // Rolling, not driving.
+          body.rotation.x = seconds * 7.5;
+          return;
+        }
         // A clockwork rattle.
         body.position.y =
           view.height / 2 + Math.abs(Math.sin(seconds * 22)) * 0.03;

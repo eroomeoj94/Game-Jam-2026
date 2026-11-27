@@ -93,7 +93,9 @@ export type GadgetSpec =
   /** Drives round a loop, shoving moths out of its way. */
   | {
       type: 'runner';
-      kind: 'car' | 'mouse';
+      kind: 'car' | 'mouse' | 'apple';
+      /** How far round the loop it sets off, from 0 to 1. */
+      start?: number;
       path: Spot[];
       speed: number;
       length: number;
@@ -262,6 +264,13 @@ function lap(): Spot[] {
     }
   return points;
 }
+/** Where the kitchen's runaway apple circles. */
+const APPLE_RUN = { x: -7, z: 13.5, radius: 1.9 };
+const circle = (x: number, z: number, radius: number): Spot[] =>
+  Array.from({ length: 20 }, (_, step) => ({
+    x: x + Math.cos((step / 20) * Math.PI * 2) * radius,
+    z: z + Math.sin((step / 20) * Math.PI * 2) * radius,
+  }));
 const inLane = (x: number, z: number, margin = 1.6) =>
   z < LANE.near + margin &&
   z > LANE.far - margin &&
@@ -434,7 +443,7 @@ const hob: Cluster = (x, z) => ({
       duty: 0.3,
       range: 13,
       halfAngle: 0.5,
-      force: 150,
+      force: 240,
     },
   ],
 });
@@ -665,16 +674,31 @@ export function buildLevel(id: LevelId, seed?: number): Level {
     fresh,
   );
   if (lively) {
-    gadgets.push({
-      type: 'runner',
-      kind: kitchen ? 'mouse' : 'car',
-      path: lap(),
-      speed: kitchen ? 6 : 7.5,
-      length: kitchen ? 2 : 2.4,
-      width: 1.16,
-      height: 0.95,
-      push: 8,
-    });
+    // Three toy cars share the desk's loop; the kitchen has one mouse.
+    for (const start of kitchen ? [0] : [0, 1 / 3, 2 / 3])
+      gadgets.push({
+        type: 'runner',
+        kind: kitchen ? 'mouse' : 'car',
+        path: lap(),
+        start,
+        speed: kitchen ? 6 : 7.5,
+        length: kitchen ? 2 : 2.4,
+        width: 1.16,
+        height: 0.95,
+        push: 15,
+      });
+    // A runaway apple rolls round and round near the front of the worktop.
+    if (kitchen)
+      gadgets.push({
+        type: 'runner',
+        kind: 'apple',
+        path: circle(APPLE_RUN.x, APPLE_RUN.z, APPLE_RUN.radius),
+        speed: 5,
+        length: 1.3,
+        width: 1.3,
+        height: 1.3,
+        push: 13,
+      });
     gadgets.push({
       type: 'roller',
       kind: kitchen ? 'pin' : 'pencil',
@@ -699,7 +723,7 @@ export function buildLevel(id: LevelId, seed?: number): Level {
         duty: 1,
         range: 16,
         halfAngle: 0.38,
-        force: 120,
+        force: 210,
       });
       gadgets.push({
         type: 'launcher',
