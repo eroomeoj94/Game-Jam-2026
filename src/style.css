@@ -2522,3 +2522,13 @@ kbd.ps-triangle {
 .scorecard:not([hidden]) ~ .coach {
   display: none;
 }
+/* The button a controller has stepped to shows as clearly as a keyboard's. */
+.menu-buttons button:focus {
+  outline: 3px solid #fff3c8;
+  outline-offset: 2px;
+  translate: 6px 0;
+  filter: brightness(1.1);
+}
+.menu-card kbd.ps {
+  white-space: nowrap;
+}

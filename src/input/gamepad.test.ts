@@ -135,4 +135,29 @@ describe('standard-mapped PS5 controls', () => {
     expect(released.wheelAim).toBeUndefined();
     expect(input.read().x).toBeCloseTo(1);
   });
+
+  it('reports Options, menu steps and Cross once per press', () => {
+    let state = pad({ buttons: buttons() });
+    const input = createGamepadInput(() => [state]);
+    input.poll();
+    state = pad({ buttons: buttons(9) });
+    expect(input.poll().menu).toBe(true);
+    expect(input.poll().menu).toBe(false);
+    state = pad({ buttons: buttons(13) });
+    expect(input.poll().menuStep).toBe(1);
+    expect(input.poll().menuStep).toBe(0);
+    state = pad({ buttons: buttons(12) });
+    expect(input.poll().menuStep).toBe(-1);
+    // The stick steps once per push, and again only after it comes back.
+    state = pad({ axes: [0, 1, 0, 0], buttons: buttons() });
+    expect(input.poll().menuStep).toBe(1);
+    expect(input.poll().menuStep).toBe(0);
+    state = pad({ buttons: buttons() });
+    input.poll();
+    state = pad({ axes: [0, -1, 0, 0], buttons: buttons() });
+    expect(input.poll().menuStep).toBe(-1);
+    state = pad({ buttons: buttons(0) });
+    expect(input.poll().confirm).toBe(true);
+    expect(input.poll().confirm).toBe(false);
+  });
 });

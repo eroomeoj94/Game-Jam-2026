@@ -481,6 +481,45 @@ describe('movement control smoke tests', () => {
           .querySelector('[data-weapon="bosh"]')
           ?.getAttribute('aria-pressed'),
       ).toBe('true');
+      // Options opens the pause menu, which the pad can then work.
+      const menu = document.querySelector<HTMLElement>('#menu')!;
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4900);
+      pads = [makePad([0, 0, 0, 0], [9])];
+      frame(4920);
+      expect(menu.hidden).toBe(false);
+      expect(document.activeElement?.id).toBe('resume');
+      pads = [makePad([0, 0, 0, 0])];
+      frame(4940);
+      // D-pad down moves to the next button, and holding it moves only once.
+      pads = [makePad([0, 0, 0, 0], [13])];
+      frames(4960, 5);
+      const second = document.activeElement as HTMLElement;
+      expect(second.id).not.toBe('resume');
+      expect(second.closest('.menu-buttons')).not.toBeNull();
+      // The left stick steps back up to Resume, and Cross presses it.
+      pads = [makePad([0, 0, 0, 0])];
+      frame(5080);
+      pads = [makePad([0, -1, 0, 0])];
+      frames(5100, 5);
+      expect(document.activeElement?.id).toBe('resume');
+      pads = [makePad([0, 0, 0, 0])];
+      frame(5220);
+      pads = [makePad([0, 0, 0, 0], [0])];
+      frame(5240);
+      expect(menu.hidden).toBe(true);
+      // Pressing Cross in the menu did not hop the moth afterwards.
+      pads = [makePad([0, 0, 0, 0])];
+      frames(5260, 10);
+      // And Circle shuts an open menu too.
+      pads = [makePad([0, 0, 0, 0], [9])];
+      frame(5480);
+      expect(menu.hidden).toBe(false);
+      pads = [makePad([0, 0, 0, 0])];
+      frame(5500);
+      pads = [makePad([0, 0, 0, 0], [1])];
+      frame(5520);
+      expect(menu.hidden).toBe(true);
     } finally {
       if (original) Object.defineProperty(navigator, 'getGamepads', original);
       else Reflect.deleteProperty(navigator, 'getGamepads');

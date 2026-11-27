@@ -1346,6 +1346,29 @@ export function startApplication({
   const onPointerCancel = () => {
     pointerStart = undefined;
   };
+  /**
+   * Drive the open pause menu from the controller: D-pad or left stick up
+   * and down the buttons, Cross to press one, Circle or Options to resume.
+   */
+  function stepMenuPad() {
+    const pad = gamepad.poll();
+    if (controllerStatus && controllerStatus.textContent !== pad.text)
+      controllerStatus.textContent = pad.text;
+    if (pad.menu || pad.pass) {
+      setMenu(false);
+      return;
+    }
+    const choices = [
+      ...(menu?.querySelectorAll<HTMLButtonElement>('.menu-buttons button') ??
+        []),
+    ].filter((button) => !button.disabled && !button.hidden);
+    const at = choices.indexOf(document.activeElement as HTMLButtonElement);
+    if (pad.menuStep && choices.length)
+      choices[
+        at < 0 ? 0 : (at + pad.menuStep + choices.length) % choices.length
+      ]!.focus({ preventScroll: true });
+    else if (pad.confirm) (choices[at] ?? choices[0])?.click();
+  }
   function render(time: number) {
     if (disposed) return;
     const elapsed =
@@ -1353,6 +1376,7 @@ export function startApplication({
         ? 0
         : Math.min(time - previousTime, MAX_FRAME_MS);
     previousTime = time;
+    if (menuOpen && !document.hidden && !unfocused) stepMenuPad();
     if (!started && !demoBots.length) {
       // The start screen shows the desk but takes no game input.
       if (!document.hidden && !unfocused && !menuOpen) {
@@ -1403,6 +1427,7 @@ export function startApplication({
         if (next !== undefined) selectMoth(next);
       }
       if (started) {
+        if (pad.menu) setMenu(true);
         if (pad.pass) passTurn();
         if (pad.toggleView) toggleView();
         if (pad.resetView) scene.resetCamera();

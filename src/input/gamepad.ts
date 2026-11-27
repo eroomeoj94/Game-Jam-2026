@@ -35,10 +35,13 @@ export function createGamepadInput(
   let movement = idle();
   let queuedJump = false;
   let needsNeutral = true;
+  /** Which way the left stick was last pushed up or down, for menus. */
+  let stickStep = 0;
   function clear() {
     movement = idle();
     queuedJump = false;
     needsNeutral = true;
+    stickStep = 0;
     previous.clear();
   }
   return {
@@ -74,6 +77,12 @@ export function createGamepadInput(
         wheel: false,
         /** Where the left stick points while the wheel is open, if anywhere. */
         wheelAim: undefined as { x: number; z: number } | undefined,
+        /** True when Options is pressed this frame: open or shut the menu. */
+        menu: false,
+        /** -1 / +1 when the D-pad or left stick steps up or down a menu. */
+        menuStep: 0,
+        /** True when Cross is pressed this frame: choose the menu's button. */
+        confirm: false,
       };
       if (!pad) {
         identity = '';
@@ -119,8 +128,20 @@ export function createGamepadInput(
       // R2 or Square, but not while choosing a weapon.
       status.fire = !status.wheel && (pressed.has(7) || pressed.has(2));
       status.pass = justPressed(1); // Circle.
+      status.menu = justPressed(9); // Options.
+      status.confirm = justPressed(0);
+      // One step per push of the stick, however long it is held over.
+      const pushed = Math.abs(move.z) > 0.6 ? Math.sign(move.z) : 0;
+      status.menuStep = justPressed(13)
+        ? 1
+        : justPressed(12)
+          ? -1
+          : pushed !== stickStep
+            ? pushed
+            : 0;
+      stickStep = pushed;
       status.text =
-        'Controller ready · Cross: hop / flutter · R2: aim, release to fire · L2: weapon wheel';
+        'Controller ready · Cross: hop / flutter · R2: aim, release to fire · L2: weapon wheel · Options: menu';
       previous = pressed;
       return status;
     },
