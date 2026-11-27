@@ -168,37 +168,49 @@
         hidden
       >
         <div class="menu-card">
-          <p class="eyebrow"><span></span> Paused</p>
-          <h2 id="menu-title">Moth Fight Club</h2>
-          <div class="menu-buttons">
-            <button id="resume" type="button">Resume</button>
-            <button id="reset" type="button" class="secondary" disabled>
-              Reset scene
-            </button>
-            <button
-              id="music"
-              type="button"
-              class="secondary"
-              aria-pressed="true"
-              disabled
-            >
-              Music on
-            </button>
-            <button
-              id="mute"
-              type="button"
-              class="secondary"
-              aria-pressed="true"
-              disabled
-            >
-              Sound effects on
-            </button>
-            <button id="camera" type="button" class="secondary" disabled>
-              Re-centre view
-            </button>
-            <button id="quit" type="button" class="secondary">
-              Quit to title
-            </button>
+          <div class="menu-side">
+            <p class="eyebrow"><span></span> Paused</p>
+            <h2 id="menu-title">Moth Fight Club</h2>
+            <div class="menu-buttons">
+              <button id="resume" type="button">Resume</button>
+              <button id="reset" type="button" class="secondary" disabled>
+                Reset scene
+              </button>
+              <button
+                id="music"
+                type="button"
+                class="secondary"
+                aria-pressed="true"
+                disabled
+              >
+                Music on
+              </button>
+              <button
+                id="mute"
+                type="button"
+                class="secondary"
+                aria-pressed="true"
+                disabled
+              >
+                Sound effects on
+              </button>
+              <button id="camera" type="button" class="secondary" disabled>
+                Re-centre view
+              </button>
+              <button id="quit" type="button" class="secondary">
+                Quit to title
+              </button>
+            </div>
+            <div class="menu-screen">
+              <video
+                id="menu-video"
+                class="menu-video"
+                muted
+                playsinline
+                disablepictureinpicture
+                aria-hidden="true"
+              ></video>
+            </div>
           </div>
           <div id="help">
             <h3>Weapons</h3>

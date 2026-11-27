@@ -1832,6 +1832,19 @@ export function startApplication({
     resetClock();
     if (menuOpen) resume?.focus({ preventScroll: true });
     else focusCanvas();
+    // The loading films take turns on the menu's little screen.
+    if (menuVideo) {
+      menuVideo.onended = nextMenuFilm;
+      if (menuOpen) nextMenuFilm();
+      else menuVideo.pause?.();
+    }
+  }
+  const menuVideo = document.querySelector<HTMLVideoElement>('#menu-video');
+  let menuFilm = Math.floor(Math.random() * LOADING_FILMS);
+  function nextMenuFilm() {
+    if (!menuVideo || !menuOpen) return;
+    menuVideo.src = `${import.meta.env.BASE_URL}media/loading-${menuFilm++ % LOADING_FILMS}.mp4`;
+    void menuVideo.play?.()?.catch(() => {});
   }
   const onHelp = () => setMenu(!menuOpen);
   const onResume = () => setMenu(false);
