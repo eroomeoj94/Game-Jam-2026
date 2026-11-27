@@ -2010,3 +2010,47 @@ kbd.ps-triangle {
     font-size: 22px;
   }
 }
+/* Real wood and rope, painted for the game, over the drawn stand-ins. */
+.scoreboard .team,
+.scoreboard .round,
+.actions button {
+  --wood: url('/ui/wood.webp') center / 300px;
+  background: var(--wood);
+}
+.scoreboard .team[data-team='1'],
+.scoreboard .team[data-team='3'] {
+  background-position: 30% 70%;
+}
+.scoreboard .round,
+.actions button {
+  background: linear-gradient(#8a4a1259, #6b350a66), var(--wood);
+}
+.actions button:nth-of-type(1) {
+  background-position:
+    0 0,
+    20% 35%;
+}
+.actions button:nth-of-type(4) {
+  background-position:
+    0 0,
+    80% 85%;
+}
+.actions #pass {
+  background: linear-gradient(#fff3c81f, #fff3c800), var(--wood);
+  background-position:
+    0 0,
+    60% 15%;
+}
+.scoreboard .team::before,
+.scoreboard .round::before {
+  left: calc(20% - 4px);
+  right: calc(20% - 4px);
+  border: 0;
+  background:
+    url('/ui/rope.webp') left bottom / 10px auto no-repeat,
+    url('/ui/rope.webp') right bottom / 10px auto no-repeat;
+}
+.scoreboard .round::before {
+  left: calc(34% - 4px);
+  right: calc(34% - 4px);
+}
