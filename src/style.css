@@ -149,20 +149,6 @@ button:disabled {
   opacity: 0.5;
   cursor: wait;
 }
-footer {
-  position: absolute;
-  bottom: 0;
-  left: 4.5%;
-  right: 4.5%;
-  padding: 20px 0;
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid #bfccbc22;
-  color: #8d9a9c;
-  font-size: 10px;
-  letter-spacing: 0.025em;
-  pointer-events: none;
-}
 @media (max-width: 700px) {
   .diorama {
     min-height: 740px;
@@ -187,9 +173,6 @@ footer {
   }
   button {
     padding: 12px;
-  }
-  footer span:first-child {
-    display: none;
   }
 }
 
