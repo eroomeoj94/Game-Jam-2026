@@ -1703,3 +1703,310 @@ kbd.ps-triangle {
 .diorama.calling > :not(#game):not(#countdown):not(#menu) {
   visibility: hidden;
 }
+
+/* The wooden HUD: score signs hanging on rope, and plank buttons. */
+.scoreboard,
+.actions button {
+  --wood-dark: #6e431d;
+  --ink: #3a2412;
+  --grain: repeating-linear-gradient(
+    91deg,
+    #0000 0 9px,
+    #6e431d22 9px 10px,
+    #0000 10px 17px,
+    #fff3 17px 18px,
+    #0000 18px 31px
+  );
+  font-family: 'Chewy', 'Marker Felt', 'Comic Sans MS', cursive;
+}
+.scoreboard {
+  top: 0;
+  gap: 14px;
+  align-items: flex-start;
+}
+.scoreboard .team,
+.scoreboard .round {
+  position: relative;
+  margin-top: 20px;
+  padding: 7px 16px 12px;
+  border: 3px solid var(--wood-dark);
+  border-radius: 12px;
+  background: var(--grain), linear-gradient(#e6b97c, #cf9c5d);
+  box-shadow:
+    inset 0 -5px 0 #a8713a,
+    inset 0 2px 0 #f3d3a0,
+    0 8px 14px #0007;
+  color: var(--ink);
+  transform-origin: 50% -20px;
+}
+/* Two ropes up off the top of the screen, and the nails they hang from. */
+.scoreboard .team::before,
+.scoreboard .round::before {
+  content: '';
+  position: absolute;
+  top: -26px;
+  left: 20%;
+  right: 20%;
+  height: 26px;
+  border: solid #d8c39a;
+  border-width: 0 3px;
+}
+.scoreboard .team::after,
+.scoreboard .round::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: calc(20% - 2px);
+  right: calc(20% - 2px);
+  height: 7px;
+  background:
+    radial-gradient(circle at 3.5px 50%, #4b2c12 3px, #0000 3.5px),
+    radial-gradient(circle at calc(100% - 3.5px) 50%, #4b2c12 3px, #0000 3.5px);
+}
+.scoreboard .team {
+  min-width: 170px;
+  opacity: 1;
+  filter: brightness(0.74) saturate(0.85);
+  transition:
+    filter 0.25s,
+    translate 0.25s;
+}
+.scoreboard .team[data-team='0'],
+.scoreboard .team[data-team='2'] {
+  rotate: -2deg;
+}
+.scoreboard .team[data-team='1'],
+.scoreboard .team[data-team='3'] {
+  rotate: 2deg;
+}
+.scoreboard .team[data-team] {
+  border-radius: 12px;
+}
+.scoreboard .team[data-turn='true'] {
+  filter: none;
+  translate: 0 5px;
+  animation: sign-sway 2.6s ease-in-out infinite;
+}
+.scoreboard .team.knock {
+  animation: sign-knock 0.9s ease-out;
+}
+@keyframes sign-sway {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+@keyframes sign-knock {
+  0% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(-11deg);
+  }
+  40% {
+    transform: rotate(8deg);
+  }
+  65% {
+    transform: rotate(-4deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+.scoreboard .team-name {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.scoreboard .team .team-score {
+  font-family: inherit;
+  font-size: 38px;
+  color: var(--ink);
+}
+/* The race bar is a groove cut in the plank, filled with the team's paint. */
+.scoreboard .team-bar {
+  height: 8px;
+  margin-top: 5px;
+  border: 2px solid var(--wood-dark);
+  border-radius: 6px;
+  background: #5a3716;
+}
+.scoreboard .team-bar i {
+  border-radius: 3px;
+}
+.scoreboard .round {
+  gap: 3px;
+  margin-top: 12px;
+  padding: 8px 14px 12px;
+  border-radius: 18px;
+  background: var(--grain), linear-gradient(#c98f4e, #b0773b);
+  box-shadow:
+    inset 0 -5px 0 #8f5c2a,
+    inset 0 2px 0 #dfae70,
+    0 8px 14px #0007;
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.scoreboard .round::before {
+  top: -18px;
+  height: 18px;
+  left: 34%;
+  right: 34%;
+}
+.scoreboard .round::after {
+  left: calc(34% - 2px);
+  right: calc(34% - 2px);
+}
+.scoreboard .round #round-label {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 400;
+}
+.scoreboard .lamp-bar span {
+  border: 2px solid var(--wood-dark);
+  border-radius: 9px;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-weight: 650;
+}
+.scoreboard
+  .lamp-bar
+  span:not([data-state^='team']):not([data-state='zapper']) {
+  background: #5a3716;
+  color: #f0d9b0;
+}
+.banner[data-phase='plan'] {
+  top: 128px;
+}
+.actions {
+  align-items: flex-end;
+  gap: 12px;
+}
+.actions button {
+  padding: 8px 15px 12px;
+  border: 3px solid var(--wood-dark);
+  border-radius: 10px;
+  background: var(--grain), linear-gradient(#c98f4e, #b0773b);
+  box-shadow:
+    inset 0 -5px 0 #8f5c2a,
+    inset 0 2px 0 #dfae70,
+    0 6px 10px #0007;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  transition:
+    translate 0.12s,
+    rotate 0.12s;
+}
+.actions button:nth-of-type(1) {
+  rotate: -3deg;
+}
+.actions button:nth-of-type(2) {
+  rotate: 2deg;
+}
+.actions button:nth-of-type(4) {
+  rotate: 3deg;
+}
+.actions #pass {
+  padding: 11px 20px 16px;
+  background: var(--grain), linear-gradient(#f0c88c, #dba968);
+  box-shadow:
+    inset 0 -6px 0 #b98447,
+    inset 0 2px 0 #fbe3b8,
+    0 6px 10px #0007;
+  font-size: 22px;
+}
+.actions button:hover:not(:disabled) {
+  translate: 0 -3px;
+  rotate: 0deg;
+  filter: brightness(1.08);
+}
+.actions button:active:not(:disabled) {
+  translate: 0 2px;
+  box-shadow:
+    inset 0 -2px 0 #8f5c2a,
+    0 2px 4px #0007;
+}
+.actions button:disabled {
+  opacity: 1;
+  filter: brightness(0.7) saturate(0.7);
+}
+.scoreboard[data-teams='3'],
+.scoreboard[data-teams='4'] {
+  gap: 8px;
+}
+.scoreboard[data-teams='3'] .team,
+.scoreboard[data-teams='4'] .team {
+  min-width: 118px;
+  padding: 7px 11px 12px;
+}
+@media (max-width: 760px) {
+  .scoreboard {
+    gap: 6px;
+  }
+  .scoreboard .team {
+    min-width: 0;
+    padding: 6px 9px 10px;
+  }
+  .scoreboard .team-name {
+    font-size: 12px;
+  }
+  .scoreboard .team .team-score {
+    font-size: 26px;
+  }
+  .actions button {
+    font-size: 13px;
+  }
+  .actions #pass {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard .team[data-turn='true'],
+  .scoreboard .team.knock {
+    animation: none;
+  }
+}
+/* Each score is burnt into a roundel of the team's paint. */
+.scoreboard .team[data-team] .team-score {
+  display: grid;
+  place-items: center;
+  min-width: 46px;
+  height: 46px;
+  padding: 0 6px;
+  border: 3px solid var(--wood-dark);
+  border-radius: 23px;
+  background: #e7c28b;
+  box-shadow: inset 0 -3px 0 #0002;
+  color: var(--ink);
+  font-size: 30px;
+  text-align: center;
+}
+.scoreboard .team[data-team='0'] .team-score {
+  background: #f2c14e;
+}
+.scoreboard .team[data-team='1'] .team-score {
+  background: #7fd1c8;
+}
+.scoreboard .team[data-team='2'] .team-score {
+  background: #c9a8ff;
+}
+.scoreboard .team[data-team='3'] .team-score {
+  background: #f4ecd8;
+}
+@media (max-width: 760px) {
+  .scoreboard .team[data-team] .team-score {
+    min-width: 34px;
+    height: 34px;
+    font-size: 22px;
+  }
+}

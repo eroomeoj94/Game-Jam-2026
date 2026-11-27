@@ -1093,6 +1093,16 @@ export function startApplication({
       const width = `${Math.round(Math.min(1, Math.max(0, points / MATCH.targetScore)) * 100)}%`;
       if (bar && bar.style.width !== width) bar.style.width = width;
       const block = bar?.closest<HTMLElement>('.team');
+      // A fresh point knocks the team's sign.
+      const shown = String(points);
+      if (block && block.dataset.points !== shown) {
+        if (block.dataset.points !== undefined) {
+          block.classList.remove('knock');
+          void block.offsetWidth;
+          block.classList.add('knock');
+        }
+        block.dataset.points = shown;
+      }
       const turn = String(
         state.team === team &&
           ['plan', 'move', 'settle', 'aim', 'resolve'].includes(state.phase),
@@ -1927,7 +1937,9 @@ export function startApplication({
   modeTag.textContent = playing ? 'Match' : 'Weapon playground';
   reset.textContent = playing ? 'New match' : 'Reset scene';
   moveMeter.hidden = !playing || MATCH.moveSeconds <= 0;
-  nudge.hidden = zaps.hidden = playing;
+  zaps.hidden = playing;
+  // The nudge button is off the screen; the tests still press it.
+  nudge.hidden = true;
   score.hidden = lampBar.hidden = !playing;
   banner.hidden = true;
   settleWorld();

@@ -1,4 +1,5 @@
 import { startApplication } from './application';
+import '@fontsource/chewy/latin-400.css';
 import './style.css';
 
 try {
